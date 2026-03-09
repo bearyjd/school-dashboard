@@ -71,10 +71,10 @@ fi
 CRON_LINE="0 6 * * * /opt/school-dashboard/school-sync.sh 2>/tmp/school-sync.log"
 if crontab -l 2>/dev/null | grep -qF "school-sync.sh"; then
     log "Cron entry already exists — replacing"
-    (crontab -l 2>/dev/null | grep -vF "school-sync.sh"; echo "$CRON_LINE") | crontab -
+    (crontab -l 2>/dev/null | grep -vF "school-sync.sh" || true; echo "$CRON_LINE") | crontab -
 else
     log "Adding 6am cron entry"
-    (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
+    (crontab -l 2>/dev/null || true; echo "$CRON_LINE") | crontab -
 fi
 
 # ---------------------------------------------------------------
