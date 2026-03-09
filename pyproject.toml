@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "school-dashboard"
+version = "0.1.0"
+description = "Persistent state manager + static dashboard for family school situational awareness"
+requires-python = ">=3.10"
+dependencies = [
+    "jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+server = ["flask>=3.0"]
+
+[project.scripts]
+school-state = "school_dashboard.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["school_dashboard*"]
+
+[tool.setuptools.package-data]
+school_dashboard = ["templates/*.html"]
