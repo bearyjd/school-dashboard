@@ -3,17 +3,17 @@
 **Schedule:** `0 18 * * *` (6pm daily, America/New_York)
 **Model:** Haiku
 **Timeout:** 120s
-**Delivery:** Signal to +12026564245
+**Delivery:** Signal to YOUR_PHONE
 
 ## Prompt
 
 ```
-Run: GOG_KEYRING_PASSWORD= gog gmail search "in:inbox newer_than:6h" --max 15 -a jd@beary.us -j
+Run: GOG_KEYRING_PASSWORD= gog gmail search "in:inbox newer_than:6h" --max 15 -a YOUR_EMAIL -j
 
-If fewer than 3 emails match and none are from stmark.org or are starred, reply only: "No evening updates." and stop.
+If fewer than 3 emails match and none are from YOUR_SCHOOL_DOMAIN or are starred, reply only: "No evening updates." and stop.
 
-For qualifying emails (stmark.org, starred, or school-activity keywords in subject), fetch body:
-  GOG_KEYRING_PASSWORD= gog gmail get <messageId> -a jd@beary.us -j
+For qualifying emails (YOUR_SCHOOL_DOMAIN, starred, or school-activity keywords in subject), fetch body:
+  GOG_KEYRING_PASSWORD= gog gmail get <messageId> -a YOUR_EMAIL -j
 Extract facts immediately, discard body.
 
 For each action item found, run:

@@ -7,35 +7,56 @@ from pathlib import Path
 from typing import Optional
 
 DEFAULT_STATE_PATH = Path("/var/lib/openclaw/school-state.json")
-
-CHILDREN = {
-    "Ford": {"grade": "2nd", "school": "SMCS"},
-    "Jack": {"grade": "7th", "school": "SMCS"},
-    "Pennington": {"grade": "5th", "school": "SMCS"},
-}
-
-# IXL cron uses short names from accounts.env; SGY uses full first names.
-# Map all known variants to canonical names.
-NAME_ALIASES = {
-    "ford": "Ford",
-    "jack": "Jack",
-    "penn": "Pennington",
-    "pennington": "Pennington",
-}
+DEFAULT_CONFIG_PATH = Path("/etc/school-dashboard/config.json")
 
 PRUNE_COMPLETED_AFTER_DAYS = 7
 PRUNE_PAST_DUE_AFTER_DAYS = 3
 
+_config_cache: Optional[dict] = None
+
+
+def _config_path() -> Path:
+    env = os.environ.get("SCHOOL_DASHBOARD_CONFIG")
+    if env:
+        return Path(env)
+    return DEFAULT_CONFIG_PATH
+
+
+def _load_config() -> dict:
+    global _config_cache
+    if _config_cache is not None:
+        return _config_cache
+
+    p = _config_path()
+    if p.exists():
+        try:
+            _config_cache = json.loads(p.read_text())
+            return _config_cache
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    _config_cache = {"children": {}, "name_aliases": {}}
+    return _config_cache
+
+
+def get_children() -> dict:
+    return _load_config().get("children", {})
+
+
+def get_name_aliases() -> dict:
+    return _load_config().get("name_aliases", {})
+
 
 def _canonicalize(name: str) -> str:
+    aliases = get_name_aliases()
     lower = name.strip().lower()
-    return NAME_ALIASES.get(lower, name.strip().title())
+    return aliases.get(lower, name.strip().title())
 
 
 def _empty_state() -> dict:
     return {
         "last_updated": None,
-        "children": CHILDREN,
+        "children": get_children(),
         "ixl": {},
         "schoology": {},
         "action_items": [],

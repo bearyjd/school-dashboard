@@ -40,8 +40,8 @@ school-state show --json
 
 # Action items
 school-state action list
-school-state action list --child Ford
-school-state action add Ford "Permission slip for field trip" --due 2026-03-15 --source email
+school-state action list --child <name>
+school-state action add <name> "Permission slip for field trip" --due 2026-03-15 --source email
 school-state action complete abc123def456
 ```
 
@@ -83,12 +83,31 @@ The HTML embeds the full state JSON in a hidden `<script>` tag for future Flask 
 ## Install on Server
 
 ```bash
-pip install -e /opt/school-dashboard
-cp school-sync.sh /opt/school-dashboard/
-chmod +x /opt/school-dashboard/school-sync.sh
-mkdir -p /var/lib/openclaw
+ssh root@<server> 'bash -s' < install-lxc.sh
 ```
 
-## Child Name Mapping
+Or manually:
+```bash
+pip install git+https://github.com/bearyjd/school-dashboard --break-system-packages
+git clone https://github.com/bearyjd/school-dashboard.git /opt/school-dashboard
+```
 
-IXL uses short account names (`ford`, `jack`, `penn`), Schoology uses full names (`Ford Beary`). The `NAME_ALIASES` dict in `state.py` maps all variants to canonical names. Edit if your account names differ.
+## Configuration
+
+Children and name aliases are stored in `/etc/school-dashboard/config.json` (created by `install-lxc.sh`). Override path with `SCHOOL_DASHBOARD_CONFIG` env var.
+
+```json
+{
+  "children": {
+    "Alice": {"grade": "2nd", "school": "Example School"},
+    "Bob": {"grade": "5th", "school": "Example School"}
+  },
+  "name_aliases": {
+    "ali": "Alice",
+    "alice": "Alice",
+    "bob": "Bob"
+  }
+}
+```
+
+IXL uses short account names from `accounts.env`, Schoology uses full first names. The `name_aliases` map ensures both resolve to the same canonical name.

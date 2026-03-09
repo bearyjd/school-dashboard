@@ -37,10 +37,33 @@ fi
 chmod +x /opt/school-dashboard/school-sync.sh
 
 # ---------------------------------------------------------------
-# 3. Create state directory
+# 3. Create state directory + config
 # ---------------------------------------------------------------
 mkdir -p /var/lib/openclaw
-log "State directory: /var/lib/openclaw"
+mkdir -p /etc/school-dashboard
+
+CONFIG=/etc/school-dashboard/config.json
+if [[ -f "$CONFIG" ]]; then
+    log "Config already exists at $CONFIG — not overwriting"
+else
+    log "Creating config at $CONFIG"
+    cat > "$CONFIG" << 'CONF'
+{
+  "children": {
+    "Ford": {"grade": "2nd", "school": "SMCS"},
+    "Jack": {"grade": "7th", "school": "SMCS"},
+    "Pennington": {"grade": "5th", "school": "SMCS"}
+  },
+  "name_aliases": {
+    "ford": "Ford",
+    "jack": "Jack",
+    "penn": "Pennington",
+    "pennington": "Pennington"
+  }
+}
+CONF
+    chmod 600 "$CONFIG"
+fi
 
 # ---------------------------------------------------------------
 # 4. Add 6am system cron (data refresh, no LLM)

@@ -3,7 +3,7 @@
 **Schedule:** `0 14 * * 0-5` (2pm weekdays + Sunday, America/New_York)
 **Model:** Haiku
 **Timeout:** 60s
-**Delivery:** Signal to +12026564245
+**Delivery:** Signal to YOUR_PHONE
 
 **Replaces:** Both "IXL Daily Report" and "School Homework Briefing" crons.
 
@@ -14,7 +14,7 @@ Read the school state file and format a combined afternoon update.
 
 Run: school-state show
 
-Children: Ford (2nd grade), Jack (7th grade), Pennington (5th grade)
+The state file contains all children, their IXL progress, and Schoology assignments/grades.
 
 Format for Signal:
 
