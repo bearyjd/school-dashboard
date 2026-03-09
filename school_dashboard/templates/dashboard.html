@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>School Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #242736;
+    --border: #2e3247;
+    --text: #e1e4ed;
+    --text2: #8b90a5;
+    --accent: #6c8cff;
+    --green: #4ade80;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --orange: #fb923c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 16px;
+    max-width: 600px;
+    margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 1.3rem; font-weight: 600; }
+  header .meta { font-size: 0.75rem; color: var(--text2); }
+  .section { margin-bottom: 24px; }
+  .section-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text2);
+    margin-bottom: 10px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .child-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .child-name { font-weight: 600; font-size: 1.05rem; }
+  .child-grade { font-size: 0.8rem; color: var(--text2); }
+  .ixl-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 0.85rem;
+  }
+  .ixl-subject { color: var(--text2); }
+  .ixl-progress { font-variant-numeric: tabular-nums; }
+  .progress-bar {
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    margin-top: 3px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+  .fill-good { background: var(--green); }
+  .fill-mid { background: var(--yellow); }
+  .fill-low { background: var(--orange); }
+  .fill-none { background: var(--red); }
+  .assignment-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 5px 0;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .assignment-row:last-child { border-bottom: none; }
+  .assignment-title { flex: 1; margin-right: 8px; }
+  .assignment-course { font-size: 0.75rem; color: var(--text2); display: block; }
+  .assignment-due { font-size: 0.75rem; white-space: nowrap; }
+  .due-tomorrow { color: var(--yellow); font-weight: 600; }
+  .due-overdue { color: var(--red); font-weight: 600; }
+  .grades-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 12px;
+    font-size: 0.85rem;
+  }
+  .grade-ok { color: var(--green); }
+  .grade-warn { color: var(--yellow); }
+  .grade-bad { color: var(--red); font-weight: 600; }
+  .action-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .action-item:last-child { border-bottom: none; }
+  .action-child {
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .action-source {
+    font-size: 0.65rem;
+    color: var(--text2);
+    background: var(--surface2);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .empty { color: var(--text2); font-size: 0.85rem; font-style: italic; }
+  .all-clear { color: var(--green); }
+  .updated { font-size: 0.7rem; color: var(--text2); margin-top: 6px; }
+
+  /* JSON endpoint for future Flask upgrade */
+  #state-json { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>School Dashboard</h1>
+  <span class="meta">{{ generated }}</span>
+</header>
+
+{% if action_items %}
+<div class="section">
+  <div class="section-title">Action Items ({{ action_items|length }})</div>
+  <div class="card">
+    {% for item in action_items %}
+    <div class="action-item">
+      <span class="action-child">{{ item.child }}</span>
+      <span class="assignment-title">{{ item.summary }}</span>
+      {% if item.due %}
+      <span class="assignment-due {% if item.due|is_overdue %}due-overdue{% elif item.due|is_due_tomorrow %}due-tomorrow{% endif %}">
+        {{ item.due|format_due }}
+      </span>
+      {% endif %}
+      <span class="action-source">{{ item.source }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% for child in children %}
+<div class="section">
+  <div class="card">
+    <div class="child-header">
+      <span class="child-name">{{ child.name }}</span>
+      <span class="child-grade">{{ child.grade }}</span>
+    </div>
+
+    {% if child.ixl_totals %}
+    <div style="margin-bottom: 10px;">
+      <div class="section-title" style="margin-bottom: 6px;">IXL Progress</div>
+      {% for subject, totals in child.ixl_totals.items() %}
+      <div class="ixl-row">
+        <span class="ixl-subject">{{ subject }}</span>
+        <span class="ixl-progress">{{ totals.done }}/{{ totals.assigned }}</span>
+      </div>
+      {% set pct = (totals.done / totals.assigned * 100) if totals.assigned > 0 else 0 %}
+      <div class="progress-bar">
+        <div class="progress-fill {% if pct >= 80 %}fill-good{% elif pct >= 50 %}fill-mid{% elif pct > 0 %}fill-low{% else %}fill-none{% endif %}"
+             style="width: {{ pct|round|int }}%"></div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">No IXL data</div>
+    {% endif %}
+
+    {% if child.grades %}
+    <div style="margin-bottom: 10px;">
+      <div class="section-title" style="margin-bottom: 6px;">Grades</div>
+      <div class="grades-grid">
+        {% for g in child.grades %}
+        {% if g.grade %}
+        <span>{{ g.course }}</span>
+        <span class="{{ g.letter|letter_class }}">{{ g.grade }}</span>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if child.assignments %}
+    <div>
+      <div class="section-title" style="margin-bottom: 6px;">Assignments ({{ child.assignments|length }})</div>
+      {% for a in child.assignments[:8] %}
+      <div class="assignment-row">
+        <span class="assignment-title">
+          {{ a.title }}
+          <span class="assignment-course">{{ a.course }}</span>
+        </span>
+        {% if a.due_date %}
+        <span class="assignment-due {% if a.due_date|is_overdue %}due-overdue{% elif a.due_date|is_due_tomorrow %}due-tomorrow{% endif %}">
+          {{ a.due_date|format_due }}
+        </span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not child.ixl_totals and not child.grades and not child.assignments %}
+    <div class="empty all-clear">No data yet</div>
+    {% endif %}
+
+    {% if child.ixl_updated or child.sgy_updated %}
+    <div class="updated">
+      {% if child.ixl_updated %}IXL: {{ child.ixl_updated[:16] }}{% endif %}
+      {% if child.ixl_updated and child.sgy_updated %} · {% endif %}
+      {% if child.sgy_updated %}SGY: {{ child.sgy_updated[:16] }}{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<script id="state-json" type="application/json">{{ state_json }}</script>
+</body>
+</html>
