@@ -13,17 +13,33 @@ Requires `ixl` and `sgy` CLIs to be installed separately for data scraping.
 ## How It Works
 
 ```
-6am cron (no LLM)              OpenClaw agents (with LLM)
-┌─────────────────┐            ┌──────────────────────┐
-│  school-sync.sh │            │  morning-briefing     │
-│  ├─ ixl-cron.sh │            │  reads state file     │
-│  ├─ sgy summary │──state──>  │  scans email          │
-│  ├─ state update│  file      │  updates action items │
-│  └─ html regen  │            │  sends Signal digest  │
-└─────────────────┘            └──────────────────────┘
+6:00 AM  school-sync.sh (system cron, NO LLM)
+         ├── IXL scrape → state
+         ├── SGY scrape → state
+         ├── Email sync → fetch all emails, strip HTML,
+         │                extract PDF text, classify,
+         │                write email-digest.json
+         └── Regen dashboard HTML
+
+6:05 AM  Email Triage (Haiku, 60s)
+         └── Reads digest, creates action items for ACTIONABLE emails
+
+7:00 AM  Morning Briefing (Sonnet, 180s)
+         ├── school-state show     (~1.3KB)
+         ├── school-state email-show (~1.5KB)
+         ├── Calendar events
+         ├── Full body fetch only if snippet unclear (max 3)
+         └── Signal digest
+         TOTAL CONTEXT: ~6KB base, ~21KB worst case
+
+2:00 PM  Afternoon Update (Haiku, 60s)
+         └── school-state show → IXL + homework + grades → Signal
+
+6:00 PM  Evening Email (Haiku, 120s)
+         └── Light inbox scan → update action items → Signal
 ```
 
-The 6am sync scrapes IXL + Schoology and merges everything into `/var/lib/openclaw/school-state.json`. OpenClaw agents read the compact state file (~5KB) instead of running scrapers themselves, avoiding context window blowup.
+Context budget dropped from ~150KB/day to ~28KB worst case by pre-processing emails and reading compact state files instead of raw scraper output.
 
 ## CLI
 
@@ -43,7 +59,27 @@ school-state action list
 school-state action list --child <name>
 school-state action add <name> "Permission slip for field trip" --due 2026-03-15 --source email
 school-state action complete abc123def456
+
+# Email pre-processing
+school-state email-sync --account user@example.com
+school-state email-show
+school-state email-show --json
 ```
+
+## Email Pipeline
+
+`school-state email-sync` fetches all inbox emails, strips HTML to plain text snippets, downloads and extracts text from PDF attachments, and classifies each email:
+
+| Bucket | Rule |
+|---|---|
+| `SCHOOL` | Sender domain matches configured school domains |
+| `CHILD_ACTIVITY` | Subject contains activity keywords (practice, game, permission, etc.) |
+| `STARRED` | User-starred in Gmail |
+| `FINANCIAL` | Subject contains financial keywords |
+| `SKIP` | Promotions, social, GitHub, known marketing senders |
+| `UNKNOWN` | Everything else — included in digest for LLM triage |
+
+Processed emails are labeled `OpenClaw/Scanned` in Gmail to prevent re-scanning.
 
 ## State File
 
@@ -51,34 +87,11 @@ Default location: `/var/lib/openclaw/school-state.json`
 
 Override with `--state-file` flag or `SCHOOL_STATE_PATH` env var.
 
-## Cron Setup
-
-### 1. System cron (data refresh, no LLM)
-
-```bash
-0 6 * * * /opt/school-dashboard/school-sync.sh 2>/tmp/school-sync.log
-```
-
-### 2. OpenClaw crons (use rewritten prompts from `cron-prompts/`)
-
-| Time | Job | Model | What it does |
-|------|-----|-------|-------------|
-| 7am | Morning Briefing | Sonnet | Reads state, scans email, calendar sync, Signal digest |
-| 2pm | Afternoon Update | Haiku | Reads state, formats IXL + homework report |
-| 6pm | Evening Email | Haiku | Light inbox scan, updates action items |
-
-See `cron-prompts/` for the exact prompt text for each job.
-
 ## Dashboard
 
-Static HTML generated at `/var/lib/openclaw/school-dashboard.html`. Mobile-friendly dark theme. Includes:
+Static HTML at `/var/lib/openclaw/school-dashboard.html`. Mobile-friendly dark theme. Shows action items, IXL progress bars, grades (flags below B), and upcoming assignments.
 
-- Action items (pending, sorted by due date)
-- IXL progress per child with progress bars
-- Grades per course (flags below B)
-- Upcoming assignments
-
-The HTML embeds the full state JSON in a hidden `<script>` tag for future Flask upgrade — just serve the JSON at `/api/state` and swap the template to Jinja server-side.
+The HTML embeds state JSON in a hidden `<script>` tag for future Flask upgrade.
 
 ## Install on Server
 
@@ -94,7 +107,7 @@ git clone https://github.com/bearyjd/school-dashboard.git /opt/school-dashboard
 
 ## Configuration
 
-Children and name aliases are stored in `/etc/school-dashboard/config.json` (created by `install-lxc.sh`). Override path with `SCHOOL_DASHBOARD_CONFIG` env var.
+### Children (`/etc/school-dashboard/config.json`)
 
 ```json
 {
@@ -110,4 +123,23 @@ Children and name aliases are stored in `/etc/school-dashboard/config.json` (cre
 }
 ```
 
-IXL uses short account names from `accounts.env`, Schoology uses full first names. The `name_aliases` map ensures both resolve to the same canonical name.
+Override path with `SCHOOL_DASHBOARD_CONFIG` env var.
+
+### Email (`/etc/school-dashboard/env`)
+
+```
+SCHOOL_EMAIL_ACCOUNT=user@example.com
+SCHOOL_DOMAINS=school.org,schoology.com,ccsend.com
+```
+
+## .gitignore
+
+```
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.env
+```
