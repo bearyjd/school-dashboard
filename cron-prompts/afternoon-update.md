@@ -3,7 +3,7 @@
 **Schedule:** `0 15 * * 0-5` (3pm weekdays + Sunday, America/New_York)
 **Model:** Haiku
 **Timeout:** 60s
-**Delivery:** Signal to YOUR_PHONE
+**Delivery:** Signal to YOUR_PHONE + second recipient via message send
 
 **Replaces:** Both "IXL Daily Report" and "School Homework Briefing" crons.
 
@@ -42,4 +42,7 @@ Rules:
 - Be terse. One line per item.
 - Under 800 chars total.
 - Skip empty sections entirely.
+
+After composing your final message, ALSO send it to a second recipient by running:
+  openclaw message send --channel signal --target "+12029303079" -m "<your full message>"
 ```
