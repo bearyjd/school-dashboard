@@ -9,6 +9,8 @@ description = "Persistent state manager + static dashboard for family school sit
 requires-python = ">=3.10"
 dependencies = [
     "jinja2>=3.1",
+    "beautifulsoup4>=4.12",
+    "pdfminer.six>=20221105",
 ]
 
 [project.optional-dependencies]

@@ -65,6 +65,21 @@ CONF
     chmod 600 "$CONFIG"
 fi
 
+ENVFILE=/etc/school-dashboard/env
+if [[ -f "$ENVFILE" ]]; then
+    log "Env file already exists at $ENVFILE — not overwriting"
+else
+    log "Creating env file at $ENVFILE"
+    cat > "$ENVFILE" << 'ENV'
+SCHOOL_EMAIL_ACCOUNT=jd@beary.us
+SCHOOL_DOMAINS=stmark.org,schoology.com,ccsend.com
+ENV
+    chmod 600 "$ENVFILE"
+fi
+
+# Source env for this install session
+set -a; source "$ENVFILE"; set +a
+
 # ---------------------------------------------------------------
 # 4. Add 6am system cron (data refresh, no LLM)
 # ---------------------------------------------------------------

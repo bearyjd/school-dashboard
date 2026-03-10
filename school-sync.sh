@@ -11,6 +11,9 @@
 
 set -euo pipefail
 
+ENVFILE="${SCHOOL_DASHBOARD_ENV:-/etc/school-dashboard/env}"
+[[ -f "$ENVFILE" ]] && { set -a; source "$ENVFILE"; set +a; }
+
 IXL_CRON="${IXL_CRON:-/opt/ixl/cron/ixl-cron.sh}"
 IXL_DIR="${IXL_DIR:-/tmp/ixl}"
 SGY_FILE="${SGY_FILE:-/tmp/schoology-daily.json}"
@@ -37,7 +40,15 @@ fi
 log "Updating state..."
 school-state update --ixl-dir "$IXL_DIR" --sgy-file "$SGY_FILE"
 
-# --- Step 4: Regenerate dashboard ---
+# --- Step 4: Email sync (fetch, normalize, classify — no LLM) ---
+if [[ -n "${SCHOOL_EMAIL_ACCOUNT:-}" ]]; then
+    log "Syncing emails..."
+    school-state email-sync --account "$SCHOOL_EMAIL_ACCOUNT" || log "WARN: Email sync had errors"
+else
+    log "WARN: SCHOOL_EMAIL_ACCOUNT not set — skipping email sync"
+fi
+
+# --- Step 5: Regenerate dashboard ---
 log "Regenerating dashboard..."
 school-state html
 

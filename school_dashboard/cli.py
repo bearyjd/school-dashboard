@@ -1,9 +1,11 @@
 import argparse
 import json
+import os
 import sys
 
 from school_dashboard import state
 from school_dashboard import html
+from school_dashboard import email
 
 
 def cmd_update(args: argparse.Namespace) -> None:
@@ -71,6 +73,46 @@ def cmd_action_list(args: argparse.Namespace) -> None:
         print(f"  {item['id']}  {item['child']}: {item['summary']}{due}{src}")
 
 
+def cmd_email_sync(args: argparse.Namespace) -> None:
+    account = args.account or os.environ.get("SCHOOL_EMAIL_ACCOUNT", "")
+    if not account:
+        print("Error: provide --account or set SCHOOL_EMAIL_ACCOUNT", file=sys.stderr)
+        sys.exit(1)
+
+    email.ensure_labels(account)
+
+    print(f"Scanning: {args.query} (max {args.max_results})", file=sys.stderr)
+    digest = email.sync_emails(
+        account=account,
+        query=args.query,
+        max_results=args.max_results,
+        digest_path=args.digest_file,
+        label_scanned=not args.no_label,
+    )
+
+    total = digest.get("total", 0)
+    skipped = digest.get("skipped", 0)
+    relevant = digest.get("actionable_count", 0)
+    ctx_bytes = digest.get("_context_bytes", 0)
+
+    print(f"Emails: {total} total, {skipped} skipped, {relevant} relevant", file=sys.stderr)
+    print(f"Context: {ctx_bytes:,} bytes ({ctx_bytes/1024:.1f}KB)", file=sys.stderr)
+
+    if args.json:
+        print(json.dumps(digest, indent=2))
+
+
+def cmd_email_show(args: argparse.Namespace) -> None:
+    if args.json:
+        p = email._digest_path(args.digest_file)
+        if p.exists():
+            print(p.read_text())
+        else:
+            print("{}", file=sys.stdout)
+    else:
+        print(email.digest_summary(args.digest_file))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="school-state", description="School situational awareness state manager")
     parser.add_argument("--state-file", type=str, default=None, help="State file path (default: /var/lib/openclaw/school-state.json)")
@@ -109,6 +151,20 @@ def main() -> None:
     p_list.add_argument("--child", type=str, default=None)
     p_list.add_argument("--json", action="store_true")
     p_list.set_defaults(func=cmd_action_list)
+
+    p_email = subs.add_parser("email-sync", help="Fetch and pre-process emails into compact digest")
+    p_email.add_argument("--account", type=str, default=None, help="Gmail account (or set SCHOOL_EMAIL_ACCOUNT)")
+    p_email.add_argument("--query", type=str, default="in:inbox newer_than:12h", help="Gmail search query")
+    p_email.add_argument("--max", type=int, default=50, dest="max_results", help="Max emails to fetch")
+    p_email.add_argument("--no-label", action="store_true", help="Skip labeling processed emails")
+    p_email.add_argument("--digest-file", type=str, default=None, help="Output digest JSON path")
+    p_email.add_argument("--json", action="store_true")
+    p_email.set_defaults(func=cmd_email_sync)
+
+    p_email_show = subs.add_parser("email-show", help="Print email digest summary")
+    p_email_show.add_argument("--digest-file", type=str, default=None)
+    p_email_show.add_argument("--json", action="store_true")
+    p_email_show.set_defaults(func=cmd_email_show)
 
     args = parser.parse_args()
     if not args.command:
