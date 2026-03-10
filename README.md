@@ -21,8 +21,8 @@ Requires `ixl` and `sgy` CLIs to be installed separately for data scraping.
          │                write email-digest.json
          └── Regen dashboard HTML
 
-6:05 AM  Email Triage (Haiku, 60s)
-         └── Reads digest, creates action items for ACTIONABLE emails
+6:05 AM  Email Triage (Haiku, 60s, Signal)
+         └── Reads digest, creates action items, flags uncertain emails
 
 7:00 AM  Morning Briefing (Sonnet, 180s)
          ├── school-state show     (~1.3KB)
@@ -34,6 +34,9 @@ Requires `ixl` and `sgy` CLIs to be installed separately for data scraping.
 
 2:30 PM  school-sync.sh (system cron, Mon-Fri, NO LLM)
          └── Re-scrape IXL + SGY + email (catch late homework posts)
+
+2:35 PM  Afternoon Email Triage (Haiku, 60s, Signal, Mon-Fri)
+         └── Reads digest, creates action items, flags uncertain emails
 
 3:00 PM  Afternoon Update (Haiku, 60s)
          └── school-state show → IXL + homework + grades → Signal
