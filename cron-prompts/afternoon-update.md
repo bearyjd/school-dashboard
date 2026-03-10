@@ -1,6 +1,6 @@
 # Afternoon School Update — OpenClaw Cron Prompt
 
-**Schedule:** `0 14 * * 0-5` (2pm weekdays + Sunday, America/New_York)
+**Schedule:** `0 15 * * 0-5` (3pm weekdays + Sunday, America/New_York)
 **Model:** Haiku
 **Timeout:** 60s
 **Delivery:** Signal to YOUR_PHONE

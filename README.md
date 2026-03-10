@@ -32,7 +32,10 @@ Requires `ixl` and `sgy` CLIs to be installed separately for data scraping.
          └── Signal digest
          TOTAL CONTEXT: ~6KB base, ~21KB worst case
 
-2:00 PM  Afternoon Update (Haiku, 60s)
+2:30 PM  school-sync.sh (system cron, Mon-Fri, NO LLM)
+         └── Re-scrape IXL + SGY + email (catch late homework posts)
+
+3:00 PM  Afternoon Update (Haiku, 60s)
          └── school-state show → IXL + homework + grades → Signal
 
 6:00 PM  Evening Email (Haiku, 120s)

@@ -81,15 +81,18 @@ fi
 set -a; source "$ENVFILE"; set +a
 
 # ---------------------------------------------------------------
-# 4. Add 6am system cron (data refresh, no LLM)
+# 4. Add system crons (data refresh, no LLM)
+#    6:00am  — morning scrape (IXL + SGY + email + dashboard)
+#    2:30pm  — afternoon scrape (catch late homework posts, Mon-Fri)
 # ---------------------------------------------------------------
-CRON_LINE="0 6 * * * /opt/school-dashboard/school-sync.sh 2>/tmp/school-sync.log"
+CRON_AM="0 6 * * * /opt/school-dashboard/school-sync.sh 2>>/tmp/school-sync.log"
+CRON_PM="30 14 * * 1-5 /opt/school-dashboard/school-sync.sh 2>>/tmp/school-sync.log"
 if crontab -l 2>/dev/null | grep -qF "school-sync.sh"; then
-    log "Cron entry already exists — replacing"
-    (crontab -l 2>/dev/null | grep -vF "school-sync.sh" || true; echo "$CRON_LINE") | crontab -
+    log "Cron entries already exist — replacing"
+    (crontab -l 2>/dev/null | grep -vF "school-sync.sh" || true; echo "$CRON_AM"; echo "$CRON_PM") | crontab -
 else
-    log "Adding 6am cron entry"
-    (crontab -l 2>/dev/null || true; echo "$CRON_LINE") | crontab -
+    log "Adding 6am + 2:30pm cron entries"
+    (crontab -l 2>/dev/null || true; echo "$CRON_AM"; echo "$CRON_PM") | crontab -
 fi
 
 # ---------------------------------------------------------------
@@ -123,7 +126,7 @@ log "  CLI:        $(which school-state)"
 log "  Sync:       /opt/school-dashboard/school-sync.sh"
 log "  State:      /var/lib/openclaw/school-state.json"
 log "  Dashboard:  /var/lib/openclaw/school-dashboard.html"
-log "  Cron:       6am daily (school-sync.sh)"
+log "  Cron:       6am daily + 2:30pm Mon-Fri (school-sync.sh)"
 log ""
 log "Next steps:"
 log "  1. Update OpenClaw crons with prompts from /opt/school-dashboard/cron-prompts/"

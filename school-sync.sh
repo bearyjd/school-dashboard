@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # school-sync.sh — Data refresh: scrape all sources, update state, regenerate dashboard.
-# Runs via system cron at 6am. No LLM needed.
+# Runs via system cron at 6:00am and 2:30pm. No LLM needed.
+# The 2:30pm run catches homework posted late by teachers.
 #
 # Usage:
 #   ./school-sync.sh                      # uses defaults
 #   IXL_CRON=/opt/ixl/cron/ixl-cron.sh ./school-sync.sh
 #
 # Crontab:
-#   0 6 * * * /opt/school-dashboard/school-sync.sh 2>/tmp/school-sync.log
+#   0 6 * * *    /opt/school-dashboard/school-sync.sh 2>>/tmp/school-sync.log
+#   30 14 * * 1-5 /opt/school-dashboard/school-sync.sh 2>>/tmp/school-sync.log
 
 set -euo pipefail
 
