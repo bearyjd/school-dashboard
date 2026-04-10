@@ -13,24 +13,24 @@ def _connect(db_path: str) -> sqlite3.Connection:
 def init_db(db_path: str) -> None:
     """Create items table and indexes if they don't exist."""
     conn = _connect(db_path)
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS items (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            child        TEXT NOT NULL,
-            title        TEXT NOT NULL,
-            due_date     TEXT,
-            type         TEXT NOT NULL DEFAULT 'assignment',
-            source       TEXT NOT NULL DEFAULT 'manual',
-            completed    INTEGER NOT NULL DEFAULT 0,
-            completed_at TEXT,
-            notes        TEXT,
-            created_at   TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-        CREATE INDEX IF NOT EXISTS idx_items_child ON items(child);
-        CREATE INDEX IF NOT EXISTS idx_items_due   ON items(due_date);
-        CREATE INDEX IF NOT EXISTS idx_items_done  ON items(completed);
-    """)
-    conn.commit()
+    with conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS items (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                child        TEXT NOT NULL,
+                title        TEXT NOT NULL,
+                due_date     TEXT,
+                type         TEXT NOT NULL DEFAULT 'assignment',
+                source       TEXT NOT NULL DEFAULT 'manual',
+                completed    INTEGER NOT NULL DEFAULT 0,
+                completed_at TEXT,
+                notes        TEXT,
+                created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_items_child ON items(child);
+            CREATE INDEX IF NOT EXISTS idx_items_due   ON items(due_date);
+            CREATE INDEX IF NOT EXISTS idx_items_done  ON items(completed);
+        """)
     conn.close()
 
 
@@ -38,19 +38,23 @@ def create_item(
     db_path: str,
     child: str,
     title: str,
-    type: str = "assignment",
+    item_type: str = "assignment",
     source: str = "manual",
     due_date: Optional[str] = None,
     notes: Optional[str] = None,
 ) -> int:
     """Insert a new item and return its id."""
+    if not child or not child.strip():
+        raise ValueError("child must not be empty")
+    if not title or not title.strip():
+        raise ValueError("title must not be empty")
     conn = _connect(db_path)
-    cursor = conn.execute(
-        "INSERT INTO items (child, title, type, source, due_date, notes)"
-        " VALUES (?, ?, ?, ?, ?, ?)",
-        (child, title, type, source, due_date, notes or None),
-    )
-    conn.commit()
+    with conn:
+        cursor = conn.execute(
+            "INSERT INTO items (child, title, type, source, due_date, notes)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (child, title, item_type, source, due_date, notes or None),
+        )
     item_id = cursor.lastrowid
     conn.close()
     return item_id
@@ -73,10 +77,10 @@ def update_item(db_path: str, item_id: int, **kwargs) -> bool:
     set_clause = ", ".join(f"{k} = ?" for k in fields)
     values = list(fields.values()) + [item_id]
     conn = _connect(db_path)
-    cursor = conn.execute(
-        f"UPDATE items SET {set_clause} WHERE id = ?", values
-    )
-    conn.commit()
+    with conn:
+        cursor = conn.execute(
+            f"UPDATE items SET {set_clause} WHERE id = ?", values
+        )
     changed = cursor.rowcount > 0
     conn.close()
     return changed
@@ -116,8 +120,8 @@ def list_items(
 def delete_item(db_path: str, item_id: int) -> bool:
     """Delete an item. Returns True if a row was removed."""
     conn = _connect(db_path)
-    cursor = conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
-    conn.commit()
+    with conn:
+        cursor = conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
     changed = cursor.rowcount > 0
     conn.close()
     return changed

@@ -65,3 +65,13 @@ def test_delete_item(db):
     item_id = create_item(db, child="Alice", title="Delete me")
     assert delete_item(db, item_id) is True
     assert list_items(db, include_completed=True) == []
+
+
+def test_create_item_rejects_empty_child(db):
+    with pytest.raises(ValueError, match="child"):
+        create_item(db, child="", title="Task")
+
+
+def test_create_item_rejects_empty_title(db):
+    with pytest.raises(ValueError, match="title"):
+        create_item(db, child="Alice", title="")
