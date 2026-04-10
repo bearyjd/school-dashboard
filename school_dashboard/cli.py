@@ -144,7 +144,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
             api_key=api_key,
             model=model,
         )
-        _digest.send_ntfy(topic=ntfy_topic, message=text, title="☀️ Today")
+        _digest.send_ntfy(topic=ntfy_topic, message=text, title="Morning Briefing")
 
     elif args.mode == "afternoon":
         text = _digest.build_afternoon_digest(
@@ -153,7 +153,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
             api_key=api_key,
             model=model,
         )
-        _digest.send_ntfy(topic=ntfy_topic, message=text, title="📚 Homework Check")
+        _digest.send_ntfy(topic=ntfy_topic, message=text, title="Homework Check")
 
     elif args.mode == "night":
         text = _digest.build_night_digest(
@@ -165,7 +165,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
             api_key=api_key,
             model=model,
         )
-        _digest.send_ntfy(topic=ntfy_topic, message=text, title="🌙 Tomorrow")
+        _digest.send_ntfy(topic=ntfy_topic, message=text, title="Night Prep")
 
     else:
         raise ValueError(f"Unknown mode: {args.mode}")
