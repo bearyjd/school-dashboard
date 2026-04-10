@@ -88,7 +88,7 @@ def test_send_ntfy(mock_post):
     send_ntfy(topic="test-topic", message="Hello", title="Test")
     mock_post.assert_called_once()
     call_kwargs = mock_post.call_args
-    assert call_kwargs.kwargs["json"]["topic"] == "test-topic"
+    assert "test-topic" in call_kwargs[0][0]
 
 
 @patch("school_dashboard.digest.requests.post")
