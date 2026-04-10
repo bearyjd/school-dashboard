@@ -1,5 +1,6 @@
 services:
   dashboard:
+    image: ghcr.io/bearyjd/school-dashboard:latest
     build: .
     restart: unless-stopped
     ports:
