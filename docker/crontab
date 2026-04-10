@@ -2,7 +2,14 @@
 # Set env file path so school-sync.sh finds Docker secrets
 SCHOOL_DASHBOARD_ENV=/app/config/env
 
-# Morning sync + digest at 6:00am weekdays
+# Morning sync at 6:00am weekdays (data refresh only)
 0 6 * * 1-5 root bash /app/sync/school-sync.sh >> /tmp/school-sync.log 2>&1
 # Afternoon data refresh at 2:30pm weekdays
 30 14 * * 1-5 root bash /app/sync/school-sync.sh >> /tmp/school-sync.log 2>&1
+
+# Morning digest — 7:00am daily (7 days/week)
+0 7 * * * root set -a && source /app/config/env && set +a && school-state digest --mode morning >> /tmp/digest.log 2>&1
+# Afternoon homework check — 3:30pm weekdays only
+30 15 * * 1-5 root set -a && source /app/config/env && set +a && school-state digest --mode afternoon >> /tmp/digest.log 2>&1
+# Night prep — 8:30pm daily (7 days/week)
+30 20 * * * root set -a && source /app/config/env && set +a && school-state digest --mode night >> /tmp/digest.log 2>&1
