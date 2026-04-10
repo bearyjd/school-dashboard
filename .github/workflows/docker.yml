@@ -7,9 +7,11 @@ on:
       - main
     paths:
       - Dockerfile
+      - docker-compose.yml
       - pyproject.toml
       - "vendor/**"
       - "school_dashboard/**"
+      - "web/**"
       - "docker/**"
       - school-sync.sh
 
