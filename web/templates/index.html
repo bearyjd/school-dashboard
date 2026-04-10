@@ -167,7 +167,7 @@ async function loadManageItems(){
     renderSubtabs();
     renderItemList();
   }catch(e){
-    document.getElementById('items-list').innerHTML='<div style="color:#ff9aa2;padding:20px">Failed to load items: '+e.message+'</div>';
+    document.getElementById('items-list').innerHTML='<div style="color:#ff9aa2;padding:20px">Failed to load items: '+escHtml(e.message)+'</div>';
   }
 }
 
