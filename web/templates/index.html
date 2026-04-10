@@ -302,23 +302,36 @@ function renderDashChildBar(){
 }
 
 function renderSchoology(){
-  const data=dashChild==='all'?dashData.schoology:{[dashChild]:dashData.schoology[dashChild]||[]};
-  let html='';
-  for(const [child,asgns] of Object.entries(data)){
-    if(!asgns||!asgns.length)continue;
-    html+='<div class="dash-section">'+escHtml(child)+'</div>';
-    html+=asgns.map(a=>{
-      const inner='<span class="dash-dot" style="background:#3b82f6"></span>'+
-        '<div class="dash-body">'+
-          '<div class="dash-summary">'+escHtml(a.title)+'</div>'+
-          (a.course?'<div class="dash-meta"><span class="dash-source">'+escHtml(a.course)+'</span></div>':'')+
-        '</div>';
-      return a.url
-        ?'<a class="dash-item dash-item-link" href="'+escHtml(a.url)+'" target="_blank" rel="noopener">'+inner+'</a>'
-        :'<div class="dash-item">'+inner+'</div>';
-    }).join('');
+  let items=[];
+  for(const [child,asgns] of Object.entries(dashData.schoology)){
+    if(!asgns)continue;
+    asgns.forEach(a=>items.push(Object.assign({},a,{_child:child})));
   }
-  return html||'<div class="dash-empty">No Schoology assignments.</div>';
+  if(dashChild!=='all') items=items.filter(i=>i._child===dashChild);
+  if(dashTime==='today') items=items.filter(i=>{const d=dashDiff(i.due_date);return d!==null&&d<=0;});
+  else if(dashTime==='week') items=items.filter(i=>{const d=dashDiff(i.due_date);return d!==null&&d<=7;});
+  else if(dashTime==='month') items=items.filter(i=>{const d=dashDiff(i.due_date);return d!==null&&d<=31;});
+  items=items.slice().sort((a,b)=>{
+    const da=dashDiff(a.due_date),db=dashDiff(b.due_date);
+    if(da===null&&db===null)return 0;
+    if(da===null)return 1;if(db===null)return -1;
+    return da-db;
+  });
+  if(!items.length)return '<div class="dash-empty">No Schoology assignments for this filter.</div>';
+  return items.map(i=>{
+    const diff=dashDiff(i.due_date);
+    const inner='<span class="dash-dot" style="background:'+dashDot(diff)+'"></span>'+
+      '<div class="dash-body">'+
+        '<div class="dash-summary">'+escHtml(i.title)+'</div>'+
+        '<div class="dash-meta">'+
+          (i.course?'<span class="dash-source">'+escHtml(i.course)+'</span>':'')+
+          dashDueLabel(i.due_date)+
+        '</div>'+
+      '</div>';
+    return i.url
+      ?'<a class="dash-item dash-item-link" href="'+escHtml(i.url)+'" target="_blank" rel="noopener">'+inner+'</a>'
+      :'<div class="dash-item">'+inner+'</div>';
+  }).join('');
 }
 
 function renderIxl(){
@@ -435,7 +448,7 @@ function renderEmailItems(){
 function renderDashList(){
   const list=document.getElementById('dash-list');
   const timeBar=document.getElementById('dash-time-bar');
-  timeBar.style.display=(dashMode==='email')?'flex':'none';
+  timeBar.style.display=(dashMode==='email'||dashMode==='schoology')?'flex':'none';
   if(dashMode==='schoology') list.innerHTML=renderSchoology();
   else if(dashMode==='ixl') list.innerHTML=renderIxl();
   else if(dashMode==='calendar') list.innerHTML=renderCalendar();
