@@ -149,6 +149,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
     elif args.mode == "afternoon":
         text = _digest.build_afternoon_digest(
             state_path=state_file,
+            db_path=db_path,
             litellm_url=litellm_url,
             api_key=api_key,
             model=model,

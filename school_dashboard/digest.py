@@ -184,6 +184,7 @@ def build_afternoon_digest(
     api_key: str,
     model: str,
     today: str | None = None,
+    db_path: str | None = None,
 ) -> str:
     """Build an afternoon homework check: did the kids do their work?"""
     today = today or date.today().isoformat()
@@ -227,7 +228,14 @@ Action items due today:
 
 Write a brief afternoon check-in: what homework still needs to be done? Flag anything urgent."""
 
-    return _call_litellm(prompt, litellm_url, api_key, model)
+    text = _call_litellm(prompt, litellm_url, api_key, model)
+    if db_path:
+        from school_dashboard.readiness import get_checklist, format_checklist_text
+        checklist = get_checklist(state_path, db_path)
+        checklist_text = format_checklist_text(checklist, prefix="Action items:")
+        if checklist_text:
+            text = text + "\n\n" + checklist_text
+    return text
 
 
 def build_night_digest(
@@ -289,7 +297,13 @@ Known facts (recurring activities):
 
 Write a brief night summary: what do we need to have ready for tomorrow? Mention gear, forms, early wake-ups, or anything to prepare tonight."""
 
-    return _call_litellm(prompt, litellm_url, api_key, model)
+    text = _call_litellm(prompt, litellm_url, api_key, model)
+    from school_dashboard.readiness import get_checklist, format_checklist_text
+    checklist = get_checklist(state_path, db_path)
+    checklist_text = format_checklist_text(checklist, prefix="Before bed —")
+    if checklist_text:
+        text = text + "\n\n" + checklist_text
+    return text
 
 
 # ── Delivery ─────────────────────────────────────────────────────────────────

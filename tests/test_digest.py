@@ -1,5 +1,6 @@
 """Tests for school_dashboard.digest"""
 import json
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
@@ -144,3 +145,68 @@ def test_build_night_digest_calls_litellm(mock_post, tmp_state, tmp_facts, tmp_d
         tomorrow="2026-04-11",
     )
     assert "Ready for tomorrow!" in result
+
+
+@pytest.fixture
+def tmp_state_with_items(tmp_path):
+    """State with assignments due within 3 days and IXL remaining > 0."""
+    today = date.today()
+    due_tomorrow = (today + timedelta(days=1)).isoformat()
+    due_soon = (today + timedelta(days=2)).isoformat()
+    state = {
+        "schoology": {
+            "Jack": {
+                "assignments": [
+                    {"title": "Math HW", "due_date": due_tomorrow, "course": "Math", "status": ""},
+                    {"title": "Science HW", "due_date": due_soon, "course": "Science", "status": ""},
+                ]
+            }
+        },
+        "ixl": {
+            "Jack": {"totals": {"Math": {"remaining": 3, "assigned": 5, "done": 2}}}
+        },
+        "action_items": [],
+    }
+    p = tmp_path / "state_with_items.json"
+    p.write_text(json.dumps(state))
+    return str(p)
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_afternoon_digest_includes_checklist(mock_post, tmp_state_with_items, tmp_db):
+    """Checklist section appended after LiteLLM response."""
+    mock_post.return_value = MagicMock(
+        status_code=200,
+        json=lambda: {"choices": [{"message": {"content": "Homework check done."}}]},
+    )
+    from school_dashboard.digest import build_afternoon_digest
+    result = build_afternoon_digest(
+        state_path=tmp_state_with_items,
+        db_path=tmp_db,
+        litellm_url="http://fake-llm",
+        api_key="key",
+        model="gpt-4",
+    )
+    assert "Homework check done." in result
+    assert "Action items:" in result
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_night_digest_includes_checklist(mock_post, tmp_state_with_items, tmp_facts, tmp_db):
+    """Night digest appends checklist with 'Before bed' prefix."""
+    mock_post.return_value = MagicMock(
+        status_code=200,
+        json=lambda: {"choices": [{"message": {"content": "Night prep ready."}}]},
+    )
+    from school_dashboard.digest import build_night_digest
+    result = build_night_digest(
+        state_path=tmp_state_with_items,
+        db_path=tmp_db,
+        facts_path="/dev/null",
+        gcal_events=[],
+        litellm_url="http://fake-llm",
+        api_key="key",
+        model="gpt-4",
+    )
+    assert "Night prep ready." in result
+    assert "Before bed" in result
