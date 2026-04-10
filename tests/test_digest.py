@@ -9,6 +9,7 @@ from school_dashboard.digest import (
     build_morning_digest,
     build_afternoon_digest,
     build_night_digest,
+    build_weekly_digest,
     send_ntfy,
     _load_state,
     _load_facts,
@@ -218,7 +219,6 @@ def test_weekly_digest_friday_builds_text(mock_post, tmp_state, tmp_facts, tmp_d
         status_code=200,
         json=lambda: {"choices": [{"message": {"content": "Week in review!"}}]},
     )
-    from school_dashboard.digest import build_weekly_digest
     result = build_weekly_digest(
         mode="friday",
         state_path=tmp_state,
@@ -238,7 +238,6 @@ def test_weekly_digest_sunday_builds_text(mock_post, tmp_state, tmp_facts, tmp_d
         status_code=200,
         json=lambda: {"choices": [{"message": {"content": "Week ahead!"}}]},
     )
-    from school_dashboard.digest import build_weekly_digest
     result = build_weekly_digest(
         mode="sunday",
         state_path=tmp_state,
@@ -254,8 +253,6 @@ def test_weekly_digest_sunday_builds_text(mock_post, tmp_state, tmp_facts, tmp_d
 
 def test_weekly_digest_empty_state(tmp_path, tmp_facts, tmp_db):
     """Missing state file returns graceful string, not an exception."""
-    from school_dashboard.digest import build_weekly_digest
-    from unittest.mock import patch, MagicMock
     missing = str(tmp_path / "nonexistent.json")
     with patch("school_dashboard.digest.requests.post") as mock_post:
         mock_post.return_value = MagicMock(

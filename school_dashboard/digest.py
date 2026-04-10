@@ -76,7 +76,12 @@ def _assignments_due_on(state: dict, target_date: str) -> list[dict]:
         for a in (data.get("assignments") or []):
             due = (a.get("due_date") or "")[:10]
             if due == target_date:
-                out.append({"child": child, "title": a.get("title", ""), "course": a.get("course", "")})
+                out.append({
+                    "child": child,
+                    "title": a.get("title", ""),
+                    "course": a.get("course", ""),
+                    "due_date": (a.get("due_date") or "")[:10],
+                })
     return out
 
 
@@ -316,22 +321,23 @@ def build_weekly_digest(
     api_key: str,
     model: str,
     days_ahead: int = 7,
+    today: str | None = None,
 ) -> str:
     """Build a weekly digest: friday=week in review, sunday=week ahead preview."""
-    today = date.today()
+    _today = date.fromisoformat(today) if today else date.today()
     state = _load_state(state_path)
     facts = _load_facts(facts_path)
 
     # Collect assignments across the next `days_ahead` days
     upcoming_assignments: list[dict] = []
     for offset in range(days_ahead):
-        target = (today + timedelta(days=offset)).isoformat()
+        target = (_today + timedelta(days=offset)).isoformat()
         upcoming_assignments.extend(_assignments_due_on(state, target))
 
     # Collect DB events for the window
     upcoming_events: list[dict] = []
     for offset in range(3 if mode == "friday" else days_ahead):
-        target = (today + timedelta(days=offset)).isoformat()
+        target = (_today + timedelta(days=offset)).isoformat()
         upcoming_events.extend(_query_db_events(db_path, target))
 
     ixl = _ixl_remaining(state)
@@ -359,7 +365,7 @@ def build_weekly_digest(
     if mode == "friday":
         prompt = f"""You are writing a Friday afternoon school summary for a parent. Summarize the week: what's still outstanding per child, IXL progress, anything that needs attention over the weekend. Be concise — 3-5 bullet points per child max.
 
-Today (Friday): {today.isoformat()}
+Today (Friday): {_today.isoformat()}
 
 Outstanding assignments (due within next {days_ahead} days):
 {assign_str}
@@ -375,7 +381,7 @@ Known facts:
     else:
         prompt = f"""You are writing a Sunday evening school preview for a parent. Summarize what's coming up this week: assignments due with dates, school events, and IXL targets to hit. Be practical and forward-looking — help the parent plan.
 
-Today (Sunday): {today.isoformat()}
+Today (Sunday): {_today.isoformat()}
 
 Assignments due in the next {days_ahead} days:
 {assign_str}
