@@ -36,110 +36,142 @@
     padding-bottom: 12px;
     border-bottom: 1px solid var(--border);
   }
-  header h1 { font-size: 1.3rem; font-weight: 600; }
-  header .meta { font-size: 0.75rem; color: var(--text2); }
-  .section { margin-bottom: 24px; }
+  header h1 { font-size: 1.1rem; font-weight: 600; }
+  header .meta { font-size: 0.72rem; color: var(--text2); }
+
+  .section { margin-bottom: 20px; }
   .section-title {
-    font-size: 0.8rem;
-    font-weight: 600;
+    font-size: 0.72rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
     color: var(--text2);
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 14px;
-    margin-bottom: 10px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
   }
-  .child-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-  }
-  .child-name { font-weight: 600; font-size: 1.05rem; }
-  .child-grade { font-size: 0.8rem; color: var(--text2); }
-  .ixl-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 0;
-    font-size: 0.85rem;
-  }
-  .ixl-subject { color: var(--text2); }
-  .ixl-progress { font-variant-numeric: tabular-nums; }
-  .progress-bar {
-    height: 4px;
-    background: var(--surface2);
-    border-radius: 2px;
-    margin-top: 3px;
-    overflow: hidden;
-  }
-  .progress-fill {
-    height: 100%;
-    border-radius: 2px;
-    transition: width 0.3s;
-  }
-  .fill-good { background: var(--green); }
-  .fill-mid { background: var(--yellow); }
-  .fill-low { background: var(--orange); }
-  .fill-none { background: var(--red); }
-  .assignment-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: 5px 0;
-    font-size: 0.85rem;
-    border-bottom: 1px solid var(--border);
-  }
-  .assignment-row:last-child { border-bottom: none; }
-  .assignment-title { flex: 1; margin-right: 8px; }
-  .assignment-course { font-size: 0.75rem; color: var(--text2); display: block; }
-  .assignment-due { font-size: 0.75rem; white-space: nowrap; }
-  .due-tomorrow { color: var(--yellow); font-weight: 600; }
-  .due-overdue { color: var(--red); font-weight: 600; }
-  .grades-grid {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 4px 12px;
-    font-size: 0.85rem;
-  }
-  .grade-ok { color: var(--green); }
-  .grade-warn { color: var(--yellow); }
-  .grade-bad { color: var(--red); font-weight: 600; }
-  .action-item {
+
+  /* RIGHT NOW */
+  .urgent-row {
     display: flex;
     align-items: baseline;
     gap: 8px;
-    padding: 6px 0;
-    font-size: 0.85rem;
+    padding: 7px 0;
     border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
   }
-  .action-item:last-child { border-bottom: none; }
-  .action-child {
-    font-size: 0.7rem;
-    font-weight: 600;
-    background: var(--surface2);
+  .urgent-row:last-child { border-bottom: none; }
+  .badge {
+    font-size: 0.65rem;
+    font-weight: 700;
     padding: 2px 6px;
     border-radius: 4px;
     white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
-  .action-source {
-    font-size: 0.65rem;
-    color: var(--text2);
-    background: var(--surface2);
-    padding: 1px 5px;
-    border-radius: 3px;
-  }
-  .empty { color: var(--text2); font-size: 0.85rem; font-style: italic; }
-  .all-clear { color: var(--green); }
-  .updated { font-size: 0.7rem; color: var(--text2); margin-top: 6px; }
+  .badge-overdue  { background: #7f1d1d; color: var(--red); }
+  .badge-today    { background: #431407; color: var(--orange); }
+  .badge-tomorrow { background: #451a03; color: var(--yellow); }
+  .badge-action   { background: #1e1b4b; color: var(--accent); }
+  .badge-child    { background: var(--surface2); color: var(--text2); font-weight: 600; }
+  .urgent-title   { flex: 1; }
+  .urgent-course  { font-size: 0.72rem; color: var(--text2); margin-top: 1px; display: block; }
+  .all-clear      { color: var(--green); font-size: 0.85rem; padding: 4px 0; }
 
-  /* JSON endpoint for future Flask upgrade */
-  #state-json { display: none; }
+  /* IXL TODAY */
+  .ixl-child-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .ixl-subject-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    color: var(--text2);
+  }
+  .ixl-count { font-variant-numeric: tabular-nums; }
+  .progress-bar {
+    height: 5px;
+    background: var(--surface2);
+    border-radius: 3px;
+    margin: 3px 0 8px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .fill-good { background: var(--green); }
+  .fill-mid  { background: var(--yellow); }
+  .fill-low  { background: var(--orange); }
+  .fill-none { background: var(--red); }
+
+  /* PER-CHILD DETAILS */
+  details { margin-bottom: 8px; }
+  details > summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    list-style: none;
+    user-select: none;
+  }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary .chevron { color: var(--text2); font-size: 0.75rem; }
+  details[open] > summary {
+    border-radius: 10px 10px 0 0;
+    border-bottom-color: transparent;
+  }
+  .detail-body {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: 10px 14px 12px;
+  }
+  .subsection-title {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text2);
+    margin: 10px 0 5px;
+  }
+  .subsection-title:first-child { margin-top: 0; }
+  .grade-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .grade-row:last-child { border-bottom: none; }
+  .grade-ok   { color: var(--green); }
+  .grade-warn { color: var(--yellow); }
+  .grade-bad  { color: var(--red); font-weight: 600; }
+  .upcoming-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.82rem;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .upcoming-row:last-child { border-bottom: none; }
+  .upcoming-title { flex: 1; margin-right: 8px; color: var(--text); }
+  .upcoming-due { font-size: 0.72rem; white-space: nowrap; }
+  .empty-detail { color: var(--text2); font-size: 0.82rem; font-style: italic; }
 </style>
 </head>
 <body>
@@ -148,100 +180,117 @@
   <span class="meta">{{ generated }}</span>
 </header>
 
-{% if action_items %}
+{# ── SECTION 1: RIGHT NOW ── #}
 <div class="section">
-  <div class="section-title">Action Items ({{ action_items|length }})</div>
+  <div class="section-title">Right Now</div>
   <div class="card">
+    {% set has_urgent = action_items or urgent_items %}
+
     {% for item in action_items %}
-    <div class="action-item">
-      <span class="action-child">{{ item.child }}</span>
-      <span class="assignment-title">{{ item.summary }}</span>
-      {% if item.due %}
-      <span class="assignment-due {% if item.due|is_overdue %}due-overdue{% elif item.due|is_due_tomorrow %}due-tomorrow{% endif %}">
-        {{ item.due|format_due }}
+    <div class="urgent-row">
+      <span class="badge badge-action">action</span>
+      <span class="badge badge-child">{{ item.child }}</span>
+      <span class="urgent-title">
+        {{ item.summary }}
+        {% if item.source %}<span class="urgent-course">{{ item.source }}</span>{% endif %}
       </span>
-      {% endif %}
-      <span class="action-source">{{ item.source }}</span>
     </div>
+    {% endfor %}
+
+    {% for item in urgent_items %}
+    <div class="urgent-row">
+      <span class="badge badge-{{ item.urgency }}">{{ item.urgency }}</span>
+      <span class="badge badge-child">{{ item.child }}</span>
+      <span class="urgent-title">
+        {{ item.title }}
+        <span class="urgent-course">{{ item.course }}</span>
+      </span>
+    </div>
+    {% endfor %}
+
+    {% if not has_urgent %}
+    <div class="all-clear">✓ Nothing urgent</div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── SECTION 2: IXL TODAY ── #}
+{% set ixl_children = children | selectattr("ixl_totals") | list %}
+{% if ixl_children %}
+<div class="section">
+  <div class="section-title">IXL Today</div>
+  <div class="card">
+    {% for child in ixl_children %}
+    <div class="ixl-child-name" style="{% if not loop.first %}margin-top: 10px;{% endif %}">{{ child.name }} <span style="font-weight:400; color:var(--text2); font-size:0.78rem;">{{ child.grade }}</span></div>
+    {% for subject, totals in child.ixl_totals.items() %}
+    {% set pct = (totals.done / totals.assigned * 100) if totals.assigned > 0 else 0 %}
+    <div class="ixl-subject-row">
+      <span>{{ subject }}</span>
+      <span class="ixl-count">{{ totals.done }}/{{ totals.assigned }}</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill {% if pct >= 80 %}fill-good{% elif pct >= 50 %}fill-mid{% elif pct > 0 %}fill-low{% else %}fill-none{% endif %}"
+           style="width: {{ pct|round|int }}%"></div>
+    </div>
+    {% endfor %}
     {% endfor %}
   </div>
 </div>
 {% endif %}
 
-{% for child in children %}
+{# ── SECTION 3: PER CHILD ── #}
 <div class="section">
-  <div class="card">
-    <div class="child-header">
-      <span class="child-name">{{ child.name }}</span>
-      <span class="child-grade">{{ child.grade }}</span>
-    </div>
+  <div class="section-title">Details</div>
+  {% for child in children %}
+  <details>
+    <summary>
+      <span>{{ child.name }} <span style="font-weight:400; color:var(--text2); font-size:0.8rem;">{{ child.grade }}</span></span>
+      <span class="chevron">▸</span>
+    </summary>
+    <div class="detail-body">
 
-    {% if child.ixl_totals %}
-    <div style="margin-bottom: 10px;">
-      <div class="section-title" style="margin-bottom: 6px;">IXL Progress</div>
-      {% for subject, totals in child.ixl_totals.items() %}
-      <div class="ixl-row">
-        <span class="ixl-subject">{{ subject }}</span>
-        <span class="ixl-progress">{{ totals.done }}/{{ totals.assigned }}</span>
-      </div>
-      {% set pct = (totals.done / totals.assigned * 100) if totals.assigned > 0 else 0 %}
-      <div class="progress-bar">
-        <div class="progress-fill {% if pct >= 80 %}fill-good{% elif pct >= 50 %}fill-mid{% elif pct > 0 %}fill-low{% else %}fill-none{% endif %}"
-             style="width: {{ pct|round|int }}%"></div>
-      </div>
+      {# Grades below B only #}
+      {% set warn_grades = [] %}
+      {% for g in child.grades %}
+        {% if g.letter and g.letter[0] not in ('A', 'B') %}
+          {% set _ = warn_grades.append(g) %}
+        {% endif %}
       {% endfor %}
-    </div>
-    {% else %}
-    <div class="empty">No IXL data</div>
-    {% endif %}
-
-    {% if child.grades %}
-    <div style="margin-bottom: 10px;">
-      <div class="section-title" style="margin-bottom: 6px;">Grades</div>
-      <div class="grades-grid">
-        {% for g in child.grades %}
-        {% if g.grade %}
+      {% if warn_grades %}
+      <div class="subsection-title">Grades — Needs Attention</div>
+      {% for g in warn_grades %}
+      <div class="grade-row">
         <span>{{ g.course }}</span>
         <span class="{{ g.letter|letter_class }}">{{ g.grade }}</span>
-        {% endif %}
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-
-    {% if child.assignments %}
-    <div>
-      <div class="section-title" style="margin-bottom: 6px;">Assignments ({{ child.assignments|length }})</div>
-      {% for a in child.assignments[:8] %}
-      <div class="assignment-row">
-        <span class="assignment-title">
-          {{ a.title }}
-          <span class="assignment-course">{{ a.course }}</span>
-        </span>
-        {% if a.due_date %}
-        <span class="assignment-due {% if a.due_date|is_overdue %}due-overdue{% elif a.due_date|is_due_tomorrow %}due-tomorrow{% endif %}">
-          {{ a.due_date|format_due }}
-        </span>
-        {% endif %}
       </div>
       {% endfor %}
-    </div>
-    {% endif %}
+      {% endif %}
 
-    {% if not child.ixl_totals and not child.grades and not child.assignments %}
-    <div class="empty all-clear">No data yet</div>
-    {% endif %}
+      {# Upcoming only (not overdue/today/tomorrow — those are in Right Now) #}
+      {% set upcoming = [] %}
+      {% for a in child.assignments %}
+        {% if a.due_date and a.due_date|urgency == "upcoming" %}
+          {% set _ = upcoming.append(a) %}
+        {% endif %}
+      {% endfor %}
+      {% if upcoming %}
+      <div class="subsection-title">Upcoming</div>
+      {% for a in upcoming[:5] %}
+      <div class="upcoming-row">
+        <span class="upcoming-title">{{ a.title }}<span class="urgent-course">{{ a.course }}</span></span>
+        <span class="upcoming-due">{{ a.due_date|format_due }}</span>
+      </div>
+      {% endfor %}
+      {% endif %}
 
-    {% if child.ixl_updated or child.sgy_updated %}
-    <div class="updated">
-      {% if child.ixl_updated %}IXL: {{ child.ixl_updated[:16] }}{% endif %}
-      {% if child.ixl_updated and child.sgy_updated %} · {% endif %}
-      {% if child.sgy_updated %}SGY: {{ child.sgy_updated[:16] }}{% endif %}
+      {% if not warn_grades and not upcoming %}
+      <span class="empty-detail">All clear</span>
+      {% endif %}
+
     </div>
-    {% endif %}
-  </div>
+  </details>
+  {% endfor %}
 </div>
-{% endfor %}
 
 <script id="state-json" type="application/json">{{ state_json }}</script>
 </body>
