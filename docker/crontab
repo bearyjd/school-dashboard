@@ -13,3 +13,19 @@ SCHOOL_DASHBOARD_ENV=/app/config/env
 30 15 * * 1-5 root set -a && source /app/config/env && set +a && school-state digest --mode afternoon >> /tmp/digest.log 2>&1
 # Night prep — 8:30pm daily (7 days/week)
 30 20 * * * root set -a && source /app/config/env && set +a && school-state digest --mode night >> /tmp/digest.log 2>&1
+
+# Weekly digests (no scraping — reads current state files)
+# Friday 3pm: week in review
+0 15 * * 5 root set -a && source /app/config/env && set +a && python3 -c "
+from school_dashboard.digest import build_weekly_digest, send_ntfy
+import os
+text = build_weekly_digest('friday', os.environ['SCHOOL_STATE_PATH'], os.environ['SCHOOL_DB_PATH'], os.environ['SCHOOL_FACTS_PATH'], os.environ['LITELLM_URL'], os.environ['LITELLM_API_KEY'], os.environ['LITELLM_MODEL'])
+send_ntfy(os.environ['NTFY_TOPIC'], text, 'Week in Review')
+" >> /tmp/school-weekly.log 2>&1
+# Sunday 7pm: week ahead preview
+0 19 * * 0 root set -a && source /app/config/env && set +a && python3 -c "
+from school_dashboard.digest import build_weekly_digest, send_ntfy
+import os
+text = build_weekly_digest('sunday', os.environ['SCHOOL_STATE_PATH'], os.environ['SCHOOL_DB_PATH'], os.environ['SCHOOL_FACTS_PATH'], os.environ['LITELLM_URL'], os.environ['LITELLM_API_KEY'], os.environ['LITELLM_MODEL'])
+send_ntfy(os.environ['NTFY_TOPIC'], text, 'Week Ahead')
+" >> /tmp/school-weekly.log 2>&1
