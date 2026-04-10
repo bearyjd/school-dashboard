@@ -302,6 +302,7 @@ function renderDashChildBar(){
 }
 
 function renderSchoology(){
+  if(!dashData.schoology)return '<div class="dash-empty">No Schoology data available.</div>';
   let items=[];
   for(const [child,asgns] of Object.entries(dashData.schoology)){
     if(!asgns)continue;
