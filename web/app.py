@@ -327,5 +327,15 @@ def api_calendar():
     return jsonify({"events": events})
 
 
+@app.route("/api/readiness")
+def api_readiness():
+    from school_dashboard.readiness import get_checklist
+    try:
+        checklist = get_checklist(STATE_PATH, DB_PATH)
+        return jsonify({"checklist": checklist})
+    except Exception as e:
+        return jsonify({"error": str(e), "checklist": {}}), 500
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

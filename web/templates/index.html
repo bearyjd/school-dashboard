@@ -138,6 +138,7 @@ body{display:flex;flex-direction:column;height:100vh}
       <button class="dtab" data-mode="ixl">IXL</button>
       <button class="dtab" data-mode="email">Email Items</button>
       <button class="dtab" data-mode="calendar">Calendar</button>
+      <button class="dtab" data-mode="readiness">Readiness</button>
       <a href="/dashboard-frame" target="_blank" style="margin-left:auto;font-size:20px;color:#b8c0d8;text-decoration:none">Full Report ↗</a>
     </div>
     <div id="dash-child-bar" style="display:flex;gap:6px;padding:8px 12px;background:#0f1117;border-bottom:1px solid #1e2130;flex-wrap:wrap"></div>
@@ -338,6 +339,42 @@ function renderIxl(){
   return html||'<div class="dash-empty">No IXL work remaining.</div>';
 }
 
+let readinessData=null;
+async function loadReadiness(){
+  if(readinessData!==null)return;
+  try{
+    const r=await fetch('/api/readiness');
+    const d=await r.json();
+    readinessData=d.checklist||{};
+  }catch(e){readinessData={};}
+}
+
+function renderReadiness(){
+  const list=document.getElementById('dash-list');
+  if(readinessData===null){list.innerHTML='<div class="dash-empty">Loading...</div>';return;}
+  let items=[];
+  Object.entries(readinessData).forEach(([child,childItems])=>{
+    childItems.forEach(item=>items.push(Object.assign({},item,{child})));
+  });
+  if(dashChild!=='all') items=items.filter(i=>i.child===dashChild);
+  if(!items.length){list.innerHTML='<div class="dash-empty">All clear - nothing urgent!</div>';return;}
+  const urgencyOrder={overdue:0,tomorrow:1,soon:2,pending:3};
+  items.sort((a,b)=>(urgencyOrder[a.urgency]??3)-(urgencyOrder[b.urgency]??3));
+  const urgencyColor={overdue:'#ff9aa2',tomorrow:'#ffd180',soon:'#b5ead7',pending:'#c7ceea'};
+  list.innerHTML=items.map(item=>{
+    const color=urgencyColor[item.urgency]||'#c7ceea';
+    return '<div class="dash-item">'+
+      '<span class="dash-dot" style="background:'+color+'"></span>'+
+      '<div class="dash-body">'+
+        '<div class="dash-summary">'+escHtml(item.label)+'</div>'+
+        '<div class="dash-meta">'+
+          '<span class="dash-child">'+escHtml(item.child)+'</span>'+
+          (item.detail?'<span class="dash-source">'+escHtml(item.detail)+'</span>':'')+
+        '</div>'+
+      '</div></div>';
+  }).join('');
+}
+
 let calEvents=[];
 async function loadCalendar(){
   if(calEvents.length)return;
@@ -402,6 +439,7 @@ function renderDashList(){
   if(dashMode==='schoology') list.innerHTML=renderSchoology();
   else if(dashMode==='ixl') list.innerHTML=renderIxl();
   else if(dashMode==='calendar') list.innerHTML=renderCalendar();
+  else if(dashMode==='readiness') renderReadiness();
   else list.innerHTML=renderEmailItems();
 }
 
@@ -424,6 +462,7 @@ function setDashMode(m){
   dashMode=m;
   document.querySelectorAll('#dash-mode-bar .dtab').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));
   if(m==='calendar'){loadCalendar().then(()=>renderDashList());}
+  else if(m==='readiness'){loadReadiness().then(()=>renderDashList());}
   else renderDashList();
 }
 function setDashTime(t){
