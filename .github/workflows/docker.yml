@@ -25,6 +25,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Update scrapers to latest
+        run: git submodule update --remote vendor/ixl-scrape vendor/schoology-scrape
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
