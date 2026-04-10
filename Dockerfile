@@ -23,8 +23,8 @@ COPY pyproject.toml ./
 COPY vendor/ixl-scrape/ ./vendor/ixl-scrape/
 COPY vendor/schoology-scrape/ ./vendor/schoology-scrape/
 
-RUN pip install --no-cache-dir -e ".[web]" \
-    -e vendor/ixl-scrape \
+RUN pip install --no-cache-dir -e ".[server]" \
+    -e "vendor/ixl-scrape[browser]" \
     -e vendor/schoology-scrape
 
 # Install Playwright + Chromium (for IXL login)
@@ -33,8 +33,7 @@ RUN playwright install chromium --with-deps
 # Copy app source
 COPY school_dashboard/ ./school_dashboard/
 COPY web/ ./web/
-COPY sync/ ./sync/
-COPY cron-prompts/ ./cron-prompts/
+COPY school-sync.sh ./sync/school-sync.sh
 COPY config/ ./config/
 
 # Set up cron
