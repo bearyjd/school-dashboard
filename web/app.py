@@ -164,7 +164,7 @@ def api_items_create():
     if not child or not title:
         return jsonify({"error": "child and title are required"}), 400
     try:
-        from school_dashboard.db import init_db, create_item, list_items
+        from school_dashboard.db import init_db, create_item, get_item
         init_db(db_path)
         item_id = create_item(
             db_path,
@@ -175,8 +175,9 @@ def api_items_create():
             due_date=data.get("due_date") or None,
             notes=data.get("notes") or None,
         )
-        items = list_items(db_path, include_completed=True)
-        item = next((i for i in items if i["id"] == item_id), {"id": item_id})
+        item = get_item(db_path, item_id)
+        if item is None:
+            return jsonify({"error": "failed to retrieve created item"}), 500
         return jsonify(item), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500

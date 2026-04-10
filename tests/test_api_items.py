@@ -49,3 +49,18 @@ def test_patch_item_edits(client):
     items = client.get("/api/items").get_json()["items"]
     assert items[0]["title"] == "Updated"
     assert items[0]["notes"] == "New notes"
+
+
+def test_delete_item(client):
+    r = client.post("/api/items", json={"child": "Alice", "title": "To delete"})
+    item_id = r.get_json()["id"]
+    r2 = client.delete(f"/api/items/{item_id}")
+    assert r2.status_code == 200
+    assert r2.get_json() == {"ok": True}
+    items = client.get("/api/items").get_json()["items"]
+    assert items == []
+
+
+def test_patch_not_found(client):
+    r = client.patch("/api/items/9999", json={"title": "Ghost"})
+    assert r.status_code == 404

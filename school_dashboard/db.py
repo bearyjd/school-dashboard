@@ -127,6 +127,18 @@ def delete_item(db_path: str, item_id: int) -> bool:
     return changed
 
 
+def get_item(db_path: str, item_id: int) -> Optional[dict]:
+    """Return a single item by id, or None if not found."""
+    if not Path(db_path).exists():
+        return None
+    conn = _connect(db_path)
+    row = conn.execute(
+        "SELECT * FROM items WHERE id = ?", (item_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def item_exists_for_email(
     db_path: str, child: str, title: str, due_date: Optional[str]
 ) -> bool:
