@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from pathlib import Path
 import requests
 from flask import Flask, jsonify, render_template, request, Response
+from school_dashboard.gcal import fetch_gcal_events
 
 app = Flask(__name__)
 
@@ -21,9 +22,6 @@ FACTS_PATH = os.environ.get("SCHOOL_FACTS_PATH", "/opt/school/state/facts.json")
 DASHBOARD_HTML = "/opt/school/state/school-dashboard.html"
 GOG_ACCOUNT = os.environ.get("GOG_ACCOUNT", "")
 SGY_BASE_URL = os.environ.get("SGY_BASE_URL", "https://arlingtondiocese.schoology.com")
-
-_gcal_cache: dict = {"data": None, "ts": 0}
-GCAL_TTL = 900  # 15 minutes
 
 
 def load_json(path: str) -> dict | list:
@@ -323,46 +321,9 @@ def api_dashboard():
         return jsonify({"error": str(e)}), 500
 
 
-def _fetch_gcal_events() -> list[dict]:
-    """Fetch upcoming 30-day events from Google Calendar via gog CLI. Cached for GCAL_TTL seconds."""
-    global _gcal_cache
-    if _gcal_cache["data"] is not None and (time.time() - _gcal_cache["ts"]) < GCAL_TTL:
-        return _gcal_cache["data"]
-    if not GOG_ACCOUNT:
-        return []
-    try:
-        end_date = (date.today() + timedelta(days=30)).isoformat()
-        result = subprocess.run(
-            ["gog", "calendar", "events", "--from", "today", "--to", end_date, "-a", GOG_ACCOUNT, "-j"],
-            capture_output=True, text=True, timeout=15,
-            env={**os.environ, "GOG_KEYRING_PASSWORD": os.environ.get("GOG_KEYRING_PASSWORD", "")},
-        )
-        if result.returncode != 0:
-            return []
-        raw = json.loads(result.stdout)
-        events = raw.get("events") or raw if isinstance(raw, list) else []
-        out = []
-        for e in events:
-            start = e.get("start", {})
-            end = e.get("end", {})
-            out.append({
-                "title": e.get("summary", ""),
-                "start": start.get("dateTime") or start.get("date", ""),
-                "end": end.get("dateTime") or end.get("date", ""),
-                "all_day": "dateTime" not in start,
-                "location": e.get("location", ""),
-                "description": (e.get("description") or "")[:200],
-                "url": e.get("htmlLink", ""),
-            })
-        _gcal_cache = {"data": out, "ts": time.time()}
-        return out
-    except Exception:
-        return _gcal_cache.get("data") or []
-
-
 @app.route("/api/calendar")
 def api_calendar():
-    events = _fetch_gcal_events()
+    events = fetch_gcal_events(GOG_ACCOUNT)
     return jsonify({"events": events})
 
 
