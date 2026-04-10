@@ -24,3 +24,6 @@ include = ["school_dashboard*"]
 
 [tool.setuptools.package-data]
 school_dashboard = ["templates/*.html"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

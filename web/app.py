@@ -141,5 +141,79 @@ def api_chat():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/items", methods=["GET"])
+def api_items_list():
+    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    child = request.args.get("child") or None
+    include_completed = request.args.get("include_completed", "0") == "1"
+    try:
+        from school_dashboard.db import init_db, list_items
+        init_db(db_path)
+        items = list_items(db_path, child=child, include_completed=include_completed)
+        return jsonify({"items": items})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/items", methods=["POST"])
+def api_items_create():
+    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    data = request.get_json(silent=True) or {}
+    child = (data.get("child") or "").strip()
+    title = (data.get("title") or "").strip()
+    if not child or not title:
+        return jsonify({"error": "child and title are required"}), 400
+    try:
+        from school_dashboard.db import init_db, create_item, list_items
+        init_db(db_path)
+        item_id = create_item(
+            db_path,
+            child=child,
+            title=title,
+            item_type=data.get("type", "assignment"),
+            source="manual",
+            due_date=data.get("due_date") or None,
+            notes=data.get("notes") or None,
+        )
+        items = list_items(db_path, include_completed=True)
+        item = next((i for i in items if i["id"] == item_id), {"id": item_id})
+        return jsonify(item), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/items/<int:item_id>", methods=["PATCH"])
+def api_items_update(item_id):
+    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    data = request.get_json(silent=True) or {}
+    allowed = {"child", "title", "type", "due_date", "notes", "completed"}
+    kwargs = {k: v for k, v in data.items() if k in allowed}
+    if not kwargs:
+        return jsonify({"error": "no valid fields provided"}), 400
+    try:
+        from school_dashboard.db import init_db, update_item
+        init_db(db_path)
+        changed = update_item(db_path, item_id, **kwargs)
+        if not changed:
+            return jsonify({"error": "not found"}), 404
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/items/<int:item_id>", methods=["DELETE"])
+def api_items_delete(item_id):
+    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    try:
+        from school_dashboard.db import init_db, delete_item
+        init_db(db_path)
+        deleted = delete_item(db_path, item_id)
+        if not deleted:
+            return jsonify({"error": "not found"}), 404
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
