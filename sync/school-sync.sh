@@ -50,7 +50,29 @@ else
     log "WARN: SCHOOL_EMAIL_ACCOUNT not set — skipping email sync"
 fi
 
-# --- Step 5: Regenerate dashboard ---
+# --- Step 5: Email intel (LiteLLM extraction → school.db + facts.json) ---
+if [[ -n "${LITELLM_URL:-}" && -f "${SCHOOL_EMAIL_DIGEST:-/app/state/email-digest.json}" ]]; then
+    log "Running email intel extraction..."
+    python3 -c "
+import os, json
+from school_dashboard.intel import process_digest
+with open(os.environ.get('SCHOOL_EMAIL_DIGEST', '/app/state/email-digest.json')) as f:
+    digest = json.load(f)
+count = process_digest(
+    digest=digest,
+    db_path=os.environ.get('SCHOOL_DB_PATH', '/app/state/school.db'),
+    facts_path=os.environ.get('SCHOOL_FACTS_PATH', '/app/state/facts.json'),
+    litellm_url=os.environ['LITELLM_URL'],
+    api_key=os.environ.get('LITELLM_API_KEY', ''),
+    model=os.environ.get('LITELLM_MODEL', 'claude-sonnet'),
+)
+print(f'Intel: {count} emails processed', flush=True)
+" 2>&1 || log "WARN: Intel extraction had errors"
+else
+    log "INFO: Skipping intel (LITELLM_URL not set or digest missing)"
+fi
+
+# --- Step 6: Regenerate dashboard ---
 log "Regenerating dashboard..."
 school-state html
 

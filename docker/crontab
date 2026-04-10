@@ -1,4 +1,7 @@
 # school-dashboard cron
+# Set env file path so school-sync.sh finds Docker secrets
+SCHOOL_DASHBOARD_ENV=/app/config/env
+
 # Morning sync + digest at 6:00am weekdays
 0 6 * * 1-5 root bash /app/sync/school-sync.sh >> /tmp/school-sync.log 2>&1
 # Afternoon data refresh at 2:30pm weekdays
