@@ -116,8 +116,6 @@ def cmd_email_show(args: argparse.Namespace) -> None:
 
 
 def cmd_digest(args: argparse.Namespace) -> None:
-    import os
-
     litellm_url = os.environ.get("LITELLM_URL", "")
     api_key = os.environ.get("LITELLM_API_KEY", "")
     model = os.environ.get("LITELLM_MODEL", "claude-sonnet")
@@ -168,6 +166,9 @@ def cmd_digest(args: argparse.Namespace) -> None:
             model=model,
         )
         _digest.send_ntfy(topic=ntfy_topic, message=text, title="🌙 Tomorrow")
+
+    else:
+        raise ValueError(f"Unknown mode: {args.mode}")
 
     print(f"Digest sent [{args.mode}]: {text[:80]}...", file=sys.stderr)
 
