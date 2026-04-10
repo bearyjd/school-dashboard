@@ -6,6 +6,7 @@ services:
       - "5000:5000"
     volumes:
       - ./state:/app/state
+      - ./web:/app/web
       - ./config/env:/app/config/env:ro
       # gog OAuth credentials (set up once with: gog auth add ...)
       - /root/.config/gogcli:/root/.config/gogcli
