@@ -1,7 +1,45 @@
+# Private config — never commit
+config/env
+config/*.env
+.env
+.env.*
+!.env.example
+
+# Runtime state — sensitive / machine-generated
+state/
+*.db
+*.json
+!pyproject.toml
+!docker-compose.yml
+
+# School calendar PDF (may contain private family data)
+*.pdf
+
+# Credentials and session caches
+.ixl/
+.sgy/
+*.session.json
+sessions/
+notifications.json
+goals.json
+accounts.env
+
+# gog OAuth tokens
+.config/gogcli/
+
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 dist/
 build/
 *.egg
-.env
+.venv/
+venv/
+
+# Playwright
+.playwright/
+
+# Logs
+*.log
+secrets/

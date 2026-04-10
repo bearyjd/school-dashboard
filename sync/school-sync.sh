@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# school-sync.sh — Data refresh: scrape all sources, update state, regenerate dashboard.
+# Runs via system cron at 6:00am and 2:30pm. No LLM needed.
+# The 2:30pm run catches homework posted late by teachers.
+#
+# Usage:
+#   ./school-sync.sh                      # uses defaults
+#   IXL_CRON=/opt/ixl/cron/ixl-cron.sh ./school-sync.sh
+#
+# Crontab:
+#   0 6 * * *    /opt/school-dashboard/school-sync.sh 2>>/tmp/school-sync.log
+#   30 14 * * 1-5 /opt/school-dashboard/school-sync.sh 2>>/tmp/school-sync.log
+
+set -euo pipefail
+
+ENVFILE="${SCHOOL_DASHBOARD_ENV:-/etc/school-dashboard/env}"
+[[ -f "$ENVFILE" ]] && { set -a; source "$ENVFILE"; set +a; }
+
+IXL_CRON="${IXL_CRON:-/opt/ixl/cron/ixl-cron.sh}"
+IXL_DIR="${IXL_DIR:-/tmp/ixl}"
+SGY_FILE="${SGY_FILE:-/tmp/schoology-daily.json}"
+
+log() { echo "[$(date '+%H:%M:%S')] $*" >&2; }
+
+# --- Step 1: IXL scrape ---
+if [[ -x "$IXL_CRON" ]]; then
+    log "Running IXL scrape..."
+    bash "$IXL_CRON" || log "WARN: IXL scrape had errors"
+else
+    log "WARN: IXL cron script not found at $IXL_CRON — skipping"
+fi
+
+# --- Step 2: Schoology scrape ---
+if command -v sgy &>/dev/null; then
+    log "Running Schoology scrape..."
+    sgy summary --json > "$SGY_FILE" 2>/dev/null || log "WARN: SGY scrape had errors"
+else
+    log "WARN: sgy command not found — skipping"
+fi
+
+# --- Step 3: Merge into state ---
+log "Updating state..."
+school-state update --ixl-dir "$IXL_DIR" --sgy-file "$SGY_FILE"
+
+# --- Step 4: Email sync (fetch, normalize, classify — no LLM) ---
+if [[ -n "${SCHOOL_EMAIL_ACCOUNT:-}" ]]; then
+    log "Syncing emails..."
+    school-state email-sync --account "$SCHOOL_EMAIL_ACCOUNT" || log "WARN: Email sync had errors"
+else
+    log "WARN: SCHOOL_EMAIL_ACCOUNT not set — skipping email sync"
+fi
+
+# --- Step 5: Regenerate dashboard ---
+log "Regenerating dashboard..."
+school-state html
+
+log "Sync complete."

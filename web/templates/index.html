@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Beary School</title>
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;background:#0f1117;color:#e6e8ef;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+body{display:flex;flex-direction:column;height:100vh}
+.tabbar{display:flex;background:#1a1d27;border-bottom:2px solid #252938;flex-shrink:0}
+.tabbar button{flex:1;background:none;border:0;color:#7a8099;padding:14px 8px;font-size:15px;font-weight:600;cursor:pointer;transition:color .15s}
+.tabbar button.active{color:#4f8ef7;border-bottom:2px solid #4f8ef7;margin-bottom:-2px}
+.tab-panel{flex:1;display:none;overflow:hidden;flex-direction:column;min-height:0}
+.tab-panel.active{display:flex}
+#dashboard-frame{flex:1;width:100%;border:0;background:#0f1117}
+#chat-panel{background:#0f1117}
+#messages{flex:1;overflow-y:auto;padding:16px 12px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch;min-height:0}
+.msg{max-width:82%;padding:10px 14px;border-radius:18px;font-size:15px;line-height:1.5;word-wrap:break-word}
+.msg.user{align-self:flex-end;background:#4f8ef7;color:#fff;border-bottom-right-radius:4px;white-space:pre-wrap}
+.msg.bot{align-self:flex-start;background:#1a1d27;color:#e6e8ef;border:1px solid #252938;border-bottom-left-radius:4px}
+.msg.bot.loading{color:#7a8099;font-style:italic;white-space:pre-wrap}
+.msg.error{background:#3a1a1f;border-color:#5a2a2f;color:#ff9aa2}
+/* Markdown styles inside bot messages */
+.msg.bot p{margin:0 0 8px}
+.msg.bot p:last-child{margin-bottom:0}
+.msg.bot h1,.msg.bot h2,.msg.bot h3{margin:10px 0 4px;color:#c5cde6;font-size:1em;font-weight:700}
+.msg.bot h1{font-size:1.1em}
+.msg.bot ul,.msg.bot ol{margin:4px 0 8px;padding-left:20px}
+.msg.bot li{margin:2px 0}
+.msg.bot strong{color:#fff;font-weight:700}
+.msg.bot em{color:#adb8d4}
+.msg.bot code{background:#0a0c14;border:1px solid #252938;border-radius:4px;padding:1px 5px;font-size:13px;font-family:"SFMono-Regular",Consolas,monospace;color:#7dd3fc}
+.msg.bot pre{background:#0a0c14;border:1px solid #252938;border-radius:8px;padding:10px 12px;overflow-x:auto;margin:6px 0}
+.msg.bot pre code{background:none;border:none;padding:0;font-size:13px;color:#7dd3fc}
+.msg.bot blockquote{border-left:3px solid #4f8ef7;margin:6px 0;padding:4px 10px;color:#7a8099}
+.msg.bot a{color:#4f8ef7;text-decoration:none}
+.msg.bot hr{border:none;border-top:1px solid #252938;margin:8px 0}
+.msg.bot table{border-collapse:collapse;width:100%;margin:6px 0;font-size:13px}
+.msg.bot th,.msg.bot td{border:1px solid #252938;padding:5px 8px;text-align:left}
+.msg.bot th{background:#252938;color:#c5cde6}
+.input-bar{display:flex;gap:8px;padding:10px;background:#1a1d27;border-top:1px solid #252938;flex-shrink:0}
+#msg-input{flex:1;background:#0f1117;color:#e6e8ef;border:1px solid #252938;border-radius:20px;padding:10px 14px;font-size:15px;resize:none;max-height:120px;font-family:inherit;outline:none}
+#msg-input:focus{border-color:#4f8ef7}
+#send-btn{background:#4f8ef7;color:#fff;border:0;border-radius:20px;padding:0 18px;font-size:15px;font-weight:600;cursor:pointer}
+#send-btn:disabled{opacity:.5;cursor:not-allowed}
+.empty-hint{color:#5a6076;text-align:center;font-size:14px;padding:40px 20px;margin:auto}
+</style>
+</head>
+<body>
+<nav class="tabbar">
+  <button data-tab="dashboard" class="active">&#128202; Dashboard</button>
+  <button data-tab="chat">&#128172; Chat</button>
+</nav>
+<div class="tab-panel active" id="dashboard-panel">
+  <iframe id="dashboard-frame" src="/dashboard-frame"></iframe>
+</div>
+<div class="tab-panel" id="chat-panel">
+  <div id="messages">
+    <div class="empty-hint">Ask about grades, assignments, or emails.<br><br>Example: "What does Jack have due this week?"</div>
+  </div>
+  <div class="input-bar">
+    <textarea id="msg-input" rows="1" placeholder="Ask about the kids..."></textarea>
+    <button id="send-btn">Send</button>
+  </div>
+</div>
+<script>
+marked.setOptions({breaks:true,gfm:true});
+const tabs=document.querySelectorAll(".tabbar button");
+const panels={dashboard:document.getElementById("dashboard-panel"),chat:document.getElementById("chat-panel")};
+tabs.forEach(t=>t.addEventListener("click",()=>{
+  tabs.forEach(x=>x.classList.remove("active"));
+  t.classList.add("active");
+  Object.values(panels).forEach(p=>p.classList.remove("active"));
+  panels[t.dataset.tab].classList.add("active");
+  if(t.dataset.tab==="chat")setTimeout(()=>msgInput.focus(),50);
+}));
+const messages=document.getElementById("messages");
+const msgInput=document.getElementById("msg-input");
+const sendBtn=document.getElementById("send-btn");
+const history=[];
+function scrollBottom(){messages.scrollTop=messages.scrollHeight}
+function addMsg(role,text,cls){
+  const hint=messages.querySelector(".empty-hint");if(hint)hint.remove();
+  const el=document.createElement("div");
+  el.className="msg "+(role==="user"?"user":"bot")+(cls?" "+cls:"");
+  if(role==="user"||cls==="loading"||cls==="error"){
+    el.textContent=text;
+  }else{
+    el.innerHTML=marked.parse(text);
+  }
+  messages.appendChild(el);scrollBottom();return el;
+}
+async function send(){
+  const text=msgInput.value.trim();if(!text)return;
+  msgInput.value="";msgInput.style.height="auto";sendBtn.disabled=true;
+  addMsg("user",text);history.push({role:"user",content:text});
+  const loading=addMsg("bot","Thinking...","loading");
+  try{
+    const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text,history:history.slice(0,-1)})});
+    const data=await r.json();
+    loading.remove();
+    if(data.error){addMsg("bot","Error: "+data.error,"error");}
+    else{addMsg("bot",data.reply);history.push({role:"assistant",content:data.reply});}
+  }catch(e){loading.remove();addMsg("bot","Network error: "+e.message,"error");}
+  sendBtn.disabled=false;msgInput.focus();
+}
+sendBtn.addEventListener("click",send);
+msgInput.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}});
+msgInput.addEventListener("input",()=>{msgInput.style.height="auto";msgInput.style.height=Math.min(msgInput.scrollHeight,120)+"px";});
+</script>
+</body>
+</html>

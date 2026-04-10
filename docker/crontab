@@ -1,0 +1,5 @@
+# school-dashboard cron
+# Morning sync + digest at 6:00am weekdays
+0 6 * * 1-5 root bash /app/sync/school-sync.sh >> /tmp/school-sync.log 2>&1
+# Afternoon data refresh at 2:30pm weekdays
+30 14 * * 1-5 root bash /app/sync/school-sync.sh >> /tmp/school-sync.log 2>&1

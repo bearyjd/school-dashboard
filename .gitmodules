@@ -1,0 +1,6 @@
+[submodule "vendor/ixl-scrape"]
+	path = vendor/ixl-scrape
+	url = https://github.com/bearyjd/ixl.git
+[submodule "vendor/schoology-scrape"]
+	path = vendor/schoology-scrape
+	url = https://github.com/bearyjd/sgy.git

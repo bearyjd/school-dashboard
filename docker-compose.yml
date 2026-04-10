@@ -1,0 +1,28 @@
+services:
+  dashboard:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./state:/app/state
+      - ./config/env:/app/config/env:ro
+      # gog OAuth credentials (set up once with: gog auth add ...)
+      - gog-creds:/root/.config/gogcli
+      # IXL session cache
+      - ixl-sessions:/root/.ixl
+      # Schoology session cache
+      - sgy-sessions:/root/.sgy
+    env_file:
+      - config/env
+    environment:
+      - SCHOOL_STATE_PATH=/app/state/school-state.json
+      - SCHOOL_DB_PATH=/app/state/school.db
+      - SCHOOL_FACTS_PATH=/app/state/facts.json
+      - SCHOOL_EMAIL_DIGEST=/app/state/email-digest.json
+      - SCHOOL_CALENDAR_PDF=/app/state/calendar.pdf
+
+volumes:
+  gog-creds:
+  ixl-sessions:
+  sgy-sessions:
