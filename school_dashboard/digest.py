@@ -5,6 +5,7 @@ import logging
 import sqlite3
 from contextlib import closing
 from datetime import date, timedelta
+from typing import Literal
 from pathlib import Path
 
 import requests
@@ -304,6 +305,91 @@ Write a brief night summary: what do we need to have ready for tomorrow? Mention
     if checklist_text:
         text = text + "\n\n" + checklist_text
     return text
+
+
+def build_weekly_digest(
+    mode: Literal["friday", "sunday"],
+    state_path: str,
+    db_path: str,
+    facts_path: str,
+    litellm_url: str,
+    api_key: str,
+    model: str,
+    days_ahead: int = 7,
+) -> str:
+    """Build a weekly digest: friday=week in review, sunday=week ahead preview."""
+    today = date.today()
+    state = _load_state(state_path)
+    facts = _load_facts(facts_path)
+
+    # Collect assignments across the next `days_ahead` days
+    upcoming_assignments: list[dict] = []
+    for offset in range(days_ahead):
+        target = (today + timedelta(days=offset)).isoformat()
+        upcoming_assignments.extend(_assignments_due_on(state, target))
+
+    # Collect DB events for the window
+    upcoming_events: list[dict] = []
+    for offset in range(3 if mode == "friday" else days_ahead):
+        target = (today + timedelta(days=offset)).isoformat()
+        upcoming_events.extend(_query_db_events(db_path, target))
+
+    ixl = _ixl_remaining(state)
+
+    assign_str = (
+        "\n".join(
+            f"- {a['child']}: {a['title']} ({a['course']}) due {a.get('due_date', '')[:10]}"
+            for a in upcoming_assignments
+        )
+        or "None"
+    )
+    events_str = (
+        "\n".join(f"- {e['date']}: {e['title']} ({e['type']})" for e in upcoming_events)
+        or "None"
+    )
+    ixl_str = (
+        "\n".join(f"- {i['child']}: {i['subject']} ({i['remaining']} remaining)" for i in ixl)
+        or "All clear"
+    )
+    facts_str = (
+        "\n".join(f"- [{f.get('subject', '?')}] {f.get('fact', '')}" for f in facts[:10])
+        or "None"
+    )
+
+    if mode == "friday":
+        prompt = f"""You are writing a Friday afternoon school summary for a parent. Summarize the week: what's still outstanding per child, IXL progress, anything that needs attention over the weekend. Be concise — 3-5 bullet points per child max.
+
+Today (Friday): {today.isoformat()}
+
+Outstanding assignments (due within next {days_ahead} days):
+{assign_str}
+
+School events in the next 3 days:
+{events_str}
+
+IXL remaining skills per child:
+{ixl_str}
+
+Known facts:
+{facts_str}"""
+    else:
+        prompt = f"""You are writing a Sunday evening school preview for a parent. Summarize what's coming up this week: assignments due with dates, school events, and IXL targets to hit. Be practical and forward-looking — help the parent plan.
+
+Today (Sunday): {today.isoformat()}
+
+Assignments due in the next {days_ahead} days:
+{assign_str}
+
+School calendar events next {days_ahead} days:
+{events_str}
+
+IXL remaining skills per child:
+{ixl_str}
+
+Known facts:
+{facts_str}"""
+
+    return _call_litellm(prompt, litellm_url, api_key, model)
 
 
 # ── Delivery ─────────────────────────────────────────────────────────────────

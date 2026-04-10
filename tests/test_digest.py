@@ -210,3 +210,66 @@ def test_night_digest_includes_checklist(mock_post, tmp_state_with_items, tmp_fa
     )
     assert "Night prep ready." in result
     assert "Before bed" in result
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_weekly_digest_friday_builds_text(mock_post, tmp_state, tmp_facts, tmp_db):
+    mock_post.return_value = MagicMock(
+        status_code=200,
+        json=lambda: {"choices": [{"message": {"content": "Week in review!"}}]},
+    )
+    from school_dashboard.digest import build_weekly_digest
+    result = build_weekly_digest(
+        mode="friday",
+        state_path=tmp_state,
+        db_path=tmp_db,
+        facts_path=tmp_facts,
+        litellm_url="http://localhost:4000",
+        api_key="test-key",
+        model="claude-sonnet",
+    )
+    assert result == "Week in review!"
+    mock_post.assert_called_once()
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_weekly_digest_sunday_builds_text(mock_post, tmp_state, tmp_facts, tmp_db):
+    mock_post.return_value = MagicMock(
+        status_code=200,
+        json=lambda: {"choices": [{"message": {"content": "Week ahead!"}}]},
+    )
+    from school_dashboard.digest import build_weekly_digest
+    result = build_weekly_digest(
+        mode="sunday",
+        state_path=tmp_state,
+        db_path=tmp_db,
+        facts_path=tmp_facts,
+        litellm_url="http://localhost:4000",
+        api_key="test-key",
+        model="claude-sonnet",
+    )
+    assert result == "Week ahead!"
+    mock_post.assert_called_once()
+
+
+def test_weekly_digest_empty_state(tmp_path, tmp_facts, tmp_db):
+    """Missing state file returns graceful string, not an exception."""
+    from school_dashboard.digest import build_weekly_digest
+    from unittest.mock import patch, MagicMock
+    missing = str(tmp_path / "nonexistent.json")
+    with patch("school_dashboard.digest.requests.post") as mock_post:
+        mock_post.return_value = MagicMock(
+            status_code=200,
+            json=lambda: {"choices": [{"message": {"content": "OK"}}]},
+        )
+        result = build_weekly_digest(
+            mode="friday",
+            state_path=missing,
+            db_path=tmp_db,
+            facts_path=tmp_facts,
+            litellm_url="http://localhost:4000",
+            api_key="test-key",
+            model="claude-sonnet",
+        )
+    assert isinstance(result, str)
+    assert len(result) > 0
