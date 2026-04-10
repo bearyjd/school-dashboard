@@ -1,12 +1,15 @@
 # school_dashboard/digest.py
 """Three daily digest builders and ntfy.sh delivery."""
 import json
+import logging
 import sqlite3
+from contextlib import closing
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Optional
 
 import requests
+
+_log = logging.getLogger(__name__)
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -14,7 +17,8 @@ import requests
 def _load_state(state_path: str) -> dict:
     try:
         return json.loads(Path(state_path).read_text())
-    except Exception:
+    except Exception as exc:
+        _log.warning("Failed to load state from %s: %s", state_path, exc)
         return {}
 
 
@@ -23,8 +27,8 @@ def _load_facts(facts_path: str) -> list[dict]:
         p = Path(facts_path)
         if p.exists():
             return json.loads(p.read_text())
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning("Failed to load facts from %s: %s", facts_path, exc)
     return []
 
 
@@ -33,14 +37,13 @@ def _query_db_events(db_path: str, target_date: str) -> list[dict]:
     if not Path(db_path).exists():
         return []
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            "SELECT date, title, type, child FROM events WHERE date = ? ORDER BY title",
-            (target_date,),
-        ).fetchall()
-        conn.close()
-        return [dict(r) for r in rows]
+        with closing(sqlite3.connect(db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT date, title, type, child FROM events WHERE date = ? ORDER BY title",
+                (target_date,),
+            ).fetchall()
+            return [dict(r) for r in rows]
     except Exception:
         return []
 
@@ -58,7 +61,11 @@ def _call_litellm(prompt: str, litellm_url: str, api_key: str, model: str) -> st
         timeout=60,
     )
     resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
+    data = resp.json()
+    try:
+        return data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ValueError(f"Unexpected LiteLLM response shape: {data}") from exc
 
 
 def _assignments_due_on(state: dict, target_date: str) -> list[dict]:
@@ -109,7 +116,7 @@ def build_morning_digest(
     litellm_url: str,
     api_key: str,
     model: str,
-    today: Optional[str] = None,
+    today: str | None = None,
 ) -> str:
     """Build a morning briefing: what does today hold?"""
     today = today or date.today().isoformat()
@@ -176,7 +183,7 @@ def build_afternoon_digest(
     litellm_url: str,
     api_key: str,
     model: str,
-    today: Optional[str] = None,
+    today: str | None = None,
 ) -> str:
     """Build an afternoon homework check: did the kids do their work?"""
     today = today or date.today().isoformat()
@@ -231,7 +238,7 @@ def build_night_digest(
     litellm_url: str,
     api_key: str,
     model: str,
-    tomorrow: Optional[str] = None,
+    tomorrow: str | None = None,
 ) -> str:
     """Build a night prep summary: what do we need ready for tomorrow?"""
     tomorrow = tomorrow or (date.today() + timedelta(days=1)).isoformat()
@@ -289,9 +296,11 @@ Write a brief night summary: what do we need to have ready for tomorrow? Mention
 
 def send_ntfy(topic: str, message: str, title: str = "School") -> None:
     """Push message to ntfy.sh topic."""
-    requests.post(
+    resp = requests.post(
         f"https://ntfy.sh/{topic}",
         data=message.encode("utf-8"),
         headers={"Title": title, "Priority": "default", "Tags": "school"},
         timeout=15,
     )
+    if not resp.ok:
+        _log.warning("ntfy delivery failed: %s %s", resp.status_code, resp.text[:200])
