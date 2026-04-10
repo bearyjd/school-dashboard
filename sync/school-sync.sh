@@ -40,7 +40,7 @@ fi
 
 # --- Step 3: Merge into state ---
 log "Updating state..."
-school-state update --ixl-dir "$IXL_DIR" --sgy-file "$SGY_FILE"
+school-state update --ixl-dir "$IXL_DIR" --sgy-file "$SGY_FILE" || { log "ERROR: State update failed — skipping remaining steps"; exit 1; }
 
 # --- Step 4: Email sync (fetch, normalize, classify — no LLM) ---
 if [[ -n "${SCHOOL_EMAIL_ACCOUNT:-}" ]]; then
@@ -54,19 +54,25 @@ fi
 if [[ -n "${LITELLM_URL:-}" && -f "${SCHOOL_EMAIL_DIGEST:-/app/state/email-digest.json}" ]]; then
     log "Running email intel extraction..."
     python3 -c "
-import os, json
-from school_dashboard.intel import process_digest
-with open(os.environ.get('SCHOOL_EMAIL_DIGEST', '/app/state/email-digest.json')) as f:
-    digest = json.load(f)
-count = process_digest(
-    digest=digest,
-    db_path=os.environ.get('SCHOOL_DB_PATH', '/app/state/school.db'),
-    facts_path=os.environ.get('SCHOOL_FACTS_PATH', '/app/state/facts.json'),
-    litellm_url=os.environ['LITELLM_URL'],
-    api_key=os.environ.get('LITELLM_API_KEY', ''),
-    model=os.environ.get('LITELLM_MODEL', 'claude-sonnet'),
-)
-print(f'Intel: {count} emails processed', flush=True)
+import os, json, sys, traceback
+try:
+    from school_dashboard.intel import process_digest
+    digest_path = os.environ.get('SCHOOL_EMAIL_DIGEST', '/app/state/email-digest.json')
+    with open(digest_path) as f:
+        digest = json.load(f)
+    count = process_digest(
+        digest=digest,
+        db_path=os.environ.get('SCHOOL_DB_PATH', '/app/state/school.db'),
+        facts_path=os.environ.get('SCHOOL_FACTS_PATH', '/app/state/facts.json'),
+        litellm_url=os.environ.get('LITELLM_URL', ''),
+        api_key=os.environ.get('LITELLM_API_KEY', ''),
+        model=os.environ.get('LITELLM_MODEL', 'claude-sonnet'),
+    )
+    print(f'Intel: {count} emails processed', flush=True)
+except Exception as e:
+    print(f'Intel error: {e}', file=sys.stderr, flush=True)
+    traceback.print_exc(file=sys.stderr)
+    sys.exit(1)
 " 2>&1 || log "WARN: Intel extraction had errors"
 else
     log "INFO: Skipping intel (LITELLM_URL not set or digest missing)"
