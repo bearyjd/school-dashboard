@@ -7,7 +7,7 @@ All-in-one Docker deployment for family school situational awareness. Scrapes IX
 ## Quick Start
 
 ```bash
-git clone --recurse-submodules https://github.com/bearyjd/school-dashboard
+git clone --recurse-submodules https://github.com/your-username/school-dashboard
 cd school-dashboard
 cp .env.example config/env        # fill in secrets
 # drop 2025-2026 calendar PDF into state/calendar.pdf
@@ -71,7 +71,7 @@ Copy `.env.example` to `config/env` and fill in all values:
 | `GOG_ACCOUNT` | Yes | Gmail account for gog OAuth |
 | `NTFY_TOPIC` | Yes | ntfy.sh topic slug for push notifications |
 | `SCHOOL_EMAIL_ACCOUNT` | Yes | Gmail account for school email intel |
-| `BRYN_EMAIL` | No | Additional digest recipient email |
+| `DIGEST_EMAIL` | No | Additional digest recipient email |
 
 Path overrides (default to `/app/state/` inside Docker):
 

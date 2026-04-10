@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add persistent SQLite event store + facts.json, parse the SMCS school calendar PDF, wire email intel extraction via LiteLLM, and upgrade the morning digest to send structured 7-day lookahead via ntfy + email.
+**Goal:** Add persistent SQLite event store + facts.json, parse the school school calendar PDF, wire email intel extraction via LiteLLM, and upgrade the morning digest to send structured 7-day lookahead via ntfy + email.
 
-**Architecture:** SQLite `school.db` holds structured calendar/email events; `facts.json` holds amorphous learned facts. A one-time `calendar_import.py` seeds the DB from the PDF. `intel.py` runs at each sync to extract events/facts from classified emails via LiteLLM. The morning digest queries the DB and posts to ntfy (with Email header for Bryn). The chat `/api/chat` gains 30-day lookahead context.
+**Architecture:** SQLite `school.db` holds structured calendar/email events; `facts.json` holds amorphous learned facts. A one-time `calendar_import.py` seeds the DB from the PDF. `intel.py` runs at each sync to extract events/facts from classified emails via LiteLLM. The morning digest queries the DB and posts to ntfy (with Email header for Parent2). The chat `/api/chat` gains 30-day lookahead context.
 
 **Tech Stack:** Python 3.12, sqlite3 (stdlib), pypdf (already installed), requests, Flask; gog CLI for Gmail; ntfy.sh for push + email delivery; LiteLLM at http://192.168.1.20:4000/.
 
@@ -24,7 +24,7 @@
 | CREATE | `/opt/school/dashboard/tests/test_digest.py` | Unit tests for digest builder |
 | MODIFY | `/opt/school/dashboard/school-sync.sh` | Add intel step; replace ad-hoc digest with `digest.py` call |
 | MODIFY | `/opt/school/web/app.py` | Expand `build_system_prompt()` with 30-day events + facts |
-| MODIFY | `/opt/school/config/env` | Add `SCHOOL_EMAIL_ACCOUNT`, `SCHOOL_DB_PATH`, `SCHOOL_FACTS_PATH`, `BRYN_EMAIL` |
+| MODIFY | `/opt/school/config/env` | Add `SCHOOL_EMAIL_ACCOUNT`, `SCHOOL_DB_PATH`, `SCHOOL_FACTS_PATH`, `DIGEST_EMAIL` |
 | MODIFY | `/opt/school/dashboard/cron-prompts/morning-briefing.md` | Replace openclaw placeholders with real values |
 
 ---
@@ -351,7 +351,7 @@ Expected: `ModuleNotFoundError: No module named 'school_dashboard.calendar_impor
 
 ```bash
 cat > /opt/school/dashboard/school_dashboard/calendar_import.py << 'EOF'
-"""Parse SMCS school calendar PDF and seed school.db with events."""
+"""Parse school school calendar PDF and seed school.db with events."""
 import re
 import sys
 from typing import Optional
@@ -554,7 +554,7 @@ Expected: rows like `2025-08-21|Opening Mass|MASS`, `2025-09-01|NO SCHOOL - Labo
 
 ```bash
 cd /opt/school/dashboard && git add school_dashboard/calendar_import.py tests/test_calendar_import.py \
-  && git commit -m "feat: parse SMCS calendar PDF into school.db (calendar_import.py)"
+  && git commit -m "feat: parse school calendar PDF into school.db (calendar_import.py)"
 ```
 
 ---
@@ -690,7 +690,7 @@ logger = logging.getLogger(__name__)
 ACTIONABLE_BUCKETS = {"SCHOOL", "CHILD_ACTIVITY", "STARRED"}
 
 EXTRACTION_SYSTEM = """You extract structured information from school emails for a family.
-Family: Ford (2nd grade), Jack (7th grade), Penn (5th grade) — all at SMCS.
+Family: the children — all at school.
 
 From the email, extract ONLY:
 1. Calendar events: specific dates mentioned with what is happening
@@ -835,14 +835,14 @@ SAMPLE_EVENTS = [
 
 SAMPLE_STATE = {
     "children": {
-        "Ford": {"ixl": {"minutes_today": 20, "goal_minutes": 30}},
-        "Jack": {"ixl": {"minutes_today": 0, "goal_minutes": 30}},
-        "Penn": {"ixl": {"minutes_today": 30, "goal_minutes": 30}},
+        "Child1": {"ixl": {"minutes_today": 20, "goal_minutes": 30}},
+        "Child2": {"ixl": {"minutes_today": 0, "goal_minutes": 30}},
+        "Child3": {"ixl": {"minutes_today": 30, "goal_minutes": 30}},
     }
 }
 
 MOCK_LLM_RESPONSE = {
-    "choices": [{"message": {"content": "📅 No school Mon-Fri this week (Easter break).\n📚 Jack: 0/30 IXL minutes."}}]
+    "choices": [{"message": {"content": "📅 No school Mon-Fri this week (Easter break).\n📚 Child2: 0/30 IXL minutes."}}]
 }
 
 
@@ -886,13 +886,13 @@ def test_send_ntfy_posts_with_headers():
         send_ntfy(
             topic="test-topic",
             message="Hello",
-            email="bryn@beary.us",
+            email="parent@example.com",
         )
         call_kwargs = mock_post.call_args
         headers = call_kwargs.kwargs.get("headers") or call_kwargs.args[1] if len(call_kwargs.args) > 1 else {}
         # Headers may be in kwargs
         _, kwargs = call_kwargs
-        assert "bryn@beary.us" in str(kwargs)
+        assert "parent@example.com" in str(kwargs)
 EOF
 ```
 
@@ -919,8 +919,8 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SYSTEM_PROMPT = """You are a concise school digest assistant for the Beary family.
-Kids: Ford (2nd grade), Jack (7th grade), Penn (5th grade) at SMCS.
+DEFAULT_SYSTEM_PROMPT = """You are a concise school digest assistant for the our family.
+Kids: the children at school.
 Write a short morning briefing (under 1200 chars). Be specific. Skip empty sections.
 Use these sections only if non-empty:
 📅 THIS WEEK – upcoming school events / no-school days / early releases
@@ -1051,18 +1051,18 @@ cd /opt/school/dashboard && git add school_dashboard/digest.py tests/test_digest
 ssh root@192.168.1.14 "cat >> /opt/school/config/env << 'EOF'
 
 # Email + memory intelligence layer (added 2026-04-09)
-SCHOOL_EMAIL_ACCOUNT=jd@beary.us
+SCHOOL_EMAIL_ACCOUNT=parent@example.com
 SCHOOL_DB_PATH=/opt/school/state/school.db
 SCHOOL_FACTS_PATH=/opt/school/state/facts.json
 SCHOOL_CALENDAR_PDF=/opt/school/state/calendar.pdf
-BRYN_EMAIL=bryn@beary.us
+DIGEST_EMAIL=parent@example.com
 EOF"
 ```
 
 - [ ] **Step 5.2: Verify env vars are set**
 
 ```bash
-ssh root@192.168.1.14 "grep -E 'SCHOOL_EMAIL_ACCOUNT|SCHOOL_DB_PATH|BRYN_EMAIL' /opt/school/config/env"
+ssh root@192.168.1.14 "grep -E 'SCHOOL_EMAIL_ACCOUNT|SCHOOL_DB_PATH|DIGEST_EMAIL' /opt/school/config/env"
 ```
 
 Expected: 3 lines printed
@@ -1169,7 +1169,7 @@ db = os.environ.get('SCHOOL_DB_PATH', '/opt/school/state/school.db')
 facts_path = os.environ.get('SCHOOL_FACTS_PATH', '/opt/school/state/facts.json')
 state_path = os.environ.get('SCHOOL_STATE_PATH', '/opt/school/state/school-state.json')
 topic = os.environ.get('NTFY_TOPIC', '')
-bryn_email = os.environ.get('BRYN_EMAIL', '')
+bryn_email = os.environ.get('DIGEST_EMAIL', '')
 prompt_path = '/opt/school/dashboard/cron-prompts/morning-briefing.md'
 
 events = query_upcoming_events(db, from_date=date.today().isoformat(), days=7)
@@ -1208,9 +1208,9 @@ chmod +x /opt/school/dashboard/school-sync.sh"
 ssh root@192.168.1.14 "cat > /opt/school/dashboard/cron-prompts/morning-briefing.md << 'EOF'
 # Morning Briefing — System Prompt
 
-You are a concise school digest assistant for the Beary family.
-Kids: Ford (2nd grade), Jack (7th grade), Penn (5th grade) at SMCS (St. Margaret Catholic School).
-Parents: JD and Bryn. Today's date is provided in the user message.
+You are a concise school digest assistant for the our family.
+Kids: the children at their school.
+Parents: Parent1 and Parent2. Today's date is provided in the user message.
 
 Write a short morning briefing under 1200 characters. Be specific, not generic. Skip empty sections entirely.
 
@@ -1268,7 +1268,7 @@ text = build_digest_text(
     system_prompt=system_prompt,
 )
 print(text)
-ok = send_ntfy(os.environ['NTFY_TOPIC'], text, email=os.environ.get('BRYN_EMAIL'))
+ok = send_ntfy(os.environ['NTFY_TOPIC'], text, email=os.environ.get('DIGEST_EMAIL'))
 print(f'Sent: {ok}')
 \""
 ```
@@ -1380,9 +1380,9 @@ def build_system_prompt() -> str:
 
     today = date.today().strftime(\"%A, %B %d, %Y\")
 
-    return f\"\"\"You are a helpful family assistant for the Beary family school dashboard.
+    return f\"\"\"You are a helpful family assistant for the our family school dashboard.
 
-Family: Ford (2nd grade), Jack (7th grade), Penn (5th grade) — all at SMCS.
+Family: the children — all at school.
 Today: {today}
 
 Answer questions about grades, assignments, upcoming school events, and what needs attention. Be concise and practical.
@@ -1493,7 +1493,7 @@ cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard 
 - [x] **app.py** expanded → Task 6 ✓
 - [x] **env vars** added → Task 5.1 ✓
 - [x] **SCHOOL_EMAIL_ACCOUNT** wired → Task 5.1 + sync.sh Step 4 ✓
-- [x] **ntfy Email header** for Bryn → Task 4, `send_ntfy()` ✓
+- [x] **ntfy Email header** for Parent2 → Task 4, `send_ntfy()` ✓
 - [x] **morning-briefing.md** updated → Task 5.4 ✓
 - [x] All test steps include exact commands and expected output ✓
 - [x] No "TBD" or placeholder steps ✓

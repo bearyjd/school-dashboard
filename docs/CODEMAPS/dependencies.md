@@ -50,8 +50,8 @@
 
 | Path | Remote | Role |
 |------|--------|------|
-| `vendor/ixl-scrape` | github.com/bearyjd/ixl | IXL scraper (pip install -e) |
-| `vendor/schoology-scrape` | github.com/bearyjd/sgy | Schoology scraper (pip install -e) |
+| `vendor/ixl-scrape` | your ixl-scrape repo | IXL scraper (pip install -e) |
+| `vendor/schoology-scrape` | your schoology-scrape repo | Schoology scraper (pip install -e) |
 
 ## Frontend
 

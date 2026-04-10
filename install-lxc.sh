@@ -18,10 +18,10 @@ log() { echo "[$(date '+%H:%M:%S')] $*"; }
 if command -v school-state &>/dev/null; then
     log "school-state CLI already installed: $(which school-state)"
     log "Upgrading..."
-    pip install --upgrade git+https://github.com/bearyjd/school-dashboard --break-system-packages -q
+    pip install --upgrade git+https://github.com/your-username/school-dashboard --break-system-packages -q
 else
     log "Installing school-dashboard CLI..."
-    pip install git+https://github.com/bearyjd/school-dashboard --break-system-packages -q
+    pip install git+https://github.com/your-username/school-dashboard --break-system-packages -q
 fi
 
 # ---------------------------------------------------------------
@@ -32,7 +32,7 @@ if [[ -d /opt/school-dashboard/.git ]]; then
     git -C /opt/school-dashboard pull --ff-only -q
 else
     log "Cloning repo to /opt/school-dashboard..."
-    git clone -q https://github.com/bearyjd/school-dashboard.git /opt/school-dashboard
+    git clone -q https://github.com/your-username/school-dashboard.git /opt/school-dashboard
 fi
 chmod +x /opt/school-dashboard/school-sync.sh
 
@@ -50,15 +50,12 @@ else
     cat > "$CONFIG" << 'CONF'
 {
   "children": {
-    "Ford": {"grade": "2nd", "school": "SMCS"},
-    "Jack": {"grade": "7th", "school": "SMCS"},
-    "Pennington": {"grade": "5th", "school": "SMCS"}
+    "Child1": {"grade": "2nd", "school": "Your School"},
+    "Child2": {"grade": "5th", "school": "Your School"}
   },
   "name_aliases": {
-    "ford": "Ford",
-    "jack": "Jack",
-    "penn": "Pennington",
-    "pennington": "Pennington"
+    "child1": "Child1",
+    "child2": "Child2"
   }
 }
 CONF
@@ -71,7 +68,7 @@ if [[ -f "$ENVFILE" ]]; then
 else
     log "Creating env file at $ENVFILE"
     cat > "$ENVFILE" << 'ENV'
-SCHOOL_EMAIL_ACCOUNT=jd@beary.us
+SCHOOL_EMAIL_ACCOUNT=parent@example.com
 SCHOOL_DOMAINS=stmark.org,schoology.com,ccsend.com
 ENV
     chmod 600 "$ENVFILE"
@@ -136,5 +133,5 @@ log "  4. Optional: serve dashboard via nginx:"
 log "     location /school { alias /var/lib/openclaw/school-dashboard.html; }"
 log ""
 log "To upgrade later:"
-log "  pip install --upgrade git+https://github.com/bearyjd/school-dashboard --break-system-packages -q"
+log "  pip install --upgrade git+https://github.com/your-username/school-dashboard --break-system-packages -q"
 log "  git -C /opt/school-dashboard pull --ff-only -q"

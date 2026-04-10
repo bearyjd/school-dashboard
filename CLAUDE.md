@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-All-in-one Docker deployment for the Beary family school dashboard. Scrapes IXL and Schoology, parses the school calendar PDF, extracts events/facts from Gmail via LiteLLM, sends a morning digest via ntfy, and serves a Flask web app with a chat interface.
+All-in-one Docker deployment for the family school dashboard. Scrapes IXL and Schoology, parses the school calendar PDF, extracts events/facts from Gmail via LiteLLM, sends a morning digest via ntfy, and serves a Flask web app with a chat interface.
 
 **External dependency:** LiteLLM proxy at `LITELLM_URL` (e.g. `http://192.168.1.20:4000`). Not included — point to your own instance.
 
@@ -69,8 +69,8 @@ sync/
   school-sync.sh        Cron script: IXL → SGY → state → email-sync → intel → HTML → digest (6am only).
 
 vendor/
-  ixl-scrape/           git submodule → github.com/bearyjd/ixl  (pip install -e)
-  schoology-scrape/     git submodule → github.com/bearyjd/sgy  (pip install -e)
+  ixl-scrape/           git submodule (pip install -e)
+  schoology-scrape/     git submodule (pip install -e)
 
 docker/
   Dockerfile            python:3.12-slim + gog v0.12.0 binary + Playwright/Chromium + pip scrapers
