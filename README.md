@@ -1,151 +1,146 @@
 # school-dashboard
 
-Persistent state manager + static dashboard for family school situational awareness. Aggregates data from IXL, Schoology, and email into a single JSON state file, regenerates a mobile-friendly HTML dashboard, and provides CLI tools for managing action items.
+All-in-one Docker deployment for family school situational awareness. Scrapes IXL and Schoology, parses the school calendar PDF, extracts events and facts from Gmail via LiteLLM, sends a morning digest via ntfy.sh, and serves a Flask web app with a streaming chat interface.
 
-## Setup
+**External dependency:** LiteLLM proxy at `LITELLM_URL`. Not included — point to your own instance.
 
-```bash
-pip install -e .
-```
-
-Requires `ixl` and `sgy` CLIs to be installed separately for data scraping.
-
-## How It Works
-
-```
-6:00 AM  school-sync.sh (system cron, NO LLM)
-         ├── IXL scrape → state
-         ├── SGY scrape → state
-         ├── Email sync → fetch all emails, strip HTML,
-         │                extract PDF text, classify,
-         │                write email-digest.json
-         └── Regen dashboard HTML
-
-6:05 AM  Email Triage (Haiku, 60s, Signal)
-         └── Reads digest, creates action items, flags uncertain emails
-
-7:00 AM  Morning Briefing (Sonnet, 180s)
-         ├── school-state show     (~1.3KB)
-         ├── school-state email-show (~1.5KB)
-         ├── Calendar events
-         ├── Full body fetch only if snippet unclear (max 3)
-         └── Signal digest
-         TOTAL CONTEXT: ~6KB base, ~21KB worst case
-
-2:30 PM  school-sync.sh (system cron, Mon-Fri, NO LLM)
-         └── Re-scrape IXL + SGY + email (catch late homework posts)
-
-2:35 PM  Afternoon Email Triage (Haiku, 60s, Signal, Mon-Fri)
-         └── Reads digest, creates action items, flags uncertain emails
-
-3:00 PM  Afternoon Update (Haiku, 60s)
-         └── school-state show → IXL + homework + grades → Signal
-
-6:00 PM  Evening Email (Haiku, 120s)
-         └── Light inbox scan → update action items → Signal
-```
-
-Context budget dropped from ~150KB/day to ~28KB worst case by pre-processing emails and reading compact state files instead of raw scraper output.
-
-## CLI
+## Quick Start
 
 ```bash
-# Merge latest scraper output into state
-school-state update
-
-# Regenerate static HTML dashboard
-school-state html
-
-# Print current state
-school-state show
-school-state show --json
-
-# Action items
-school-state action list
-school-state action list --child <name>
-school-state action add <name> "Permission slip for field trip" --due 2026-03-15 --source email
-school-state action complete abc123def456
-
-# Email pre-processing
-school-state email-sync --account user@example.com
-school-state email-show
-school-state email-show --json
+git clone --recurse-submodules https://github.com/bearyjd/school-dashboard
+cd school-dashboard
+cp .env.example config/env        # fill in secrets
+# drop 2025-2026 calendar PDF into state/calendar.pdf
+gog auth add EMAIL                # one-time Google OAuth setup
+docker compose up -d
 ```
 
-## Email Pipeline
+## Architecture
 
-`school-state email-sync` fetches all inbox emails, strips HTML to plain text snippets, downloads and extracts text from PDF attachments, and classifies each email:
+```
+school_dashboard/       Core Python package
+  db.py                 SQLite schema (events table + facts.json). INSERT OR IGNORE dedup.
+  calendar_import.py    Parse school calendar PDF → events DB.
+  intel.py              Classify emails via LiteLLM → extract events/facts → DB.
+  digest.py             Build morning digest via LiteLLM. Send to ntfy.sh.
+  email.py              Gmail digest fetch + classification via gog CLI.
+  state.py              Aggregate IXL + Schoology JSON into school-state.json.
+  cli.py                school-state CLI entry point.
+  html.py               Render school-state.json → dashboard HTML.
 
-| Bucket | Rule |
-|---|---|
-| `SCHOOL` | Sender domain matches configured school domains |
-| `CHILD_ACTIVITY` | Subject contains activity keywords (practice, game, permission, etc.) |
-| `STARRED` | User-starred in Gmail |
-| `FINANCIAL` | Subject contains financial keywords |
-| `SKIP` | Promotions, social, GitHub, known marketing senders |
-| `UNKNOWN` | Everything else — included in digest for LLM triage |
+web/
+  app.py                Flask app. /api/chat streams reply from LiteLLM.
+  templates/index.html  Dashboard iframe + chat tab (marked.js markdown rendering).
 
-Processed emails are labeled `OpenClaw/Scanned` in Gmail to prevent re-scanning.
+sync/
+  school-sync.sh        Cron script: IXL → SGY → state → email-sync → intel → HTML → digest.
 
-## State File
+vendor/
+  ixl-scrape/           git submodule (pip install -e)
+  schoology-scrape/     git submodule (pip install -e)
 
-Default location: `/var/lib/openclaw/school-state.json`
-
-Override with `--state-file` flag or `SCHOOL_STATE_PATH` env var.
-
-## Dashboard
-
-Static HTML at `/var/lib/openclaw/school-dashboard.html`. Mobile-friendly dark theme. Shows action items, IXL progress bars, grades (flags below B), and upcoming assignments.
-
-The HTML embeds state JSON in a hidden `<script>` tag for future Flask upgrade.
-
-## Install on Server
-
-```bash
-ssh root@<server> 'bash -s' < install-lxc.sh
+docker/
+  Dockerfile            python:3.12-slim + gog v0.12.0 + Playwright/Chromium + scrapers
+  entrypoint.sh         loads config/env → starts cron → starts Flask on :5000
+  crontab               6:00am + 2:30pm weekday syncs
 ```
 
-Or manually:
-```bash
-pip install git+https://github.com/bearyjd/school-dashboard --break-system-packages
-git clone https://github.com/bearyjd/school-dashboard.git /opt/school-dashboard
-```
+## Data Flow
+
+| Time | What happens |
+|------|-------------|
+| **6:00am** (weekdays) | IXL scrape → SGY scrape → state merge → email intel → dashboard HTML → ntfy.sh digest |
+| **2:30pm** (weekdays) | IXL + SGY + email re-scrape (catch late homework posts) |
+| **On demand** | `/api/chat` — query 30-day events + facts + full state via LiteLLM |
 
 ## Configuration
 
-### Children (`/etc/school-dashboard/config.json`)
+Copy `.env.example` to `config/env` and fill in all values:
 
-```json
-{
-  "children": {
-    "Alice": {"grade": "2nd", "school": "Example School"},
-    "Bob": {"grade": "5th", "school": "Example School"}
-  },
-  "name_aliases": {
-    "ali": "Alice",
-    "alice": "Alice",
-    "bob": "Bob"
-  }
-}
-```
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `LITELLM_URL` | Yes | LiteLLM proxy base URL (e.g. `http://192.168.1.20:4000`) |
+| `LITELLM_API_KEY` | Yes | API key for LiteLLM proxy |
+| `LITELLM_MODEL` | Yes | Model name (e.g. `claude-sonnet`) |
+| `IXL_EMAIL` | Yes | IXL student login email |
+| `IXL_PASSWORD` | Yes | IXL student login password |
+| `SGY_EMAIL` | Yes | Schoology parent login email |
+| `SGY_PASSWORD` | Yes | Schoology parent login password |
+| `SGY_BASE_URL` | Yes | Schoology API base URL |
+| `SGY_SCHOOL_NID` | Yes | Schoology school network ID |
+| `GOG_ACCOUNT` | Yes | Gmail account for gog OAuth |
+| `NTFY_TOPIC` | Yes | ntfy.sh topic slug for push notifications |
+| `SCHOOL_EMAIL_ACCOUNT` | Yes | Gmail account for school email intel |
+| `BRYN_EMAIL` | No | Additional digest recipient email |
 
-Override path with `SCHOOL_DASHBOARD_CONFIG` env var.
-
-### Email (`/etc/school-dashboard/env`)
-
-```
-SCHOOL_EMAIL_ACCOUNT=user@example.com
-SCHOOL_DOMAINS=school.org,schoology.com,ccsend.com
-```
-
-## .gitignore
+Path overrides (default to `/app/state/` inside Docker):
 
 ```
-__pycache__/
-*.py[cod]
-*.egg-info/
-dist/
-build/
-*.egg
-.env
+SCHOOL_STATE_PATH, SCHOOL_DB_PATH, SCHOOL_FACTS_PATH,
+SCHOOL_EMAIL_DIGEST, SCHOOL_CALENDAR_PDF
 ```
+
+## State Files
+
+All gitignored, stored in `state/`:
+
+| File | Contents |
+|------|----------|
+| `school.db` | SQLite: `events` table (calendar + email-extracted events) |
+| `facts.json` | Long-term memory: `{subject, fact, source, created_at}` |
+| `school-state.json` | Latest IXL + Schoology aggregate |
+| `email-digest.json` | Latest classified Gmail digest |
+| `calendar.pdf` | Source PDF (drop in manually each school year) |
+
+## One-off Commands
+
+```bash
+# Import school calendar PDF into DB
+python -m school_dashboard.calendar_import state/calendar.pdf state/school.db
+
+# Force a morning digest (bypasses 6am hour check)
+set -a && source config/env && set +a
+python3 -c "
+from datetime import date
+import json, os, sys
+sys.path.insert(0, '.')
+from school_dashboard.db import query_upcoming_events, load_facts
+from school_dashboard.digest import build_digest_text, send_ntfy
+events = query_upcoming_events('state/school.db', from_date=date.today().isoformat(), days=7)
+text = build_digest_text(events=events, state={}, facts=[], litellm_url=os.environ['LITELLM_URL'], api_key=os.environ['LITELLM_API_KEY'], model=os.environ['LITELLM_MODEL'])
+print(text)
+"
+```
+
+## Development (no Docker)
+
+```bash
+pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape
+playwright install chromium
+pytest                            # run all tests
+pytest tests/test_db.py -v        # single file
+pytest -k "test_name"             # single test
+```
+
+## Tests
+
+26 tests across 4 files. All use mocks — no live credentials needed.
+
+```
+tests/test_db.py              7 tests  — SQLite schema, dedup, facts
+tests/test_calendar_import.py 12 tests — PDF parsing, event classification
+tests/test_intel.py           4 tests  — LiteLLM extraction, error handling
+tests/test_digest.py          3 tests  — digest build, ntfy send
+```
+
+## Submodule Updates
+
+```bash
+git submodule update --remote vendor/ixl-scrape
+git submodule update --remote vendor/schoology-scrape
+git add vendor/ && git commit -m "chore: update scrapers"
+```
+
+## License
+
+Private family tool. Not licensed for redistribution.
