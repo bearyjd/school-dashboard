@@ -6,7 +6,7 @@
 
 **Architecture:** SQLite `school.db` holds structured calendar/email events; `facts.json` holds amorphous learned facts. A one-time `calendar_import.py` seeds the DB from the PDF. `intel.py` runs at each sync to extract events/facts from classified emails via LiteLLM. The morning digest queries the DB and posts to ntfy (with Email header for Bryn). The chat `/api/chat` gains 30-day lookahead context.
 
-**Tech Stack:** Python 3.12, sqlite3 (stdlib), pypdf (already installed), requests, Flask; gog CLI for Gmail; ntfy.sh for push + email delivery; LiteLLM at https://llm.grepon.cc.
+**Tech Stack:** Python 3.12, sqlite3 (stdlib), pypdf (already installed), requests, Flask; gog CLI for Gmail; ntfy.sh for push + email delivery; LiteLLM at http://192.168.1.20:4000/.
 
 ---
 
@@ -1306,7 +1306,7 @@ from flask import Flask, jsonify, render_template, request, Response
 
 app = Flask(__name__)
 
-LITELLM_URL = os.environ.get(\"LITELLM_URL\", \"https://llm.grepon.cc\")
+LITELLM_URL = os.environ.get(\"LITELLM_URL\", \"http://192.168.1.20:4000/\")
 LITELLM_API_KEY = os.environ.get(\"LITELLM_API_KEY\", \"\")
 LITELLM_MODEL = os.environ.get(\"LITELLM_MODEL\", \"claude-sonnet-4-6\")
 STATE_PATH = os.environ.get(\"SCHOOL_STATE_PATH\", \"/opt/school/state/school-state.json\")
