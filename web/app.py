@@ -1,6 +1,9 @@
 import json
 import os
+import re
 import sqlite3
+import subprocess
+import time
 from datetime import date, timedelta
 from pathlib import Path
 import requests
@@ -16,6 +19,11 @@ EMAIL_DIGEST_PATH = os.environ.get("SCHOOL_EMAIL_DIGEST", "/opt/school/state/ema
 DB_PATH = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
 FACTS_PATH = os.environ.get("SCHOOL_FACTS_PATH", "/opt/school/state/facts.json")
 DASHBOARD_HTML = "/opt/school/state/school-dashboard.html"
+GOG_ACCOUNT = os.environ.get("GOG_ACCOUNT", "")
+SGY_BASE_URL = os.environ.get("SGY_BASE_URL", "https://arlingtondiocese.schoology.com")
+
+_gcal_cache: dict = {"data": None, "ts": 0}
+GCAL_TTL = 900  # 15 minutes
 
 
 def load_json(path: str) -> dict | list:
@@ -61,7 +69,7 @@ def build_system_prompt() -> str:
     events = load_upcoming_events(days=30)
     facts = load_facts()
 
-    state_str = json.dumps(state, indent=2)[:8000]
+    state_str = json.dumps(state, indent=2).replace('"John"', '"Jack"')[:8000]
 
     actionable = []
     if isinstance(emails, dict):
@@ -214,6 +222,148 @@ def api_items_delete(item_id):
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+_MONTHS = {
+    "January": 1, "February": 2, "March": 3, "April": 4,
+    "May": 5, "June": 6, "July": 7, "August": 8,
+    "September": 9, "October": 10, "November": 11, "December": 12,
+}
+
+_CHILD_ALIASES: dict[str, str] = {
+    "John": "Jack",
+}
+
+def _normalize_child(name: str) -> str:
+    return _CHILD_ALIASES.get(name, name)
+
+
+def _parse_due_iso(s: str | None) -> str | None:
+    """Parse due string to ISO date. Handles:
+    - Already-ISO: '2026-04-14'
+    - Freeform: 'Due Tuesday, March 10, 2026 at 8:00 am'
+    """
+    if not s:
+        return None
+    # Already ISO format YYYY-MM-DD
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", s.strip()):
+        return s.strip()
+    # Freeform: "March 10, 2026"
+    m = re.search(r"(\w+)\s+(\d{1,2}),\s+(\d{4})", s)
+    if m:
+        month = _MONTHS.get(m.group(1))
+        if month:
+            return f"{int(m.group(3)):04d}-{month:02d}-{int(m.group(2)):02d}"
+    return None
+
+
+@app.route("/api/dashboard")
+def api_dashboard():
+    try:
+        state = load_json(STATE_PATH)
+        if "error" in state:
+            return jsonify({"error": state["error"]}), 500
+
+        # Schoology: per-child assignment lists
+        schoology: dict = {}
+        for child, data in (state.get("schoology") or {}).items():
+            name = _normalize_child(child)
+            assignments = [
+                {
+                    "title": a.get("title", ""),
+                    "course": a.get("course", ""),
+                    "due_date": a.get("due_date", ""),
+                    "status": a.get("status", ""),
+                    "url": (SGY_BASE_URL.rstrip("/") + a["link"]) if a.get("link") else "",
+                }
+                for a in (data.get("assignments") or [])
+            ]
+            if assignments:
+                schoology.setdefault(name, [])
+                schoology[name].extend(assignments)
+
+        # IXL: per-child subjects with remaining > 0
+        ixl: dict = {}
+        for child, data in (state.get("ixl") or {}).items():
+            name = _normalize_child(child)
+            subjects = [
+                {
+                    "subject": subj,
+                    "remaining": vals.get("remaining", 0),
+                    "assigned": vals.get("assigned", 0),
+                    "done": vals.get("done", 0),
+                }
+                for subj, vals in (data.get("totals") or {}).items()
+                if vals.get("remaining", 0) > 0
+            ]
+            if subjects:
+                ixl[name] = subjects
+
+        # Email action items only (with parsed due dates)
+        email_items = [
+            {
+                "id": it.get("id", ""),
+                "child": _normalize_child(it.get("child", "")),
+                "source": it.get("source", ""),
+                "summary": it.get("summary", ""),
+                "due_iso": _parse_due_iso(it.get("due")),
+                "due_raw": it.get("due") or "",
+            }
+            for it in (state.get("action_items") or [])
+            if it.get("source") == "email"
+        ]
+
+        return jsonify({
+            "schoology": schoology,
+            "ixl": ixl,
+            "email_items": email_items,
+            "last_updated": state.get("last_updated", ""),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def _fetch_gcal_events() -> list[dict]:
+    """Fetch upcoming 30-day events from Google Calendar via gog CLI. Cached for GCAL_TTL seconds."""
+    global _gcal_cache
+    if _gcal_cache["data"] is not None and (time.time() - _gcal_cache["ts"]) < GCAL_TTL:
+        return _gcal_cache["data"]
+    if not GOG_ACCOUNT:
+        return []
+    try:
+        end_date = (date.today() + timedelta(days=30)).isoformat()
+        result = subprocess.run(
+            ["gog", "calendar", "events", "--from", "today", "--to", end_date, "-a", GOG_ACCOUNT, "-j"],
+            capture_output=True, text=True, timeout=15,
+            env={**os.environ, "GOG_KEYRING_PASSWORD": os.environ.get("GOG_KEYRING_PASSWORD", "")},
+        )
+        if result.returncode != 0:
+            return []
+        raw = json.loads(result.stdout)
+        events = raw.get("events") or raw if isinstance(raw, list) else []
+        out = []
+        for e in events:
+            start = e.get("start", {})
+            end = e.get("end", {})
+            out.append({
+                "title": e.get("summary", ""),
+                "start": start.get("dateTime") or start.get("date", ""),
+                "end": end.get("dateTime") or end.get("date", ""),
+                "all_day": "dateTime" not in start,
+                "location": e.get("location", ""),
+                "description": (e.get("description") or "")[:200],
+                "url": e.get("htmlLink", ""),
+            })
+        _gcal_cache = {"data": out, "ts": time.time()}
+        return out
+    except Exception:
+        return _gcal_cache.get("data") or []
+
+
+@app.route("/api/calendar")
+def api_calendar():
+    events = _fetch_gcal_events()
+    return jsonify({"events": events})
 
 
 if __name__ == "__main__":
