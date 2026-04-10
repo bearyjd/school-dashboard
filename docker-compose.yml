@@ -8,11 +8,11 @@ services:
       - ./state:/app/state
       - ./config/env:/app/config/env:ro
       # gog OAuth credentials (set up once with: gog auth add ...)
-      - gog-creds:/root/.config/gogcli
+      - /root/.config/gogcli:/root/.config/gogcli
       # IXL session cache
-      - ixl-sessions:/root/.ixl
+      - /root/.ixl:/root/.ixl
       # Schoology session cache
-      - sgy-sessions:/root/.sgy
+      - /root/.sgy:/root/.sgy
     env_file:
       - config/env
     environment:
@@ -21,8 +21,3 @@ services:
       - SCHOOL_FACTS_PATH=/app/state/facts.json
       - SCHOOL_EMAIL_DIGEST=/app/state/email-digest.json
       - SCHOOL_CALENDAR_PDF=/app/state/calendar.pdf
-
-volumes:
-  gog-creds:
-  ixl-sessions:
-  sgy-sessions:
