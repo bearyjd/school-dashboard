@@ -295,11 +295,10 @@ Write a brief night summary: what do we need to have ready for tomorrow? Mention
 # ── Delivery ─────────────────────────────────────────────────────────────────
 
 def send_ntfy(topic: str, message: str, title: str = "School") -> None:
-    """Push message to ntfy.sh topic."""
+    """Push message to ntfy.sh topic. Uses JSON body to support Unicode in title."""
     resp = requests.post(
-        f"https://ntfy.sh/{topic}",
-        data=message.encode("utf-8"),
-        headers={"Title": title, "Priority": "default", "Tags": "school"},
+        "https://ntfy.sh/",
+        json={"topic": topic, "message": message, "title": title, "priority": "default", "tags": ["school"]},
         timeout=15,
     )
     if not resp.ok:
