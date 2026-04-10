@@ -6,6 +6,8 @@ import sys
 from school_dashboard import state
 from school_dashboard import html
 from school_dashboard import email
+from school_dashboard import digest as _digest
+from school_dashboard.gcal import fetch_gcal_events
 
 
 def cmd_update(args: argparse.Namespace) -> None:
@@ -113,6 +115,63 @@ def cmd_email_show(args: argparse.Namespace) -> None:
         print(email.digest_summary(args.digest_file))
 
 
+def cmd_digest(args: argparse.Namespace) -> None:
+    import os
+
+    litellm_url = os.environ.get("LITELLM_URL", "")
+    api_key = os.environ.get("LITELLM_API_KEY", "")
+    model = os.environ.get("LITELLM_MODEL", "claude-sonnet")
+    ntfy_topic = os.environ.get("NTFY_TOPIC", "")
+    db_path = os.environ.get("SCHOOL_DB_PATH", "/app/state/school.db")
+    facts_path = os.environ.get("SCHOOL_FACTS_PATH", "/app/state/facts.json")
+    gog_account = os.environ.get("GOG_ACCOUNT", "")
+    state_file = args.state_file or os.environ.get("SCHOOL_STATE_PATH", "/app/state/school-state.json")
+
+    if not litellm_url:
+        print("Error: LITELLM_URL not set", file=sys.stderr)
+        sys.exit(1)
+    if not ntfy_topic:
+        print("Error: NTFY_TOPIC not set", file=sys.stderr)
+        sys.exit(1)
+
+    gcal_events = fetch_gcal_events(gog_account) if gog_account else []
+
+    if args.mode == "morning":
+        text = _digest.build_morning_digest(
+            state_path=state_file,
+            db_path=db_path,
+            facts_path=facts_path,
+            gcal_events=gcal_events,
+            litellm_url=litellm_url,
+            api_key=api_key,
+            model=model,
+        )
+        _digest.send_ntfy(topic=ntfy_topic, message=text, title="☀️ Today")
+
+    elif args.mode == "afternoon":
+        text = _digest.build_afternoon_digest(
+            state_path=state_file,
+            litellm_url=litellm_url,
+            api_key=api_key,
+            model=model,
+        )
+        _digest.send_ntfy(topic=ntfy_topic, message=text, title="📚 Homework Check")
+
+    elif args.mode == "night":
+        text = _digest.build_night_digest(
+            state_path=state_file,
+            db_path=db_path,
+            facts_path=facts_path,
+            gcal_events=gcal_events,
+            litellm_url=litellm_url,
+            api_key=api_key,
+            model=model,
+        )
+        _digest.send_ntfy(topic=ntfy_topic, message=text, title="🌙 Tomorrow")
+
+    print(f"Digest sent [{args.mode}]: {text[:80]}...", file=sys.stderr)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="school-state", description="School situational awareness state manager")
     parser.add_argument("--state-file", type=str, default=None, help="State file path (default: /var/lib/openclaw/school-state.json)")
@@ -165,6 +224,15 @@ def main() -> None:
     p_email_show.add_argument("--digest-file", type=str, default=None)
     p_email_show.add_argument("--json", action="store_true")
     p_email_show.set_defaults(func=cmd_email_show)
+
+    p_digest = subs.add_parser("digest", help="Build and send a timed digest notification")
+    p_digest.add_argument(
+        "--mode",
+        choices=["morning", "afternoon", "night"],
+        required=True,
+        help="Which digest to send",
+    )
+    p_digest.set_defaults(func=cmd_digest)
 
     args = parser.parse_args()
     if not args.command:
