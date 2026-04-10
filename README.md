@@ -49,8 +49,11 @@ docker/
 
 | Time | What happens |
 |------|-------------|
-| **6:00am** (weekdays) | IXL scrape → SGY scrape → state merge → email intel → dashboard HTML → ntfy.sh digest |
+| **6:00am** (weekdays) | IXL scrape → SGY scrape → state merge → email intel → dashboard HTML |
 | **2:30pm** (weekdays) | IXL + SGY + email re-scrape (catch late homework posts) |
+| **7:00am** (daily) | Morning digest — 7-day events + IXL state + facts → LiteLLM → ntfy.sh |
+| **3:30pm** (weekdays) | Afternoon digest — homework check |
+| **8:30pm** (daily) | Night digest — next-day prep |
 | **On demand** | `/api/chat` — query 30-day events + facts + full state via LiteLLM |
 
 ## Configuration
@@ -98,18 +101,9 @@ All gitignored, stored in `state/`:
 # Import school calendar PDF into DB
 python -m school_dashboard.calendar_import state/calendar.pdf state/school.db
 
-# Force a morning digest (bypasses 6am hour check)
-set -a && source config/env && set +a
-python3 -c "
-from datetime import date
-import json, os, sys
-sys.path.insert(0, '.')
-from school_dashboard.db import query_upcoming_events, load_facts
-from school_dashboard.digest import build_digest_text, send_ntfy
-events = query_upcoming_events('state/school.db', from_date=date.today().isoformat(), days=7)
-text = build_digest_text(events=events, state={}, facts=[], litellm_url=os.environ['LITELLM_URL'], api_key=os.environ['LITELLM_API_KEY'], model=os.environ['LITELLM_MODEL'])
-print(text)
-"
+# Force a digest (morning/afternoon/night)
+docker compose exec dashboard bash -c \
+  'set -a && source /app/config/env && set +a && school-state digest --mode morning'
 ```
 
 ## Development (no Docker)
