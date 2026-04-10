@@ -23,3 +23,4 @@ services:
       - SCHOOL_FACTS_PATH=/app/state/facts.json
       - SCHOOL_EMAIL_DIGEST=/app/state/email-digest.json
       - SCHOOL_CALENDAR_PDF=/app/state/calendar.pdf
+      - SCHOOL_DASHBOARD_HTML=/app/state/school-dashboard.html

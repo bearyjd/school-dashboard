@@ -19,7 +19,7 @@ STATE_PATH = os.environ.get("SCHOOL_STATE_PATH", "/opt/school/state/school-state
 EMAIL_DIGEST_PATH = os.environ.get("SCHOOL_EMAIL_DIGEST", "/opt/school/state/email-digest.json")
 DB_PATH = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
 FACTS_PATH = os.environ.get("SCHOOL_FACTS_PATH", "/opt/school/state/facts.json")
-DASHBOARD_HTML = "/opt/school/state/school-dashboard.html"
+DASHBOARD_HTML = os.environ.get("SCHOOL_DASHBOARD_HTML", "/opt/school/state/school-dashboard.html")
 GOG_ACCOUNT = os.environ.get("GOG_ACCOUNT", "")
 SGY_BASE_URL = os.environ.get("SGY_BASE_URL", "https://arlingtondiocese.schoology.com")
 
