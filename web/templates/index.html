@@ -32,6 +32,12 @@ body{display:flex;flex-direction:column;height:100vh}
 .dchip:hover:not(.active){background:#1e2130}
 .dash-section{padding:8px 14px 4px;font-size:13px;font-weight:700;color:#b8c0d8;text-transform:uppercase;letter-spacing:.06em}
 .dash-item{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid #1a1d27;transition:background .1s}
+.dash-check{appearance:none;-webkit-appearance:none;width:18px;height:18px;min-width:18px;border:2px solid #4a4d5e;border-radius:4px;background:none;cursor:pointer;margin-top:2px;transition:all .15s}
+.dash-check:checked{background:#3b82f6;border-color:#3b82f6}
+.dash-check:checked::after{content:'✓';color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
+.dash-done .dash-summary{text-decoration:line-through;color:#5a5d6e}
+.dash-done .dash-meta{opacity:.4}
+.dash-done .dash-dot{opacity:.3}
 .dash-item:hover{background:#13151f}
 .dash-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
 .dash-body{flex:1;min-width:0}
@@ -123,6 +129,58 @@ body{display:flex;flex-direction:column;height:100vh}
 .qchip{background:#1e2130;color:#a5adc6;border:1px solid #252938;border-radius:16px;padding:5px 12px;font-size:16px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
 .qchip:hover{background:#252938;color:#f0f2fa}
 .empty-hint{color:#b8c0d8;text-align:center;font-size:16px;padding:40px 20px;margin:auto}
+/* --- Carousel mode --- */
+.carousel-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;
+  background:#f5f5f5;display:flex;flex-direction:column;}
+.carousel-progress{height:4px;background:#e0e0e0;flex-shrink:0;}
+.carousel-progress-fill{height:100%;background:#4caf50;transition:width .3s;}
+.carousel-header{display:flex;justify-content:space-between;align-items:center;
+  padding:12px 16px;flex-shrink:0;}
+.carousel-header .progress-text{font-size:14px;color:#666;}
+.carousel-header .carousel-close{background:none;border:none;font-size:24px;cursor:pointer;
+  color:#666;padding:4px 8px;}
+.carousel-track{flex:1;display:flex;overflow-x:scroll;scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;scroll-behavior:smooth;}
+.carousel-track::-webkit-scrollbar{display:none;}
+.carousel-card{min-width:100vw;scroll-snap-align:start;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;padding:24px 20px;box-sizing:border-box;}
+.carousel-card-inner{background:#fff;border-radius:16px;padding:32px 24px;
+  max-width:400px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.1);
+  display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;}
+.carousel-badge{display:inline-block;padding:4px 12px;border-radius:12px;
+  font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
+.carousel-badge.schoology{background:#e3f2fd;color:#1565c0;}
+.carousel-badge.ixl{background:#e8f5e9;color:#2e7d32;}
+.carousel-badge.email{background:#fff3e0;color:#e65100;}
+.carousel-badge.calendar{background:#f3e5f5;color:#7b1fa2;}
+.carousel-badge.readiness{background:#fce4ec;color:#c62828;}
+.carousel-child{font-size:14px;color:#888;font-weight:500;}
+.carousel-title{font-size:22px;font-weight:700;color:#222;line-height:1.3;}
+.carousel-detail{font-size:15px;color:#666;}
+.carousel-due{font-size:13px;color:#999;}
+.carousel-link{font-size:13px;color:#1976d2;text-decoration:none;}
+.carousel-link:hover{text-decoration:underline;}
+.carousel-check{width:56px;height:56px;border-radius:50%;border:3px solid #ccc;
+  background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:28px;color:transparent;transition:all .2s;}
+.carousel-check.done{border-color:#4caf50;background:#4caf50;color:#fff;}
+.carousel-card-inner.done{opacity:.5;}
+.carousel-card-inner.done .carousel-title{text-decoration:line-through;}
+.carousel-dots{display:flex;justify-content:center;gap:6px;padding:12px;flex-shrink:0;}
+.carousel-dot{width:8px;height:8px;border-radius:50%;background:#ccc;transition:background .2s;}
+.carousel-dot.active{background:#333;}
+.carousel-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.1);
+  border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:20px;
+  display:none;align-items:center;justify-content:center;}
+@media(min-width:768px){.carousel-nav{display:flex;}}
+.carousel-nav.prev{left:12px;}
+.carousel-nav.next{right:12px;}
+.carousel-footer{text-align:center;padding:8px 16px 20px;flex-shrink:0;}
+.carousel-footer a{color:#1976d2;font-size:14px;text-decoration:none;}
+.carousel-alldone{display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:16px;padding:40px;text-align:center;}
+.carousel-alldone .checkmark{font-size:64px;color:#4caf50;}
+.carousel-alldone h2{font-size:24px;color:#333;}
 </style>
 </head>
 <body>
@@ -139,6 +197,7 @@ body{display:flex;flex-direction:column;height:100vh}
       <button class="dtab" data-mode="email">Email Items</button>
       <button class="dtab" data-mode="calendar">Calendar</button>
       <button class="dtab" data-mode="readiness">Readiness</button>
+      <button class="dtab" data-mode="all">All</button>
       <a href="/dashboard-frame" target="_blank" style="margin-left:auto;font-size:20px;color:#b8c0d8;text-decoration:none">Full Report ↗</a>
     </div>
     <div id="dash-child-bar" style="display:flex;gap:6px;padding:8px 12px;background:#0f1117;border-bottom:1px solid #1e2130;flex-wrap:wrap"></div>
@@ -309,9 +368,9 @@ function renderSchoology(){
     asgns.forEach(a=>items.push(Object.assign({},a,{_child:child})));
   }
   if(dashChild!=='all') items=items.filter(i=>i._child===dashChild);
-  if(dashTime==='today') items=items.filter(i=>{const d=dashDiff(i.due_date);return d!==null&&d<=0;});
-  else if(dashTime==='week') items=items.filter(i=>{const d=dashDiff(i.due_date);return d!==null&&d<=7;});
-  else if(dashTime==='month') items=items.filter(i=>{const d=dashDiff(i.due_date);return d!==null&&d<=31;});
+  if(dashTime==='today') items=items.filter(i=>{const d=dashDiff(i.due_date);return d===null||d<=0;});
+  else if(dashTime==='week') items=items.filter(i=>{const d=dashDiff(i.due_date);return d===null||d<=7;});
+  else if(dashTime==='month') items=items.filter(i=>{const d=dashDiff(i.due_date);return d===null||d<=31;});
   items=items.slice().sort((a,b)=>{
     const da=dashDiff(a.due_date),db=dashDiff(b.due_date);
     if(da===null&&db===null)return 0;
@@ -319,9 +378,15 @@ function renderSchoology(){
     return da-db;
   });
   if(!items.length)return '<div class="dash-empty">No Schoology assignments for this filter.</div>';
-  return items.map(i=>{
+  items.forEach(i=>i._done=isDone('Schoology',i._child,i.title));
+  const active=items.filter(i=>!i._done), done=items.filter(i=>i._done);
+  return [...active,...done].map(i=>{
     const diff=dashDiff(i.due_date);
-    const inner='<span class="dash-dot" style="background:'+dashDot(diff)+'"></span>'+
+    const ck=i._done?'checked':'';
+    const cls=i._done?' dash-done':'';
+    const cb='<input type="checkbox" class="dash-check" '+ck+' onclick="event.preventDefault();event.stopPropagation();toggleDone(\'Schoology\',\''+escHtml(i._child)+'\',\''+escHtml(i.title).replace(/'/g,"\\'")+'\')"/>';
+    const inner=cb+
+      '<span class="dash-dot" style="background:'+dashDot(diff)+'"></span>'+
       '<div class="dash-body">'+
         '<div class="dash-summary">'+escHtml(i.title)+'</div>'+
         '<div class="dash-meta">'+
@@ -330,8 +395,8 @@ function renderSchoology(){
         '</div>'+
       '</div>';
     return i.url
-      ?'<a class="dash-item dash-item-link" href="'+escHtml(i.url)+'" target="_blank" rel="noopener">'+inner+'</a>'
-      :'<div class="dash-item">'+inner+'</div>';
+      ?'<a class="dash-item dash-item-link'+cls+'" href="'+escHtml(i.url)+'" target="_blank" rel="noopener">'+inner+'</a>'
+      :'<div class="dash-item'+cls+'">'+inner+'</div>';
   }).join('');
 }
 
@@ -446,11 +511,71 @@ function renderEmailItems(){
   }).join('');
 }
 
+function renderAll(){
+  let items=[];
+  // Schoology assignments
+  for(const [child,asgns] of Object.entries(dashData.schoology||{})){
+    if(!asgns)continue;
+    asgns.forEach(a=>items.push({title:a.title,child:child,due:a.due_date||'',src:'Schoology',detail:a.course||'',url:a.url||''}));
+  }
+  // IXL remaining work
+  for(const [child,subjects] of Object.entries(dashData.ixl||{})){
+    if(!subjects)continue;
+    subjects.forEach(s=>items.push({title:s.subject,child:child,due:'',src:'IXL',detail:s.remaining+' remaining · '+s.done+'/'+s.assigned+' done',url:'https://www.ixl.com/'}));
+  }
+  // Email action items
+  (dashData.email_items||[]).forEach(i=>items.push({title:i.summary,child:i.child||'',due:i.due_iso||'',src:'Email',detail:'',url:i.id?'https://mail.google.com/mail/u/0/#all/'+encodeURIComponent(i.id):''}));
+  // Calendar events (if loaded)
+  calEvents.forEach(e=>{const start=e.start?e.start.slice(0,10):'';items.push({title:e.title,child:'',due:start,src:'Calendar',detail:e.location||'',url:e.url||''});});
+  // Readiness items (if loaded)
+  if(readinessData){Object.entries(readinessData).forEach(([child,cItems])=>{(cItems||[]).forEach(r=>items.push({title:r.label,child:child,due:'',src:'Readiness',detail:r.detail||r.urgency||'',url:''}));});}
+  // Filter by child
+  if(dashChild!=='all') items=items.filter(i=>i.child===dashChild);
+  // Filter by time
+  if(dashTime==='today') items=items.filter(i=>{const d=dashDiff(i.due);return d===null||d<=0;});
+  else if(dashTime==='week') items=items.filter(i=>{const d=dashDiff(i.due);return d===null||d<=7;});
+  else if(dashTime==='month') items=items.filter(i=>{const d=dashDiff(i.due);return d===null||d<=31;});
+  // Sort: dated items first (ascending), then undated
+  items.sort((a,b)=>{
+    const da=dashDiff(a.due),db=dashDiff(b.due);
+    if(da===null&&db===null)return 0;
+    if(da===null)return 1;if(db===null)return -1;
+    return da-db;
+  });
+  if(!items.length)return '<div class="dash-empty">No items for this filter.</div>';
+  const srcColor={Schoology:'#6366f1',IXL:'#f59e0b',Email:'#3b82f6',Calendar:'#10b981',Readiness:'#ec4899'};
+  // Sort done items to bottom
+  items.forEach(i=>i._done=isDone(i.src,i.child,i.title));
+  const active=items.filter(i=>!i._done), done=items.filter(i=>i._done);
+  const all=[...active,...done];
+  return all.map(i=>{
+    const diff=dashDiff(i.due);
+    const ck=i._done?'checked':'';
+    const cls=i._done?' dash-done':'';
+    const cb='<input type="checkbox" class="dash-check" '+ck+' onclick="event.preventDefault();event.stopPropagation();toggleDone(\''+escHtml(i.src)+'\',\''+escHtml(i.child)+'\',\''+escHtml(i.title).replace(/'/g,"\\'")+'\')"/>';
+    const inner=cb+
+      '<span class="dash-dot" style="background:'+dashDot(diff)+'"></span>'+
+      '<div class="dash-body">'+
+        '<div class="dash-summary">'+escHtml(i.title)+'</div>'+
+        '<div class="dash-meta">'+
+          '<span style="color:'+(srcColor[i.src]||'#b0bace')+';font-weight:600;font-size:11px">'+i.src+'</span>'+
+          (i.child?'<span class="dash-child">'+escHtml(i.child)+'</span>':'')+
+          (i.detail?'<span class="dash-source">'+escHtml(i.detail)+'</span>':'')+
+          dashDueLabel(i.due)+
+        '</div>'+
+      '</div>';
+    return i.url
+      ?'<a class="dash-item dash-item-link'+cls+'" href="'+escHtml(i.url)+'" target="_blank" rel="noopener">'+inner+'</a>'
+      :'<div class="dash-item'+cls+'">'+inner+'</div>';
+  }).join('');
+}
+
 function renderDashList(){
   const list=document.getElementById('dash-list');
   const timeBar=document.getElementById('dash-time-bar');
-  timeBar.style.display=(dashMode==='email'||dashMode==='schoology')?'flex':'none';
-  if(dashMode==='schoology') list.innerHTML=renderSchoology();
+  timeBar.style.display=(dashMode==='all'||dashMode==='email'||dashMode==='schoology')?'flex':'none';
+  if(dashMode==='all') list.innerHTML=renderAll();
+  else if(dashMode==='schoology') list.innerHTML=renderSchoology();
   else if(dashMode==='ixl') list.innerHTML=renderIxl();
   else if(dashMode==='calendar') list.innerHTML=renderCalendar();
   else if(dashMode==='readiness') renderReadiness();
@@ -475,7 +600,8 @@ async function loadDashboard(){
 function setDashMode(m){
   dashMode=m;
   document.querySelectorAll('#dash-mode-bar .dtab').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));
-  if(m==='calendar'){loadCalendar().then(()=>renderDashList());}
+  if(m==='all'){document.getElementById('dash-list').innerHTML='<div class="dash-empty">Loading all sources...</div>';Promise.all([loadCalendar(),loadReadiness()]).then(()=>renderDashList());}
+  else if(m==='calendar'){loadCalendar().then(()=>renderDashList());}
   else if(m==='readiness'){loadReadiness().then(()=>renderDashList());}
   else renderDashList();
 }
@@ -495,6 +621,168 @@ document.querySelectorAll('#dash-time-bar .dtab').forEach(b=>b.addEventListener(
 document.querySelectorAll('.tabbar button').forEach(btn=>{
   btn.addEventListener('click',()=>{if(btn.dataset.tab==='dashboard')loadDashboard();});
 });
+// --- Carousel mode ---
+let _carouselDigest = null;
+
+function initCarousel(digestId) {
+  fetch('/api/digest/' + digestId)
+    .then(r => { if (!r.ok) throw new Error('not found'); return r.json(); })
+    .then(data => {
+      _carouselDigest = data;
+      renderCarousel();
+    })
+    .catch(() => {
+      console.warn('Digest not found, showing normal dashboard');
+    });
+}
+
+function renderCarousel() {
+  const d = _carouselDigest;
+  if (!d || !d.cards || d.cards.length === 0) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'carousel-overlay';
+  overlay.id = 'carousel-overlay';
+
+  const doneCount = d.cards.filter(c => c.done).length;
+  const total = d.cards.length;
+  const pct = Math.round((doneCount / total) * 100);
+
+  let html = '';
+  html += '<div class="carousel-progress"><div class="carousel-progress-fill" id="carousel-pbar" style="width:' + pct + '%"></div></div>';
+  html += '<div class="carousel-header">';
+  html += '<span class="progress-text" id="carousel-ptext">' + doneCount + ' of ' + total + ' done</span>';
+  html += '<button class="carousel-close" onclick="closeCarousel()">&times;</button>';
+  html += '</div>';
+  html += '<div class="carousel-track" id="carousel-track" style="position:relative;">';
+  d.cards.forEach(function(card, i) {
+    const doneClass = card.done ? ' done' : '';
+    html += '<div class="carousel-card" data-index="' + i + '">';
+    html += '<div class="carousel-card-inner' + doneClass + '" id="ccard-' + i + '">';
+    html += '<span class="carousel-badge ' + card.source + '">' + card.source + '</span>';
+    if (card.child) html += '<span class="carousel-child">' + escapeHtml(card.child) + '</span>';
+    html += '<div class="carousel-title">' + escapeHtml(card.title) + '</div>';
+    if (card.detail) html += '<div class="carousel-detail">' + escapeHtml(card.detail) + '</div>';
+    if (card.due_date) html += '<div class="carousel-due">Due: ' + escapeHtml(card.due_date) + '</div>';
+    if (card.url) html += '<a class="carousel-link" href="' + escapeHtml(card.url) + '" target="_blank">Open &#8594;</a>';
+    html += '<button class="carousel-check' + (card.done ? ' done' : '') + '" id="ccheck-' + i + '" onclick="toggleCarouselCard(' + i + ')">&#10003;</button>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+  html += '<button class="carousel-nav prev" onclick="carouselPrev()">&#8249;</button>';
+  html += '<button class="carousel-nav next" onclick="carouselNext()">&#8250;</button>';
+  html += '<div class="carousel-dots" id="carousel-dots">';
+  d.cards.forEach(function(_, i) {
+    html += '<span class="carousel-dot' + (i === 0 ? ' active' : '') + '" data-i="' + i + '"></span>';
+  });
+  html += '</div>';
+  html += '<div class="carousel-footer"><a href="/">View Full Dashboard</a></div>';
+
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+
+  const track = document.getElementById('carousel-track');
+  track.addEventListener('scroll', function() {
+    const idx = Math.round(track.scrollLeft / track.clientWidth);
+    document.querySelectorAll('.carousel-dot').forEach(function(dot, i) {
+      dot.classList.toggle('active', i === idx);
+    });
+  });
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+function toggleCarouselCard(i) {
+  const d = _carouselDigest;
+  const card = d.cards[i];
+  const newDone = !card.done;
+  card.done = newDone;
+  const inner = document.getElementById('ccard-' + i);
+  const check = document.getElementById('ccheck-' + i);
+  inner.classList.toggle('done', newDone);
+  check.classList.toggle('done', newDone);
+  updateCarouselProgress();
+
+  fetch('/api/digest/' + d.id + '/cards/' + i, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({done: newDone})
+  });
+
+  if (newDone) {
+    setTimeout(function() {
+      const nextUndone = d.cards.findIndex(function(c, j) { return j > i && !c.done; });
+      if (nextUndone >= 0) carouselGoTo(nextUndone);
+      else if (d.cards.every(function(c) { return c.done; })) showAllDone();
+    }, 500);
+  }
+}
+
+function updateCarouselProgress() {
+  const d = _carouselDigest;
+  const doneCount = d.cards.filter(function(c) { return c.done; }).length;
+  const total = d.cards.length;
+  const pct = Math.round((doneCount / total) * 100);
+  const pbar = document.getElementById('carousel-pbar');
+  const ptext = document.getElementById('carousel-ptext');
+  if (pbar) pbar.style.width = pct + '%';
+  if (ptext) ptext.textContent = doneCount + ' of ' + total + ' done';
+}
+
+function carouselGoTo(i) {
+  const track = document.getElementById('carousel-track');
+  if (track) track.scrollTo({left: i * track.clientWidth, behavior: 'smooth'});
+}
+
+function carouselPrev() {
+  const track = document.getElementById('carousel-track');
+  if (!track) return;
+  const idx = Math.round(track.scrollLeft / track.clientWidth);
+  if (idx > 0) carouselGoTo(idx - 1);
+}
+
+function carouselNext() {
+  const track = document.getElementById('carousel-track');
+  if (!track) return;
+  const idx = Math.round(track.scrollLeft / track.clientWidth);
+  if (idx < _carouselDigest.cards.length - 1) carouselGoTo(idx + 1);
+}
+
+function closeCarousel() {
+  const overlay = document.getElementById('carousel-overlay');
+  if (overlay) overlay.remove();
+  history.replaceState(null, '', '/');
+}
+
+function showAllDone() {
+  const track = document.getElementById('carousel-track');
+  if (!track) return;
+  const card = document.createElement('div');
+  card.className = 'carousel-card';
+  card.innerHTML = '<div class="carousel-alldone">' +
+    '<div class="checkmark">&#10003;</div>' +
+    '<h2>All caught up!</h2>' +
+    '<a href="/" style="color:#1976d2;font-size:16px;">View Full Dashboard</a>' +
+    '</div>';
+  track.appendChild(card);
+  setTimeout(function() { carouselGoTo(_carouselDigest.cards.length); }, 300);
+}
+
+// Parse URL params for deep linking from ntfy
+(function(){
+  const p=new URLSearchParams(window.location.search);
+  if(p.get('digest')){
+    initCarousel(p.get('digest'));
+    return;
+  }
+  if(p.get('mode')){dashMode=p.get('mode');document.querySelectorAll('#dash-mode-bar .dtab').forEach(b=>b.classList.toggle('active',b.dataset.mode===dashMode));}
+  if(p.get('time')){dashTime=p.get('time');document.querySelectorAll('#dash-time-bar .dtab').forEach(b=>b.classList.toggle('active',b.dataset.time===dashTime));}
+  if(p.get('child')){dashChild=p.get('child');}
+})();
 loadDashboard();
 // ── Manage tab ──────────────────────────────────────────────
 let mgActiveChild='all';
@@ -606,6 +894,15 @@ function completedRow(item){
 }
 
 function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// Mark-complete via localStorage
+function _doneKey(src,child,title){return 'done:'+src+':'+child+':'+title;}
+function isDone(src,child,title){return localStorage.getItem(_doneKey(src,child,title))==='1';}
+function toggleDone(src,child,title){
+  const k=_doneKey(src,child,title);
+  if(localStorage.getItem(k)==='1') localStorage.removeItem(k); else localStorage.setItem(k,'1');
+  renderDashList();
+}
 
 function setChild(btn,child){
   mgActiveChild=child;
