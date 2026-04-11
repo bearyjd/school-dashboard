@@ -463,10 +463,25 @@ _DEEP_LINKS: dict[str, str] = {
 DASHBOARD_BASE = "https://school.grepon.cc"
 
 
-def send_ntfy(topic: str, message: str, title: str = "School") -> None:
-    """Push message to ntfy.sh topic."""
-    deep = _DEEP_LINKS.get(title, "")
-    url = f"{DASHBOARD_BASE}/{deep}" if deep else DASHBOARD_BASE
+def send_ntfy(
+    topic: str,
+    message: str,
+    title: str = "School",
+    cards: list[dict] | None = None,
+    db_path: str | None = None,
+) -> None:
+    """Push message to ntfy.sh topic. If cards provided, store digest and deep-link to carousel."""
+    from school_dashboard.db import init_digests_table, create_digest, purge_old_digests
+
+    if cards and db_path:
+        init_digests_table(db_path)
+        purge_old_digests(db_path, days=7)
+        digest_id = create_digest(db_path, title, cards)
+        url = f"{DASHBOARD_BASE}/?digest={digest_id}"
+    else:
+        deep = _DEEP_LINKS.get(title, "")
+        url = f"{DASHBOARD_BASE}/{deep}" if deep else DASHBOARD_BASE
+
     resp = requests.post(
         f"https://ntfy.sh/{topic}",
         data=message.encode("utf-8"),

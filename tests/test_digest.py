@@ -303,6 +303,38 @@ def test_morning_digest_returns_cards(mock_post, tmp_state, tmp_facts, tmp_db):
     assert "schoology" in sources or "ixl" in sources or "calendar" in sources
 
 
+@patch("school_dashboard.digest.requests.post")
+def test_send_ntfy_with_cards_creates_digest(mock_post, tmp_path):
+    mock_post.return_value = MagicMock(ok=True, status_code=200)
+    db = tmp_path / "school.db"
+    from school_dashboard.db import init_digests_table, get_digest
+    init_digests_table(str(db))
+
+    cards = [
+        {"source": "schoology", "child": "Ford", "title": "Math HW", "detail": "Pre-Algebra",
+         "due_date": "2026-04-11", "url": "", "done": False},
+    ]
+    send_ntfy(topic="test-topic", message="Hello", title="Homework Check",
+              cards=cards, db_path=str(db))
+
+    mock_post.assert_called_once()
+    call_kwargs = mock_post.call_args
+    headers = call_kwargs.kwargs.get("headers", {})
+    assert "digest=" in headers.get("Click", "")
+    assert "school.grepon.cc" in headers.get("Click", "")
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_send_ntfy_without_cards_uses_static_links(mock_post):
+    mock_post.return_value = MagicMock(ok=True, status_code=200)
+    send_ntfy(topic="test-topic", message="Hello", title="Homework Check")
+    mock_post.assert_called_once()
+    call_kwargs = mock_post.call_args
+    headers = call_kwargs.kwargs.get("headers", {})
+    # Should use static deep link (mode=schoology)
+    assert "mode=schoology" in headers.get("Click", "")
+
+
 # --- Digest DB tests ---
 
 from school_dashboard.db import (
