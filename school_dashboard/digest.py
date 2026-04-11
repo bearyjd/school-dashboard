@@ -123,7 +123,7 @@ def build_morning_digest(
     api_key: str,
     model: str,
     today: str | None = None,
-) -> str:
+) -> tuple[str, list[dict]]:
     """Build a morning briefing: what does today hold?"""
     today = today or date.today().isoformat()
     state = _load_state(state_path)
@@ -181,7 +181,23 @@ Known facts (recurring activities):
 
 Write a short morning briefing: what does today hold? Mention anything urgent first."""
 
-    return _call_litellm(prompt, litellm_url, api_key, model)
+    cards: list[dict] = []
+    for a in assignments:
+        cards.append({"source": "schoology", "child": a["child"], "title": a["title"],
+                       "detail": a["course"], "due_date": a["due_date"], "url": "", "done": False})
+    for i in ixl:
+        cards.append({"source": "ixl", "child": i["child"], "title": i["subject"],
+                       "detail": f"{i['remaining']} remaining", "due_date": None, "url": "", "done": False})
+    for a in action_items:
+        cards.append({"source": "email", "child": a["child"], "title": a["summary"],
+                       "detail": "Email action item", "due_date": today, "url": "", "done": False})
+    for e in db_events:
+        cards.append({"source": "calendar", "child": e.get("child", ""), "title": e["title"],
+                       "detail": e["type"], "due_date": today, "url": "", "done": False})
+    for e in cal_events:
+        cards.append({"source": "calendar", "child": "", "title": e["title"],
+                       "detail": e.get("location", ""), "due_date": today, "url": "", "done": False})
+    return _call_litellm(prompt, litellm_url, api_key, model), cards
 
 
 def build_afternoon_digest(
@@ -191,7 +207,7 @@ def build_afternoon_digest(
     model: str,
     today: str | None = None,
     db_path: str | None = None,
-) -> str:
+) -> tuple[str, list[dict]]:
     """Build an afternoon homework check: did the kids do their work?"""
     today = today or date.today().isoformat()
     tomorrow = (date.fromisoformat(today) + timedelta(days=1)).isoformat()
@@ -234,6 +250,19 @@ Action items due today:
 
 Write a brief afternoon check-in: what homework still needs to be done? Flag anything urgent."""
 
+    cards: list[dict] = []
+    for a in due_today:
+        cards.append({"source": "schoology", "child": a["child"], "title": a["title"],
+                       "detail": a["course"], "due_date": today, "url": "", "done": False})
+    for a in due_tomorrow:
+        cards.append({"source": "schoology", "child": a["child"], "title": a["title"],
+                       "detail": a["course"], "due_date": tomorrow, "url": "", "done": False})
+    for i in ixl:
+        cards.append({"source": "ixl", "child": i["child"], "title": i["subject"],
+                       "detail": f"{i['remaining']} remaining", "due_date": None, "url": "", "done": False})
+    for a in action_items:
+        cards.append({"source": "email", "child": a["child"], "title": a["summary"],
+                       "detail": "Email action item", "due_date": today, "url": "", "done": False})
     text = _call_litellm(prompt, litellm_url, api_key, model)
     if db_path:
         from school_dashboard.readiness import get_checklist, format_checklist_text
@@ -241,7 +270,7 @@ Write a brief afternoon check-in: what homework still needs to be done? Flag any
         checklist_text = format_checklist_text(checklist, prefix="Action items:")
         if checklist_text:
             text = text + "\n\n" + checklist_text
-    return text
+    return text, cards
 
 
 def build_night_digest(
@@ -253,7 +282,7 @@ def build_night_digest(
     api_key: str,
     model: str,
     tomorrow: str | None = None,
-) -> str:
+) -> tuple[str, list[dict]]:
     """Build a night prep summary: what do we need ready for tomorrow?"""
     tomorrow = tomorrow or (date.today() + timedelta(days=1)).isoformat()
     state = _load_state(state_path)
@@ -303,13 +332,26 @@ Known facts (recurring activities):
 
 Write a brief night summary: what do we need to have ready for tomorrow? Mention gear, forms, early wake-ups, or anything to prepare tonight."""
 
+    cards: list[dict] = []
+    for a in assignments:
+        cards.append({"source": "schoology", "child": a["child"], "title": a["title"],
+                       "detail": a["course"], "due_date": tomorrow, "url": "", "done": False})
+    for e in db_events:
+        cards.append({"source": "calendar", "child": e.get("child", ""), "title": e["title"],
+                       "detail": e["type"], "due_date": tomorrow, "url": "", "done": False})
+    for e in cal_events:
+        cards.append({"source": "calendar", "child": "", "title": e["title"],
+                       "detail": e.get("location", ""), "due_date": tomorrow, "url": "", "done": False})
+    for a in action_items:
+        cards.append({"source": "email", "child": a["child"], "title": a["summary"],
+                       "detail": "Email action item", "due_date": tomorrow, "url": "", "done": False})
     text = _call_litellm(prompt, litellm_url, api_key, model)
     from school_dashboard.readiness import get_checklist, format_checklist_text
     checklist = get_checklist(state_path, db_path)
     checklist_text = format_checklist_text(checklist, prefix="Before bed —")
     if checklist_text:
         text = text + "\n\n" + checklist_text
-    return text
+    return text, cards
 
 
 def build_weekly_digest(
@@ -322,7 +364,7 @@ def build_weekly_digest(
     model: str,
     days_ahead: int = 7,
     today: str | None = None,
-) -> str:
+) -> tuple[str, list[dict]]:
     """Build a weekly digest: friday=week in review, sunday=week ahead preview."""
     _today = date.fromisoformat(today) if today else date.today()
     state = _load_state(state_path)
@@ -395,13 +437,36 @@ IXL remaining skills per child:
 Known facts:
 {facts_str}"""
 
-    return _call_litellm(prompt, litellm_url, api_key, model)
+    cards: list[dict] = []
+    for a in upcoming_assignments:
+        cards.append({"source": "schoology", "child": a["child"], "title": a["title"],
+                       "detail": a["course"], "due_date": a.get("due_date", "")[:10] if a.get("due_date") else None, "url": "", "done": False})
+    for i in ixl:
+        cards.append({"source": "ixl", "child": i["child"], "title": i["subject"],
+                       "detail": f"{i['remaining']} remaining", "due_date": None, "url": "", "done": False})
+    for e in upcoming_events:
+        cards.append({"source": "calendar", "child": e.get("child", ""), "title": e["title"],
+                       "detail": e["type"], "due_date": e["date"], "url": "", "done": False})
+    return _call_litellm(prompt, litellm_url, api_key, model), cards
 
 
 # ── Delivery ─────────────────────────────────────────────────────────────────
 
+_DEEP_LINKS: dict[str, str] = {
+    "Morning Briefing": "?mode=all&time=week",
+    "Homework Check": "?mode=schoology&time=week",
+    "Night Prep": "?mode=all&time=today",
+    "Week in Review": "?mode=all&time=week",
+    "Week Ahead": "?mode=all&time=week",
+}
+
+DASHBOARD_BASE = "https://school.grepon.cc"
+
+
 def send_ntfy(topic: str, message: str, title: str = "School") -> None:
     """Push message to ntfy.sh topic."""
+    deep = _DEEP_LINKS.get(title, "")
+    url = f"{DASHBOARD_BASE}/{deep}" if deep else DASHBOARD_BASE
     resp = requests.post(
         f"https://ntfy.sh/{topic}",
         data=message.encode("utf-8"),
@@ -409,6 +474,8 @@ def send_ntfy(topic: str, message: str, title: str = "School") -> None:
             "Title": title.encode("ascii", errors="replace").decode("ascii"),
             "Priority": "default",
             "Tags": "school",
+            "Click": url,
+            "Actions": f"view, Open Dashboard, {url}",
         },
         timeout=15,
     )

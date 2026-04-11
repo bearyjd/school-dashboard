@@ -99,7 +99,7 @@ def test_build_morning_digest_calls_litellm(mock_post, tmp_state, tmp_facts, tmp
         status_code=200,
         json=lambda: {"choices": [{"message": {"content": "Good morning!"}}]},
     )
-    result = build_morning_digest(
+    result, cards = build_morning_digest(
         state_path=tmp_state,
         db_path=tmp_db,
         facts_path=tmp_facts,
@@ -110,6 +110,7 @@ def test_build_morning_digest_calls_litellm(mock_post, tmp_state, tmp_facts, tmp
         today="2026-04-10",
     )
     assert "Good morning!" in result
+    assert isinstance(cards, list)
     mock_post.assert_called_once()
 
 
@@ -119,7 +120,7 @@ def test_build_afternoon_digest_calls_litellm(mock_post, tmp_state):
         status_code=200,
         json=lambda: {"choices": [{"message": {"content": "Homework check!"}}]},
     )
-    result = build_afternoon_digest(
+    result, cards = build_afternoon_digest(
         state_path=tmp_state,
         litellm_url="http://localhost:4000",
         api_key="test-key",
@@ -127,6 +128,7 @@ def test_build_afternoon_digest_calls_litellm(mock_post, tmp_state):
         today="2026-04-10",
     )
     assert "Homework check!" in result
+    assert isinstance(cards, list)
 
 
 @patch("school_dashboard.digest.requests.post")
@@ -135,7 +137,7 @@ def test_build_night_digest_calls_litellm(mock_post, tmp_state, tmp_facts, tmp_d
         status_code=200,
         json=lambda: {"choices": [{"message": {"content": "Ready for tomorrow!"}}]},
     )
-    result = build_night_digest(
+    result, cards = build_night_digest(
         state_path=tmp_state,
         db_path=tmp_db,
         facts_path=tmp_facts,
@@ -146,6 +148,7 @@ def test_build_night_digest_calls_litellm(mock_post, tmp_state, tmp_facts, tmp_d
         tomorrow="2026-04-11",
     )
     assert "Ready for tomorrow!" in result
+    assert isinstance(cards, list)
 
 
 @pytest.fixture
@@ -181,7 +184,7 @@ def test_afternoon_digest_includes_checklist(mock_post, tmp_state_with_items, tm
         json=lambda: {"choices": [{"message": {"content": "Homework check done."}}]},
     )
     from school_dashboard.digest import build_afternoon_digest
-    result = build_afternoon_digest(
+    result, cards = build_afternoon_digest(
         state_path=tmp_state_with_items,
         db_path=tmp_db,
         litellm_url="http://fake-llm",
@@ -190,6 +193,7 @@ def test_afternoon_digest_includes_checklist(mock_post, tmp_state_with_items, tm
     )
     assert "Homework check done." in result
     assert "Action items:" in result
+    assert isinstance(cards, list)
 
 
 @patch("school_dashboard.digest.requests.post")
@@ -200,7 +204,7 @@ def test_night_digest_includes_checklist(mock_post, tmp_state_with_items, tmp_fa
         json=lambda: {"choices": [{"message": {"content": "Night prep ready."}}]},
     )
     from school_dashboard.digest import build_night_digest
-    result = build_night_digest(
+    result, cards = build_night_digest(
         state_path=tmp_state_with_items,
         db_path=tmp_db,
         facts_path="/dev/null",
@@ -211,6 +215,7 @@ def test_night_digest_includes_checklist(mock_post, tmp_state_with_items, tmp_fa
     )
     assert "Night prep ready." in result
     assert "Before bed" in result
+    assert isinstance(cards, list)
 
 
 @patch("school_dashboard.digest.requests.post")
@@ -219,7 +224,7 @@ def test_weekly_digest_friday_builds_text(mock_post, tmp_state, tmp_facts, tmp_d
         status_code=200,
         json=lambda: {"choices": [{"message": {"content": "Week in review!"}}]},
     )
-    result = build_weekly_digest(
+    result, cards = build_weekly_digest(
         mode="friday",
         state_path=tmp_state,
         db_path=tmp_db,
@@ -229,6 +234,7 @@ def test_weekly_digest_friday_builds_text(mock_post, tmp_state, tmp_facts, tmp_d
         model="claude-sonnet",
     )
     assert result == "Week in review!"
+    assert isinstance(cards, list)
     mock_post.assert_called_once()
 
 
@@ -238,7 +244,7 @@ def test_weekly_digest_sunday_builds_text(mock_post, tmp_state, tmp_facts, tmp_d
         status_code=200,
         json=lambda: {"choices": [{"message": {"content": "Week ahead!"}}]},
     )
-    result = build_weekly_digest(
+    result, cards = build_weekly_digest(
         mode="sunday",
         state_path=tmp_state,
         db_path=tmp_db,
@@ -248,6 +254,7 @@ def test_weekly_digest_sunday_builds_text(mock_post, tmp_state, tmp_facts, tmp_d
         model="claude-sonnet",
     )
     assert result == "Week ahead!"
+    assert isinstance(cards, list)
     mock_post.assert_called_once()
 
 
@@ -259,7 +266,7 @@ def test_weekly_digest_empty_state(tmp_path, tmp_facts, tmp_db):
             status_code=200,
             json=lambda: {"choices": [{"message": {"content": "OK"}}]},
         )
-        result = build_weekly_digest(
+        result, cards = build_weekly_digest(
             mode="friday",
             state_path=missing,
             db_path=tmp_db,
@@ -270,6 +277,30 @@ def test_weekly_digest_empty_state(tmp_path, tmp_facts, tmp_db):
         )
     assert isinstance(result, str)
     assert len(result) > 0
+    assert isinstance(cards, list)
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_morning_digest_returns_cards(mock_post, tmp_state, tmp_facts, tmp_db):
+    mock_post.return_value = MagicMock(
+        status_code=200,
+        json=lambda: {"choices": [{"message": {"content": "Good morning!"}}]},
+    )
+    text, cards = build_morning_digest(
+        state_path=tmp_state,
+        db_path=tmp_db,
+        facts_path=tmp_facts,
+        gcal_events=[{"title": "Soccer", "start": "2026-04-10T16:00", "location": "Field"}],
+        litellm_url="http://localhost:4000",
+        api_key="test-key",
+        model="claude-sonnet",
+        today="2026-04-10",
+    )
+    assert text == "Good morning!"
+    assert isinstance(cards, list)
+    assert len(cards) >= 1
+    sources = {c["source"] for c in cards}
+    assert "schoology" in sources or "ixl" in sources or "calendar" in sources
 
 
 # --- Digest DB tests ---
