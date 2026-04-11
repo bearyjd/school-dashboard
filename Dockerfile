@@ -38,7 +38,7 @@ COPY config/ ./config/
 
 # Set up cron
 COPY docker/crontab /etc/cron.d/school-dashboard
-RUN chmod 0644 /etc/cron.d/school-dashboard && crontab /etc/cron.d/school-dashboard
+RUN chmod 0644 /etc/cron.d/school-dashboard
 
 # State directory (mounted as volume)
 RUN mkdir -p /app/state
