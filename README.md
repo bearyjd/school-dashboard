@@ -51,10 +51,11 @@ docker/
 |------|-------------|
 | **6:00am** (weekdays) | IXL scrape → SGY scrape → state merge → email intel → dashboard HTML |
 | **2:30pm** (weekdays) | IXL + SGY + email re-scrape (catch late homework posts) |
-| **7:00am** (daily) | Morning digest — 7-day events + IXL state + facts → LiteLLM → ntfy.sh |
-| **3:30pm** (weekdays) | Afternoon digest — homework check |
-| **8:30pm** (daily) | Night digest — next-day prep |
+| **6:00am** (daily) | Morning digest — 7-day events + IXL state + facts → LiteLLM → cards → digests DB → ntfy.sh carousel |
+| **3:30pm** (weekdays) | Afternoon digest — homework check + cards → digests DB → ntfy.sh |
+| **8:30pm** (daily) | Night digest — next-day prep + cards → digests DB → ntfy.sh |
 | **On demand** | `/api/chat` — query 30-day events + facts + full state via LiteLLM |
+| **On demand** | `/api/digest/<id>` — retrieve carousel history + toggle card done state |
 
 ## Configuration
 
@@ -89,11 +90,26 @@ All gitignored, stored in `state/`:
 
 | File | Contents |
 |------|----------|
-| `school.db` | SQLite: `events` table (calendar + email-extracted events) |
+| `school.db` | SQLite: `events` table (calendar + email-extracted events), `items` table (manual + scraped tasks), `digests` table (carousel history) |
 | `facts.json` | Long-term memory: `{subject, fact, source, created_at}` |
 | `school-state.json` | Latest IXL + Schoology aggregate |
 | `email-digest.json` | Latest classified Gmail digest |
 | `calendar.pdf` | Source PDF (drop in manually each school year) |
+
+## API Endpoints
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/items` | GET | List items (filter by `?child=NAME`, `?include_completed=1`) |
+| `/api/items` | POST | Create item (JSON: `child`, `title`, `type`, `due_date`, `notes`) |
+| `/api/items/<id>` | PATCH | Update item (partial: `child`, `title`, `type`, `due_date`, `notes`, `completed`) |
+| `/api/items/<id>` | DELETE | Delete item |
+| `/api/digest/<id>` | GET | Retrieve digest carousel (returns `{id, created_at, title, cards}`) |
+| `/api/digest/<id>/cards/<index>` | PATCH | Toggle card done state (JSON: `done: bool`) |
+| `/api/dashboard` | GET | Aggregate view (schoology, ixl, email_items) |
+| `/api/chat` | POST | Chat with LiteLLM (JSON: `message`, `history`) |
+| `/api/readiness` | GET | Get readiness checklist |
+| `/api/calendar` | GET | Fetch Google Calendar events |
 
 ## One-off Commands
 
