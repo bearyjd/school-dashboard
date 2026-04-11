@@ -270,3 +270,75 @@ def test_weekly_digest_empty_state(tmp_path, tmp_facts, tmp_db):
         )
     assert isinstance(result, str)
     assert len(result) > 0
+
+
+# --- Digest DB tests ---
+
+from school_dashboard.db import (
+    create_digest,
+    get_digest,
+    mark_digest_card_done,
+    purge_old_digests,
+)
+
+
+@pytest.fixture
+def digest_db(tmp_path):
+    """SQLite DB with digests table initialized."""
+    db = tmp_path / "digest.db"
+    from school_dashboard.db import init_digests_table
+    init_digests_table(str(db))
+    return str(db)
+
+
+def test_create_and_get_digest(digest_db):
+    cards = [
+        {"source": "schoology", "child": "Ford", "title": "Math HW", "detail": "Pre-Algebra",
+         "due_date": "2026-04-11", "url": "", "done": False},
+        {"source": "ixl", "child": "Jack", "title": "Math", "detail": "3 remaining",
+         "due_date": None, "url": "", "done": False},
+    ]
+    digest_id = create_digest(digest_db, "Morning Briefing", cards)
+    assert len(digest_id) == 8
+    result = get_digest(digest_db, digest_id)
+    assert result is not None
+    assert result["title"] == "Morning Briefing"
+    assert len(result["cards"]) == 2
+    assert result["cards"][0]["child"] == "Ford"
+    assert result["cards"][1]["source"] == "ixl"
+
+
+def test_get_digest_not_found(digest_db):
+    assert get_digest(digest_db, "nonexist") is None
+
+
+def test_mark_digest_card_done(digest_db):
+    cards = [
+        {"source": "schoology", "child": "Ford", "title": "Math HW", "detail": "",
+         "due_date": None, "url": "", "done": False},
+    ]
+    digest_id = create_digest(digest_db, "Test", cards)
+    assert mark_digest_card_done(digest_db, digest_id, 0, True) is True
+    result = get_digest(digest_db, digest_id)
+    assert result["cards"][0]["done"] is True
+
+
+def test_mark_digest_card_done_invalid_index(digest_db):
+    cards = [{"source": "ixl", "child": "Ford", "title": "X", "detail": "",
+              "due_date": None, "url": "", "done": False}]
+    digest_id = create_digest(digest_db, "Test", cards)
+    assert mark_digest_card_done(digest_db, digest_id, 99, True) is False
+
+
+def test_purge_old_digests(digest_db):
+    cards = [{"source": "ixl", "child": "Ford", "title": "X", "detail": "",
+              "due_date": None, "url": "", "done": False}]
+    digest_id = create_digest(digest_db, "Old", cards)
+    # Manually backdate the row
+    import sqlite3
+    conn = sqlite3.connect(digest_db)
+    conn.execute("UPDATE digests SET created_at = '2020-01-01T00:00:00'")
+    conn.commit()
+    conn.close()
+    purge_old_digests(digest_db, days=7)
+    assert get_digest(digest_db, digest_id) is None

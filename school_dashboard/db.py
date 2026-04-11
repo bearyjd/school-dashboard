@@ -1,3 +1,5 @@
+import json
+import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -151,3 +153,78 @@ def item_exists_for_email(
     ).fetchone()
     conn.close()
     return row is not None
+
+
+def init_digests_table(db_path: str) -> None:
+    """Create digests table if it doesn't exist."""
+    conn = _connect(db_path)
+    with conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS digests (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                title TEXT NOT NULL,
+                cards TEXT NOT NULL
+            )
+        """)
+    conn.close()
+
+
+def create_digest(db_path: str, title: str, cards: list[dict]) -> str:
+    """Insert a digest and return its 8-char hex ID."""
+    digest_id = os.urandom(4).hex()
+    conn = _connect(db_path)
+    with conn:
+        conn.execute(
+            "INSERT INTO digests (id, created_at, title, cards) VALUES (?, datetime('now'), ?, ?)",
+            (digest_id, title, json.dumps(cards)),
+        )
+    conn.close()
+    return digest_id
+
+
+def get_digest(db_path: str, digest_id: str) -> Optional[dict]:
+    """Return digest with parsed cards list, or None."""
+    if not Path(db_path).exists():
+        return None
+    conn = _connect(db_path)
+    row = conn.execute("SELECT * FROM digests WHERE id = ?", (digest_id,)).fetchone()
+    conn.close()
+    if not row:
+        return None
+    d = dict(row)
+    d["cards"] = json.loads(d["cards"])
+    return d
+
+
+def mark_digest_card_done(db_path: str, digest_id: str, card_index: int, done: bool) -> bool:
+    """Toggle done state on a specific card. Returns False if not found or index invalid."""
+    conn = _connect(db_path)
+    row = conn.execute("SELECT cards FROM digests WHERE id = ?", (digest_id,)).fetchone()
+    if not row:
+        conn.close()
+        return False
+    cards = json.loads(row["cards"])
+    if card_index < 0 or card_index >= len(cards):
+        conn.close()
+        return False
+    cards[card_index]["done"] = done
+    with conn:
+        conn.execute("UPDATE digests SET cards = ? WHERE id = ?", (json.dumps(cards), digest_id))
+    conn.close()
+    return True
+
+
+def purge_old_digests(db_path: str, days: int = 7) -> int:
+    """Delete digests older than `days`. Returns count deleted."""
+    if not Path(db_path).exists():
+        return 0
+    conn = _connect(db_path)
+    with conn:
+        cursor = conn.execute(
+            "DELETE FROM digests WHERE created_at < datetime('now', ?)",
+            (f"-{days} days",),
+        )
+    count = cursor.rowcount
+    conn.close()
+    return count
