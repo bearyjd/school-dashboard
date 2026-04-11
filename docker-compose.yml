@@ -18,6 +18,7 @@ services:
     env_file:
       - config/env
     environment:
+      - TZ=America/New_York
       - SCHOOL_STATE_PATH=/app/state/school-state.json
       - SCHOOL_DB_PATH=/app/state/school.db
       - SCHOOL_FACTS_PATH=/app/state/facts.json
