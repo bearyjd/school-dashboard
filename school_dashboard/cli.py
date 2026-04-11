@@ -135,7 +135,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
     gcal_events = fetch_gcal_events(gog_account) if gog_account else []
 
     if args.mode == "morning":
-        text = _digest.build_morning_digest(
+        text, cards = _digest.build_morning_digest(
             state_path=state_file,
             db_path=db_path,
             facts_path=facts_path,
@@ -144,20 +144,22 @@ def cmd_digest(args: argparse.Namespace) -> None:
             api_key=api_key,
             model=model,
         )
-        _digest.send_ntfy(topic=ntfy_topic, message=text, title="Morning Briefing")
+        _digest.send_ntfy(topic=ntfy_topic, message=text, title="Morning Briefing",
+                          cards=cards, db_path=db_path)
 
     elif args.mode == "afternoon":
-        text = _digest.build_afternoon_digest(
+        text, cards = _digest.build_afternoon_digest(
             state_path=state_file,
             db_path=db_path,
             litellm_url=litellm_url,
             api_key=api_key,
             model=model,
         )
-        _digest.send_ntfy(topic=ntfy_topic, message=text, title="Homework Check")
+        _digest.send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
+                          cards=cards, db_path=db_path)
 
     elif args.mode == "night":
-        text = _digest.build_night_digest(
+        text, cards = _digest.build_night_digest(
             state_path=state_file,
             db_path=db_path,
             facts_path=facts_path,
@@ -166,12 +168,13 @@ def cmd_digest(args: argparse.Namespace) -> None:
             api_key=api_key,
             model=model,
         )
-        _digest.send_ntfy(topic=ntfy_topic, message=text, title="Night Prep")
+        _digest.send_ntfy(topic=ntfy_topic, message=text, title="Night Prep",
+                          cards=cards, db_path=db_path)
 
     else:
         raise ValueError(f"Unknown mode: {args.mode}")
 
-    print(f"Digest sent [{args.mode}]: {text[:80]}...", file=sys.stderr)
+    print(f"Digest sent [{args.mode}]: {len(cards)} cards, {text[:80]}...", file=sys.stderr)
 
 
 def main() -> None:
