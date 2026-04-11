@@ -169,9 +169,9 @@ body{display:flex;flex-direction:column;height:100vh}
 .carousel-dots{display:flex;justify-content:center;gap:6px;padding:12px;flex-shrink:0;}
 .carousel-dot{width:8px;height:8px;border-radius:50%;background:#ccc;transition:background .2s;}
 .carousel-dot.active{background:#333;}
-.carousel-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.1);
+.carousel-nav{position:fixed;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.1);
   border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:20px;
-  display:none;align-items:center;justify-content:center;}
+  z-index:10000;display:none;align-items:center;justify-content:center;}
 @media(min-width:768px){.carousel-nav{display:flex;}}
 .carousel-nav.prev{left:12px;}
 .carousel-nav.next{right:12px;}
@@ -654,23 +654,24 @@ function renderCarousel() {
   html += '<span class="progress-text" id="carousel-ptext">' + doneCount + ' of ' + total + ' done</span>';
   html += '<button class="carousel-close" onclick="closeCarousel()">&times;</button>';
   html += '</div>';
-  html += '<div class="carousel-track" id="carousel-track" style="position:relative;">';
+  html += '<div class="carousel-track" id="carousel-track">';
   d.cards.forEach(function(card, i) {
     const doneClass = card.done ? ' done' : '';
     html += '<div class="carousel-card" data-index="' + i + '">';
     html += '<div class="carousel-card-inner' + doneClass + '" id="ccard-' + i + '">';
-    html += '<span class="carousel-badge ' + card.source + '">' + escapeHtml(card.source) + '</span>';
+    const safeSource = (card.source || '').replace(/[^a-z0-9_-]/gi, '');
+    html += '<span class="carousel-badge ' + safeSource + '">' + escapeHtml(card.source) + '</span>';
     if (card.child) html += '<span class="carousel-child">' + escapeHtml(card.child) + '</span>';
     html += '<div class="carousel-title">' + escapeHtml(card.title) + '</div>';
     if (card.detail) html += '<div class="carousel-detail">' + escapeHtml(card.detail) + '</div>';
     if (card.due_date) html += '<div class="carousel-due">Due: ' + escapeHtml(card.due_date) + '</div>';
-    if (card.url) html += '<a class="carousel-link" href="' + escapeHtml(card.url) + '" target="_blank">Open &#8594;</a>';
+    if (card.url && isSafeUrl(card.url)) html += '<a class="carousel-link" href="' + escapeHtml(card.url) + '" target="_blank">Open &#8594;</a>';
     html += '<button class="carousel-check' + (card.done ? ' done' : '') + '" id="ccheck-' + i + '" onclick="toggleCarouselCard(' + i + ')">&#10003;</button>';
     html += '</div></div>';
   });
+  html += '</div>';
   html += '<button class="carousel-nav prev" onclick="carouselPrev()">&#8249;</button>';
   html += '<button class="carousel-nav next" onclick="carouselNext()">&#8250;</button>';
-  html += '</div>';
   html += '<div class="carousel-dots" id="carousel-dots">';
   d.cards.forEach(function(_, i) {
     html += '<span class="carousel-dot' + (i === 0 ? ' active' : '') + '" data-i="' + i + '"></span>';
@@ -691,9 +692,16 @@ function renderCarousel() {
 }
 
 function escapeHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s || '';
-  return d.innerHTML;
+  const el = document.createElement('div');
+  el.textContent = s || '';
+  return el.innerHTML;
+}
+
+function isSafeUrl(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' || u.protocol === 'http:';
+  } catch (_) { return false; }
 }
 
 function toggleCarouselCard(i) {
@@ -711,6 +719,11 @@ function toggleCarouselCard(i) {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({done: newDone})
+  }).catch(function() {
+    card.done = !newDone;
+    inner.classList.toggle('done', !newDone);
+    check.classList.toggle('done', !newDone);
+    updateCarouselProgress();
   });
 
   if (newDone) {
@@ -759,10 +772,12 @@ function closeCarousel() {
 }
 
 function showAllDone() {
+  if (document.getElementById('carousel-alldone-card')) return;
   const track = document.getElementById('carousel-track');
   if (!track) return;
   const card = document.createElement('div');
   card.className = 'carousel-card';
+  card.id = 'carousel-alldone-card';
   card.innerHTML = '<div class="carousel-alldone">' +
     '<div class="checkmark">&#10003;</div>' +
     '<h2>All caught up!</h2>' +
