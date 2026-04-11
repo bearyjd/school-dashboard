@@ -659,7 +659,7 @@ function renderCarousel() {
     const doneClass = card.done ? ' done' : '';
     html += '<div class="carousel-card" data-index="' + i + '">';
     html += '<div class="carousel-card-inner' + doneClass + '" id="ccard-' + i + '">';
-    html += '<span class="carousel-badge ' + card.source + '">' + card.source + '</span>';
+    html += '<span class="carousel-badge ' + card.source + '">' + escapeHtml(card.source) + '</span>';
     if (card.child) html += '<span class="carousel-child">' + escapeHtml(card.child) + '</span>';
     html += '<div class="carousel-title">' + escapeHtml(card.title) + '</div>';
     if (card.detail) html += '<div class="carousel-detail">' + escapeHtml(card.detail) + '</div>';
@@ -668,9 +668,9 @@ function renderCarousel() {
     html += '<button class="carousel-check' + (card.done ? ' done' : '') + '" id="ccheck-' + i + '" onclick="toggleCarouselCard(' + i + ')">&#10003;</button>';
     html += '</div></div>';
   });
-  html += '</div>';
   html += '<button class="carousel-nav prev" onclick="carouselPrev()">&#8249;</button>';
   html += '<button class="carousel-nav next" onclick="carouselNext()">&#8250;</button>';
+  html += '</div>';
   html += '<div class="carousel-dots" id="carousel-dots">';
   d.cards.forEach(function(_, i) {
     html += '<span class="carousel-dot' + (i === 0 ? ' active' : '') + '" data-i="' + i + '"></span>';
@@ -715,7 +715,7 @@ function toggleCarouselCard(i) {
 
   if (newDone) {
     setTimeout(function() {
-      const nextUndone = d.cards.findIndex(function(c, j) { return j > i && !c.done; });
+      const nextUndone = d.cards.findIndex(function(c) { return !c.done; });
       if (nextUndone >= 0) carouselGoTo(nextUndone);
       else if (d.cards.every(function(c) { return c.done; })) showAllDone();
     }, 500);
@@ -783,7 +783,9 @@ function showAllDone() {
   if(p.get('time')){dashTime=p.get('time');document.querySelectorAll('#dash-time-bar .dtab').forEach(b=>b.classList.toggle('active',b.dataset.time===dashTime));}
   if(p.get('child')){dashChild=p.get('child');}
 })();
-loadDashboard();
+if (!new URLSearchParams(window.location.search).get('digest')) {
+  loadDashboard();
+}
 // ── Manage tab ──────────────────────────────────────────────
 let mgActiveChild='all';
 let mgAllItems=[];
