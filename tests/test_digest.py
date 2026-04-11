@@ -322,6 +322,12 @@ def test_send_ntfy_with_cards_creates_digest(mock_post, tmp_path):
     headers = call_kwargs.kwargs.get("headers", {})
     assert "digest=" in headers.get("Click", "")
     assert "school.grepon.cc" in headers.get("Click", "")
+    # Verify the digest was actually persisted to DB
+    click_url = headers.get("Click", "")
+    digest_id = click_url.split("digest=")[1]
+    result = get_digest(str(db), digest_id)
+    assert result is not None
+    assert result["cards"][0]["title"] == "Math HW"
 
 
 @patch("school_dashboard.digest.requests.post")
