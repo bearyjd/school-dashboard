@@ -195,7 +195,7 @@ Write a short morning briefing: what does today hold? Mention anything urgent fi
         cards.append({"source": "calendar", "child": e.get("child", ""), "title": e["title"],
                        "detail": e["type"], "due_date": today, "url": "", "done": False})
     for e in cal_events:
-        cards.append({"source": "calendar", "child": "", "title": e["title"],
+        cards.append({"source": "calendar", "child": "", "title": e.get("title", ""),
                        "detail": e.get("location", ""), "due_date": today, "url": "", "done": False})
     return _call_litellm(prompt, litellm_url, api_key, model), cards
 
@@ -340,7 +340,7 @@ Write a brief night summary: what do we need to have ready for tomorrow? Mention
         cards.append({"source": "calendar", "child": e.get("child", ""), "title": e["title"],
                        "detail": e["type"], "due_date": tomorrow, "url": "", "done": False})
     for e in cal_events:
-        cards.append({"source": "calendar", "child": "", "title": e["title"],
+        cards.append({"source": "calendar", "child": "", "title": e.get("title", ""),
                        "detail": e.get("location", ""), "due_date": tomorrow, "url": "", "done": False})
     for a in action_items:
         cards.append({"source": "email", "child": a["child"], "title": a["summary"],
@@ -440,7 +440,7 @@ Known facts:
     cards: list[dict] = []
     for a in upcoming_assignments:
         cards.append({"source": "schoology", "child": a["child"], "title": a["title"],
-                       "detail": a["course"], "due_date": a.get("due_date", "")[:10] if a.get("due_date") else None, "url": "", "done": False})
+                       "detail": a["course"], "due_date": a.get("due_date") or None, "url": "", "done": False})
     for i in ixl:
         cards.append({"source": "ixl", "child": i["child"], "title": i["subject"],
                        "detail": f"{i['remaining']} remaining", "due_date": None, "url": "", "done": False})
