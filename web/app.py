@@ -337,5 +337,35 @@ def api_readiness():
         return jsonify({"error": str(e), "checklist": {}}), 500
 
 
+@app.route("/api/digest/<digest_id>")
+def api_digest_get(digest_id):
+    from school_dashboard.db import init_digests_table, get_digest
+    try:
+        init_digests_table(DB_PATH)
+        result = get_digest(DB_PATH, digest_id)
+        if result is None:
+            return jsonify({"error": "not found"}), 404
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/digest/<digest_id>/cards/<int:index>", methods=["PATCH"])
+def api_digest_card_update(digest_id, index):
+    from school_dashboard.db import init_digests_table, mark_digest_card_done
+    data = request.get_json(silent=True) or {}
+    done = data.get("done")
+    if done is None:
+        return jsonify({"error": "done field required"}), 400
+    try:
+        init_digests_table(DB_PATH)
+        ok = mark_digest_card_done(DB_PATH, digest_id, index, bool(done))
+        if not ok:
+            return jsonify({"error": "not found"}), 404
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
