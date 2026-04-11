@@ -34,6 +34,7 @@ def init_db(db_path: str) -> None:
             CREATE INDEX IF NOT EXISTS idx_items_done  ON items(completed);
         """)
     conn.close()
+    init_digests_table(db_path)
 
 
 def create_item(
@@ -172,15 +173,22 @@ def init_digests_table(db_path: str) -> None:
 
 def create_digest(db_path: str, title: str, cards: list[dict]) -> str:
     """Insert a digest and return its 8-char hex ID."""
-    digest_id = os.urandom(4).hex()
-    conn = _connect(db_path)
-    with conn:
-        conn.execute(
-            "INSERT INTO digests (id, created_at, title, cards) VALUES (?, datetime('now'), ?, ?)",
-            (digest_id, title, json.dumps(cards)),
-        )
-    conn.close()
-    return digest_id
+    for _ in range(5):
+        digest_id = os.urandom(4).hex()
+        conn = _connect(db_path)
+        try:
+            with conn:
+                conn.execute(
+                    "INSERT INTO digests (id, created_at, title, cards)"
+                    " VALUES (?, datetime('now'), ?, ?)",
+                    (digest_id, title, json.dumps(cards)),
+                )
+            return digest_id
+        except sqlite3.IntegrityError:
+            continue
+        finally:
+            conn.close()
+    raise RuntimeError("Failed to generate a unique digest ID after 5 attempts")
 
 
 def get_digest(db_path: str, digest_id: str) -> Optional[dict]:
@@ -200,19 +208,22 @@ def get_digest(db_path: str, digest_id: str) -> Optional[dict]:
 def mark_digest_card_done(db_path: str, digest_id: str, card_index: int, done: bool) -> bool:
     """Toggle done state on a specific card. Returns False if not found or index invalid."""
     conn = _connect(db_path)
-    row = conn.execute("SELECT cards FROM digests WHERE id = ?", (digest_id,)).fetchone()
-    if not row:
+    try:
+        row = conn.execute("SELECT cards FROM digests WHERE id = ?", (digest_id,)).fetchone()
+        if not row:
+            return False
+        cards = json.loads(row["cards"])
+        if card_index < 0 or card_index >= len(cards):
+            return False
+        cards[card_index]["done"] = done
+        with conn:
+            conn.execute(
+                "UPDATE digests SET cards = ? WHERE id = ?",
+                (json.dumps(cards), digest_id),
+            )
+        return True
+    finally:
         conn.close()
-        return False
-    cards = json.loads(row["cards"])
-    if card_index < 0 or card_index >= len(cards):
-        conn.close()
-        return False
-    cards[card_index]["done"] = done
-    with conn:
-        conn.execute("UPDATE digests SET cards = ? WHERE id = ?", (json.dumps(cards), digest_id))
-    conn.close()
-    return True
 
 
 def purge_old_digests(db_path: str, days: int = 7) -> int:

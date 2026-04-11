@@ -340,5 +340,6 @@ def test_purge_old_digests(digest_db):
     conn.execute("UPDATE digests SET created_at = '2020-01-01T00:00:00'")
     conn.commit()
     conn.close()
-    purge_old_digests(digest_db, days=7)
+    deleted = purge_old_digests(digest_db, days=7)
+    assert deleted == 1
     assert get_digest(digest_db, digest_id) is None
