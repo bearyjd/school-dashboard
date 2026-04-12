@@ -1,32 +1,23 @@
 # school-dashboard cron
 SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/local/sbin:/bin:/usr/bin:/sbin:/usr/sbin
 # Set env file path so school-sync.sh finds Docker secrets
 SCHOOL_DASHBOARD_ENV=/app/config/env
 
 # Morning sync at 6:00am weekdays (data refresh only)
-0 6 * * 1-5 root bash /app/sync/school-sync.sh >> /tmp/school-sync.log 2>&1
+0 6 * * 1-5 root bash /app/sync/school-sync.sh >> /app/state/school-sync.log 2>&1
 # Afternoon data refresh at 2:30pm weekdays
-30 14 * * 1-5 root bash /app/sync/school-sync.sh >> /tmp/school-sync.log 2>&1
+30 14 * * 1-5 root bash /app/sync/school-sync.sh >> /app/state/school-sync.log 2>&1
 
 # Morning digest — 7:00am daily (7 days/week)
-0 7 * * * root set -a && source /app/config/env && set +a && school-state digest --mode morning >> /tmp/digest.log 2>&1
+0 7 * * * root bash /app/sync/run-digest.sh morning
 # Afternoon homework check — 3:30pm weekdays only
-30 15 * * 1-5 root set -a && source /app/config/env && set +a && school-state digest --mode afternoon >> /tmp/digest.log 2>&1
+30 15 * * 1-5 root bash /app/sync/run-digest.sh afternoon
 # Night prep — 8:30pm daily (7 days/week)
-30 20 * * * root set -a && source /app/config/env && set +a && school-state digest --mode night >> /tmp/digest.log 2>&1
+30 20 * * * root bash /app/sync/run-digest.sh night
 
-# Weekly digests (no scraping — reads current state files)
+# Weekly digests
 # Friday 3pm: week in review
-0 15 * * 5 root set -a && source /app/config/env && set +a && python3 -c "
-from school_dashboard.digest import build_weekly_digest, send_ntfy
-import os
-text = build_weekly_digest('friday', os.environ['SCHOOL_STATE_PATH'], os.environ['SCHOOL_DB_PATH'], os.environ['SCHOOL_FACTS_PATH'], os.environ['LITELLM_URL'], os.environ['LITELLM_API_KEY'], os.environ['LITELLM_MODEL'])
-send_ntfy(os.environ['NTFY_TOPIC'], text, 'Week in Review')
-" >> /tmp/school-weekly.log 2>&1
+0 15 * * 5 root bash /app/sync/run-weekly.sh friday
 # Sunday 7pm: week ahead preview
-0 19 * * 0 root set -a && source /app/config/env && set +a && python3 -c "
-from school_dashboard.digest import build_weekly_digest, send_ntfy
-import os
-text = build_weekly_digest('sunday', os.environ['SCHOOL_STATE_PATH'], os.environ['SCHOOL_DB_PATH'], os.environ['SCHOOL_FACTS_PATH'], os.environ['LITELLM_URL'], os.environ['LITELLM_API_KEY'], os.environ['LITELLM_MODEL'])
-send_ntfy(os.environ['NTFY_TOPIC'], text, 'Week Ahead')
-" >> /tmp/school-weekly.log 2>&1
+0 19 * * 0 root bash /app/sync/run-weekly.sh sunday
