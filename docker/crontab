@@ -1,4 +1,5 @@
 # school-dashboard cron
+SHELL=/bin/bash
 # Set env file path so school-sync.sh finds Docker secrets
 SCHOOL_DASHBOARD_ENV=/app/config/env
 
