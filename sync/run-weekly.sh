@@ -34,6 +34,7 @@ text, cards = build_weekly_digest(
     os.environ['LITELLM_URL'],
     os.environ['LITELLM_API_KEY'],
     os.environ['LITELLM_MODEL'],
+    gc_path=os.environ.get('SCHOOL_GC_PATH', '/app/state/gc-schedule.json'),
 )
 send_ntfy(os.environ['NTFY_TOPIC'], text, title, cards=cards, db_path=os.environ.get('SCHOOL_DB_PATH'))
 " >> "$LOGFILE" 2>&1; then

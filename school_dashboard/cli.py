@@ -132,6 +132,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
         print("Error: NTFY_TOPIC not set", file=sys.stderr)
         sys.exit(1)
 
+    gc_path = os.environ.get("SCHOOL_GC_PATH", "/app/state/gc-schedule.json")
     gcal_events = fetch_gcal_events(gog_account) if gog_account else []
 
     if args.mode == "morning":
@@ -143,6 +144,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
             litellm_url=litellm_url,
             api_key=api_key,
             model=model,
+            gc_path=gc_path,
         )
         _digest.send_ntfy(topic=ntfy_topic, message=text, title="Morning Briefing",
                           cards=cards, db_path=db_path)
@@ -154,6 +156,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
             litellm_url=litellm_url,
             api_key=api_key,
             model=model,
+            gc_path=gc_path,
         )
         _digest.send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
                           cards=cards, db_path=db_path)
@@ -167,6 +170,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
             litellm_url=litellm_url,
             api_key=api_key,
             model=model,
+            gc_path=gc_path,
         )
         _digest.send_ntfy(topic=ntfy_topic, message=text, title="Night Prep",
                           cards=cards, db_path=db_path)

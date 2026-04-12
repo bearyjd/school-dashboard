@@ -112,6 +112,79 @@ def _gcal_events_on(gcal_events: list[dict], target_date: str) -> list[dict]:
     return [e for e in gcal_events if (e.get("start") or "")[:10] == target_date]
 
 
+def _load_gc_events(gc_path: str | None, days: int, from_date: str | None = None) -> list[dict]:
+    """Return gc events within `days` days starting from `from_date` (default: today).
+
+    Each item: {child, team_name, date, time, type, opponent, location, home_away}
+    Returns [] if file missing, unreadable, or no events in window.
+    """
+    if not gc_path:
+        return []
+    try:
+        p = Path(gc_path)
+        if not p.exists():
+            return []
+        data = json.loads(p.read_text())
+    except Exception as exc:
+        _log.warning("Failed to load gc schedule from %s: %s", gc_path, exc)
+        return []
+
+    start = date.fromisoformat(from_date) if from_date else date.today()
+    end = start + timedelta(days=days)
+
+    out: list[dict] = []
+    for team in (data.get("teams") or []):
+        child = team.get("child") or team.get("team_name", "")
+        team_name = team.get("team_name", "")
+        for evt in (team.get("schedule") or []):
+            evt_date_str = (evt.get("date") or "")[:10]
+            if not evt_date_str:
+                continue
+            try:
+                evt_date = date.fromisoformat(evt_date_str)
+            except ValueError:
+                continue
+            if start <= evt_date < end:
+                out.append({
+                    "child": child,
+                    "team_name": team_name,
+                    "date": evt_date_str,
+                    "time": evt.get("time", ""),
+                    "type": evt.get("type", ""),
+                    "opponent": evt.get("opponent", ""),
+                    "location": evt.get("location", ""),
+                    "home_away": evt.get("home_away", ""),
+                })
+    return sorted(out, key=lambda e: (e["date"], e["time"]))
+
+
+def _format_gc_event_line(evt: dict, relative_date: date) -> str:
+    """Format a gc event as a single digest line."""
+    evt_date = date.fromisoformat(evt["date"])
+    delta = (evt_date - relative_date).days
+    day_str = "today" if delta == 0 else "tomorrow" if delta == 1 else evt_date.strftime("%a")
+
+    etype = (evt.get("type") or "event").capitalize()
+    time_str = evt.get("time", "")
+
+    detail_parts: list[str] = []
+    if evt.get("type") == "game" and evt.get("opponent"):
+        opp = f"vs. {evt['opponent']}"
+        if evt.get("home_away") == "away":
+            opp += ", Away"
+        detail_parts.append(opp)
+    if time_str:
+        detail_parts.append(time_str)
+    if evt.get("location"):
+        detail_parts.append(f"@ {evt['location']}")
+
+    detail = ", ".join(detail_parts)
+    line = f"• {evt['child']}: {etype} {day_str}"
+    if detail:
+        line += f", {detail}"
+    return line
+
+
 # ── Digest builders ──────────────────────────────────────────────────────────
 
 def build_morning_digest(
@@ -123,6 +196,7 @@ def build_morning_digest(
     api_key: str,
     model: str,
     today: str | None = None,
+    gc_path: str | None = None,
 ) -> tuple[str, list[dict]]:
     """Build a morning briefing: what does today hold?"""
     today = today or date.today().isoformat()
@@ -134,6 +208,7 @@ def build_morning_digest(
     assignments = _assignments_due_on(state, today)
     ixl = _ixl_remaining(state)
     action_items = _action_items_due_on(state, today)
+    gc_events = _load_gc_events(gc_path, days=3, from_date=today)
 
     db_str = "\n".join(f"- {e['title']} ({e['type']})" for e in db_events) or "None"
     cal_str = (
@@ -156,6 +231,10 @@ def build_morning_digest(
     facts_str = (
         "\n".join(f"- [{f.get('subject', '?')}] {f.get('fact', '')}" for f in facts[:10]) or "None"
     )
+    gc_str = (
+        "\n".join(_format_gc_event_line(e, date.fromisoformat(today)) for e in gc_events)
+        or "None"
+    )
 
     prompt = f"""You are a family assistant sending a morning briefing push notification. Be brief, warm, and practical. Max 200 words.
 
@@ -175,6 +254,9 @@ IXL work remaining:
 
 Action items due today:
 {action_str}
+
+Extracurricular events (today + 2 days):
+{gc_str}
 
 Known facts (recurring activities):
 {facts_str}
@@ -197,6 +279,10 @@ Write a short morning briefing: what does today hold? Mention anything urgent fi
     for e in cal_events:
         cards.append({"source": "calendar", "child": "", "title": e.get("title", ""),
                        "detail": e.get("location", ""), "due_date": today, "url": "", "done": False})
+    for e in gc_events:
+        cards.append({"source": "gc", "child": e["child"], "title": e["team_name"],
+                       "detail": f"{(e.get('type') or '').capitalize()} {e['date']} {e.get('time', '')}".strip(),
+                       "due_date": e["date"], "url": "", "done": False})
     return _call_litellm(prompt, litellm_url, api_key, model), cards
 
 
@@ -207,6 +293,7 @@ def build_afternoon_digest(
     model: str,
     today: str | None = None,
     db_path: str | None = None,
+    gc_path: str | None = None,
 ) -> tuple[str, list[dict]]:
     """Build an afternoon homework check: did the kids do their work?"""
     today = today or date.today().isoformat()
@@ -217,6 +304,7 @@ def build_afternoon_digest(
     due_tomorrow = _assignments_due_on(state, tomorrow)
     ixl = _ixl_remaining(state)
     action_items = _action_items_due_on(state, today)
+    gc_events = _load_gc_events(gc_path, days=1, from_date=today)
 
     today_str = (
         "\n".join(f"- {a['child']}: {a['title']} ({a['course']})" for a in due_today) or "None"
@@ -230,6 +318,10 @@ def build_afternoon_digest(
     )
     action_str = (
         "\n".join(f"- {a['child']}: {a['summary']}" for a in action_items) or "None"
+    )
+    gc_str = (
+        "\n".join(_format_gc_event_line(e, date.fromisoformat(today)) for e in gc_events)
+        or "None"
     )
 
     prompt = f"""You are a family assistant sending an afternoon homework check push notification. Be direct. Max 150 words.
@@ -248,6 +340,9 @@ IXL work still remaining:
 Action items due today:
 {action_str}
 
+Extracurricular events today:
+{gc_str}
+
 Write a brief afternoon check-in: what homework still needs to be done? Flag anything urgent."""
 
     cards: list[dict] = []
@@ -263,6 +358,10 @@ Write a brief afternoon check-in: what homework still needs to be done? Flag any
     for a in action_items:
         cards.append({"source": "email", "child": a["child"], "title": a["summary"],
                        "detail": "Email action item", "due_date": today, "url": "", "done": False})
+    for e in gc_events:
+        cards.append({"source": "gc", "child": e["child"], "title": e["team_name"],
+                       "detail": f"{(e.get('type') or '').capitalize()} {e.get('time', '')}".strip(),
+                       "due_date": e["date"], "url": "", "done": False})
     text = _call_litellm(prompt, litellm_url, api_key, model)
     if db_path:
         from school_dashboard.readiness import get_checklist, format_checklist_text
@@ -282,6 +381,7 @@ def build_night_digest(
     api_key: str,
     model: str,
     tomorrow: str | None = None,
+    gc_path: str | None = None,
 ) -> tuple[str, list[dict]]:
     """Build a night prep summary: what do we need ready for tomorrow?"""
     tomorrow = tomorrow or (date.today() + timedelta(days=1)).isoformat()
@@ -292,6 +392,7 @@ def build_night_digest(
     cal_events = _gcal_events_on(gcal_events, tomorrow)
     assignments = _assignments_due_on(state, tomorrow)
     action_items = _action_items_due_on(state, tomorrow)
+    gc_events = _load_gc_events(gc_path, days=1, from_date=tomorrow)
 
     db_str = "\n".join(f"- {e['title']} ({e['type']})" for e in db_events) or "None"
     cal_str = (
@@ -310,6 +411,10 @@ def build_night_digest(
     facts_str = (
         "\n".join(f"- [{f.get('subject', '?')}] {f.get('fact', '')}" for f in facts[:10]) or "None"
     )
+    gc_str = (
+        "\n".join(_format_gc_event_line(e, date.fromisoformat(tomorrow)) for e in gc_events)
+        or "None"
+    )
 
     prompt = f"""You are a family assistant sending a night prep push notification. Be brief and actionable. Max 150 words.
 
@@ -326,6 +431,9 @@ Assignments due tomorrow:
 
 Action items due tomorrow:
 {action_str}
+
+Extracurricular events tomorrow:
+{gc_str}
 
 Known facts (recurring activities):
 {facts_str}
@@ -345,6 +453,10 @@ Write a brief night summary: what do we need to have ready for tomorrow? Mention
     for a in action_items:
         cards.append({"source": "email", "child": a["child"], "title": a["summary"],
                        "detail": "Email action item", "due_date": tomorrow, "url": "", "done": False})
+    for e in gc_events:
+        cards.append({"source": "gc", "child": e["child"], "title": e["team_name"],
+                       "detail": f"{(e.get('type') or '').capitalize()} {e.get('time', '')}".strip(),
+                       "due_date": e["date"], "url": "", "done": False})
     text = _call_litellm(prompt, litellm_url, api_key, model)
     from school_dashboard.readiness import get_checklist, format_checklist_text
     checklist = get_checklist(state_path, db_path)
@@ -364,6 +476,7 @@ def build_weekly_digest(
     model: str,
     days_ahead: int = 7,
     today: str | None = None,
+    gc_path: str | None = None,
 ) -> tuple[str, list[dict]]:
     """Build a weekly digest: friday=week in review, sunday=week ahead preview."""
     _today = date.fromisoformat(today) if today else date.today()
@@ -383,6 +496,7 @@ def build_weekly_digest(
         upcoming_events.extend(_query_db_events(db_path, target))
 
     ixl = _ixl_remaining(state)
+    gc_events = _load_gc_events(gc_path, days=days_ahead, from_date=_today.isoformat())
 
     assign_str = (
         "\n".join(
@@ -403,6 +517,10 @@ def build_weekly_digest(
         "\n".join(f"- [{f.get('subject', '?')}] {f.get('fact', '')}" for f in facts[:10])
         or "None"
     )
+    gc_str = (
+        "\n".join(_format_gc_event_line(e, _today) for e in gc_events)
+        or "None"
+    )
 
     if mode == "friday":
         prompt = f"""You are writing a Friday afternoon school summary for a parent. Summarize the week: what's still outstanding per child, IXL progress, anything that needs attention over the weekend. Be concise — 3-5 bullet points per child max.
@@ -417,6 +535,9 @@ School events in the next 3 days:
 
 IXL remaining skills per child:
 {ixl_str}
+
+Extracurricular events next {days_ahead} days:
+{gc_str}
 
 Known facts:
 {facts_str}"""
@@ -434,6 +555,9 @@ School calendar events next {days_ahead} days:
 IXL remaining skills per child:
 {ixl_str}
 
+Extracurricular events next {days_ahead} days:
+{gc_str}
+
 Known facts:
 {facts_str}"""
 
@@ -447,6 +571,10 @@ Known facts:
     for e in upcoming_events:
         cards.append({"source": "calendar", "child": e.get("child", ""), "title": e["title"],
                        "detail": e["type"], "due_date": e["date"], "url": "", "done": False})
+    for e in gc_events:
+        cards.append({"source": "gc", "child": e["child"], "title": e["team_name"],
+                       "detail": f"{(e.get('type') or '').capitalize()} {e['date']}".strip(),
+                       "due_date": e["date"], "url": "", "done": False})
     return _call_litellm(prompt, litellm_url, api_key, model), cards
 
 

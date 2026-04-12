@@ -27,9 +27,10 @@ accounts.env
 # gog OAuth tokens
 .config/gogcli/
 
-# Superpowers / OMC working dirs
+# Superpowers / OMC / Claude working dirs
 .superpowers/
 .omc/
+.claude/
 
 # Python
 __pycache__/

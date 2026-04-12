@@ -13,6 +13,7 @@ from school_dashboard.digest import (
     send_ntfy,
     _load_state,
     _load_facts,
+    _load_gc_events,
 )
 
 
@@ -412,3 +413,189 @@ def test_purge_old_digests(digest_db):
     deleted = purge_old_digests(digest_db, days=7)
     assert deleted == 1
     assert get_digest(digest_db, digest_id) is None
+
+
+# --- _load_gc_events tests ---
+
+GC_FIXTURE = {
+    "scraped_at": "2026-04-12T06:00:00",
+    "teams": [
+        {
+            "team_id": "abc123",
+            "team_name": "SMCS 5th Baseball",
+            "child": "Ford",
+            "schedule": [
+                {"date": "2026-04-14", "time": "16:00", "type": "practice",
+                 "opponent": "", "location": "Smith Field", "home_away": "home"},
+                {"date": "2026-04-16", "time": "18:00", "type": "game",
+                 "opponent": "St. Michael's", "location": "Away Field", "home_away": "away"},
+                {"date": "2026-04-30", "time": "10:00", "type": "game",
+                 "opponent": "Rivals", "location": "Home Field", "home_away": "home"},
+            ],
+        },
+        {
+            "team_id": "def456",
+            "team_name": "SMCS 5th Soccer",
+            "child": "Jack",
+            "schedule": [
+                {"date": "2026-04-15", "time": "17:00", "type": "practice",
+                 "opponent": "", "location": "Soccer Field", "home_away": "home"},
+            ],
+        },
+    ],
+}
+
+
+@pytest.fixture
+def tmp_gc(tmp_path):
+    p = tmp_path / "gc-schedule.json"
+    p.write_text(json.dumps(GC_FIXTURE))
+    return str(p)
+
+
+def test_load_gc_events_none_path():
+    assert _load_gc_events(None, days=7) == []
+
+
+def test_load_gc_events_missing_file(tmp_path):
+    assert _load_gc_events(str(tmp_path / "no-such-file.json"), days=7) == []
+
+
+def test_load_gc_events_malformed_json(tmp_path):
+    p = tmp_path / "bad.json"
+    p.write_text("{not valid json")
+    assert _load_gc_events(str(p), days=7) == []
+
+
+def test_load_gc_events_empty_teams(tmp_path):
+    p = tmp_path / "empty.json"
+    p.write_text(json.dumps({"scraped_at": "2026-04-12T06:00:00", "teams": []}))
+    assert _load_gc_events(str(p), days=7) == []
+
+
+def test_load_gc_events_in_window(tmp_gc):
+    # Window: 2026-04-14 to 2026-04-14+3 = 2026-04-17 (exclusive)
+    events = _load_gc_events(tmp_gc, days=3, from_date="2026-04-14")
+    dates = [e["date"] for e in events]
+    assert "2026-04-14" in dates  # Ford practice (day 0)
+    assert "2026-04-15" in dates  # Jack practice (day 1)
+    assert "2026-04-16" in dates  # Ford game (day 2)
+    assert "2026-04-30" not in dates  # outside window
+
+
+def test_load_gc_events_out_of_window(tmp_gc):
+    # Tight 1-day window: only 2026-04-14
+    events = _load_gc_events(tmp_gc, days=1, from_date="2026-04-14")
+    assert all(e["date"] == "2026-04-14" for e in events)
+    assert len(events) == 1
+
+
+def test_load_gc_events_child_attribution(tmp_gc):
+    events = _load_gc_events(tmp_gc, days=7, from_date="2026-04-14")
+    ford_events = [e for e in events if e["child"] == "Ford"]
+    jack_events = [e for e in events if e["child"] == "Jack"]
+    assert len(ford_events) >= 1
+    assert len(jack_events) >= 1
+
+
+def test_load_gc_events_sorted_by_date(tmp_gc):
+    events = _load_gc_events(tmp_gc, days=7, from_date="2026-04-14")
+    dates = [e["date"] for e in events]
+    assert dates == sorted(dates)
+
+
+def test_load_gc_events_home_away_string(tmp_gc):
+    events = _load_gc_events(tmp_gc, days=7, from_date="2026-04-14")
+    game = next(e for e in events if e["type"] == "game")
+    assert game["home_away"] == "away"  # string, not boolean
+
+
+# --- Morning digest gc card integration ---
+
+@patch("school_dashboard.digest.requests.post")
+def test_morning_digest_gc_card_present(mock_post, tmp_state, tmp_facts, tmp_db, tmp_gc):
+    mock_post.return_value = MagicMock(
+        status_code=200,
+        json=lambda: {"choices": [{"message": {"content": "Good morning!"}}]},
+    )
+    text, cards = build_morning_digest(
+        state_path=tmp_state,
+        db_path=tmp_db,
+        facts_path=tmp_facts,
+        gcal_events=[],
+        litellm_url="http://localhost:4000",
+        api_key="test-key",
+        model="claude-sonnet",
+        today="2026-04-14",
+        gc_path=tmp_gc,
+    )
+    gc_cards = [c for c in cards if c["source"] == "gc"]
+    assert len(gc_cards) >= 1
+    assert gc_cards[0]["child"] == "Ford"
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_morning_digest_no_gc_when_file_missing(mock_post, tmp_state, tmp_facts, tmp_db, tmp_path):
+    mock_post.return_value = MagicMock(
+        status_code=200,
+        json=lambda: {"choices": [{"message": {"content": "Good morning!"}}]},
+    )
+    text, cards = build_morning_digest(
+        state_path=tmp_state,
+        db_path=tmp_db,
+        facts_path=tmp_facts,
+        gcal_events=[],
+        litellm_url="http://localhost:4000",
+        api_key="test-key",
+        model="claude-sonnet",
+        today="2026-04-14",
+        gc_path=str(tmp_path / "nonexistent.json"),
+    )
+    gc_cards = [c for c in cards if c["source"] == "gc"]
+    assert gc_cards == []
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_night_digest_gc_card_tomorrow(mock_post, tmp_state, tmp_facts, tmp_db, tmp_gc):
+    """Night digest shows gc events for tomorrow only."""
+    mock_post.return_value = MagicMock(
+        status_code=200,
+        json=lambda: {"choices": [{"message": {"content": "Ready for tomorrow!"}}]},
+    )
+    # tomorrow = 2026-04-15 → Jack soccer practice
+    text, cards = build_night_digest(
+        state_path=tmp_state,
+        db_path=tmp_db,
+        facts_path=tmp_facts,
+        gcal_events=[],
+        litellm_url="http://localhost:4000",
+        api_key="test-key",
+        model="claude-sonnet",
+        tomorrow="2026-04-15",
+        gc_path=tmp_gc,
+    )
+    gc_cards = [c for c in cards if c["source"] == "gc"]
+    assert len(gc_cards) == 1
+    assert gc_cards[0]["child"] == "Jack"
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_morning_digest_gc_none_path_ok(mock_post, tmp_state, tmp_facts, tmp_db):
+    """gc_path=None should not raise — gc section silently omitted."""
+    mock_post.return_value = MagicMock(
+        status_code=200,
+        json=lambda: {"choices": [{"message": {"content": "Good morning!"}}]},
+    )
+    text, cards = build_morning_digest(
+        state_path=tmp_state,
+        db_path=tmp_db,
+        facts_path=tmp_facts,
+        gcal_events=[],
+        litellm_url="http://localhost:4000",
+        api_key="test-key",
+        model="claude-sonnet",
+        today="2026-04-14",
+        gc_path=None,
+    )
+    assert text == "Good morning!"
+    assert all(c["source"] != "gc" for c in cards)

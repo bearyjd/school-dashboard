@@ -38,6 +38,14 @@ else
     log "WARN: sgy command not found — skipping"
 fi
 
+# --- Step 2b: GameChanger scrape (non-fatal if not configured) ---
+if command -v gc &>/dev/null && [[ -n "${GC_TOKEN:-}${GC_EMAIL:-}" ]]; then
+    log "Running GameChanger scrape..."
+    bash /app/sync/gc-scrape.sh || log "WARN: GC scrape had errors"
+else
+    log "INFO: gc not configured — skipping (set GC_TOKEN or GC_EMAIL in config/env)"
+fi
+
 # --- Step 3: Merge into state ---
 log "Updating state..."
 school-state update --ixl-dir "$IXL_DIR" --sgy-file "$SGY_FILE" || { log "ERROR: State update failed — skipping remaining steps"; exit 1; }

@@ -4,3 +4,6 @@
 [submodule "vendor/schoology-scrape"]
 	path = vendor/schoology-scrape
 	url = https://github.com/bearyjd/sgy.git
+[submodule "vendor/gc"]
+	path = vendor/gc
+	url = https://github.com/bearyjd/gc

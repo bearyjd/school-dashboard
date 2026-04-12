@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 All-in-one Docker deployment for the family school dashboard. Scrapes IXL and Schoology, parses the school calendar PDF, extracts events/facts from Gmail via LiteLLM, sends a morning digest via ntfy, and serves a Flask web app with a chat interface.
 
-**External dependency:** LiteLLM proxy at `LITELLM_URL` (e.g. `http://192.168.1.20:4000`). Not included — point to your own instance.
+**External dependency:** LiteLLM proxy at `LITELLM_URL` (e.g. `http://your-litellm-host:8080`). Not included — point to your own instance.
 
 ## Quick Start
 
@@ -21,9 +21,9 @@ docker compose up -d
 ## Development (no Docker)
 
 ```bash
-pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape
+pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc
 playwright install chromium
-pytest                            # run all 26 tests
+pytest                            # run all tests
 pytest tests/test_db.py -v        # single file
 pytest -k "test_name"             # single test
 ```
@@ -66,11 +66,13 @@ web/
   templates/index.html  Dashboard iframe + chat tab. Uses marked.js for markdown rendering.
 
 sync/
-  school-sync.sh        Cron script: IXL → SGY → state → email-sync → intel → HTML → digest (6am only).
+  school-sync.sh        Cron script: IXL → SGY → GC → state → email-sync → intel → HTML → digest (6am only).
+  gc-scrape.sh          Scrapes GameChanger for all configured teams; writes gc-schedule.json.
 
 vendor/
   ixl-scrape/           git submodule (pip install -e)
   schoology-scrape/     git submodule (pip install -e)
+  gc/                   git submodule (pip install -e) — GameChanger CLI
 
 docker/
   Dockerfile            python:3.12-slim + gog v0.12.0 binary + Playwright/Chromium + pip scrapers
@@ -84,7 +86,8 @@ docker/
 
 - **Calendar import (one-time):** `calendar_import.py` → parses PDF pages, detects spaced month headers (A U G U S T), classifies 10 event types (NO_SCHOOL, EARLY_RELEASE, MASS…), inserts into `events` table via INSERT OR IGNORE.
 - **Email intel (each sync):** `school-state email-sync` fetches Gmail digest → `intel.py` calls LiteLLM with each SCHOOL/CHILD_ACTIVITY email → extracts dated events + recurring facts → inserts into DB.
-- **Morning/afternoon/night digest (6am/2:30pm/8:30pm):** `digest.py` queries events + IXL state + facts → LiteLLM synthesizes → creates `digests` carousel → ntfy.sh push with deep-link.
+- **GameChanger scrape (each sync, non-fatal):** `gc-scrape.sh` calls `gc teams --json`, iterates team IDs, calls `gc summary --json --team ID` per team, writes merged `gc-schedule.json`. Skipped if `GC_TOKEN` and `GC_EMAIL` are both unset.
+- **Morning/afternoon/night digest (6am/2:30pm/8:30pm):** `digest.py` queries events + IXL state + facts + gc-schedule.json → LiteLLM synthesizes → creates `digests` carousel → ntfy.sh push with deep-link.
 - **Chat:** `/api/chat` builds system prompt with 30-day events + facts + full state JSON → streams reply from LiteLLM.
 
 ## API Endpoints
@@ -110,23 +113,28 @@ docker/
 | `facts.json` | Array of `{subject, fact, source, created_at}` — long-term memory |
 | `school-state.json` | Latest IXL + Schoology aggregate |
 | `email-digest.json` | Latest classified Gmail digest |
+| `gc-schedule.json` | Latest GameChanger schedule: `{scraped_at, teams: [{team_id, team_name, child, schedule: [{date, time, type, opponent, location, home_away}]}]}` |
 | `calendar.pdf` | Source PDF (drop in manually each school year) |
 
 ## Config
 
-All secrets in `config/env` (gitignored). Template at `.env.example`.
+All secrets in `config/env` (gitignored). Template at `.env.example`. `.env` at repo root is legacy — do not use as primary.
+
+`LITELLM_URL` must be the bare base URL (e.g. `http://your-litellm-host:8080`) — never include `/v1`. Both `web/app.py` and `digest.py` append `/v1/chat/completions` themselves.
 
 Required vars: `LITELLM_URL`, `LITELLM_API_KEY`, `LITELLM_MODEL`, `IXL_EMAIL`, `IXL_PASSWORD`, `SGY_EMAIL`, `SGY_PASSWORD`, `GOG_ACCOUNT`, `NTFY_TOPIC`.
 
+Optional GameChanger vars: `GC_TOKEN` (bearer token from browser session — preferred), or `GC_EMAIL`/`GC_PASSWORD` (Playwright login fallback). `GC_TEAM_MAP` maps team IDs to child names: `"teamid:Ford,teamid2:Jack"`. `SCHOOL_GC_PATH` overrides the default gc-schedule.json path (default: `/app/state/gc-schedule.json`). Run `gc teams --json` to discover team IDs.
+
 ## Tests
 
-26 tests across 4 files. All use mocks — no live credentials needed.
+33 tests across 4 files. All use mocks — no live credentials needed.
 
 ```
 tests/test_db.py              7 tests  — SQLite schema, dedup, facts
 tests/test_calendar_import.py 12 tests — PDF parsing, event classification
 tests/test_intel.py           4 tests  — LiteLLM extraction, error handling
-tests/test_digest.py          3 tests  — digest build, ntfy send
+tests/test_digest.py          10 tests — digest build, ntfy send, gc event loading + card rendering
 ```
 
 ## Submodule Updates
@@ -134,5 +142,6 @@ tests/test_digest.py          3 tests  — digest build, ntfy send
 ```bash
 git submodule update --remote vendor/ixl-scrape
 git submodule update --remote vendor/schoology-scrape
+git submodule update --remote vendor/gc
 git add vendor/ && git commit -m "chore: update scrapers"
 ```
