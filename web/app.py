@@ -12,9 +12,9 @@ from school_dashboard.gcal import fetch_gcal_events
 
 app = Flask(__name__)
 
-LITELLM_URL = os.environ.get("LITELLM_URL", "http://192.168.1.20:4000/")
+LITELLM_URL = os.environ.get("LITELLM_URL", "http://localhost:8080")
 LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
-LITELLM_MODEL = os.environ.get("LITELLM_MODEL", "claude-sonnet")
+LITELLM_MODEL = os.environ.get("LITELLM_MODEL", "cliproxy/claude-sonnet-4-6")
 STATE_PATH = os.environ.get("SCHOOL_STATE_PATH", "/opt/school/state/school-state.json")
 EMAIL_DIGEST_PATH = os.environ.get("SCHOOL_EMAIL_DIGEST", "/opt/school/state/email-digest.json")
 DB_PATH = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
