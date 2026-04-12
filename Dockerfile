@@ -33,7 +33,8 @@ RUN playwright install chromium --with-deps
 # Copy app source
 COPY school_dashboard/ ./school_dashboard/
 COPY web/ ./web/
-COPY school-sync.sh ./sync/school-sync.sh
+COPY sync/ ./sync/
+RUN chmod +x /app/sync/*.sh
 COPY config/ ./config/
 
 # Set up cron
