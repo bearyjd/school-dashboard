@@ -15,8 +15,8 @@ MODE="${1:?usage: run-weekly.sh friday|sunday}"
 ENVFILE="${SCHOOL_DASHBOARD_ENV:-/app/config/env}"
 [[ -f "$ENVFILE" ]] && { set -a; source "$ENVFILE"; set +a; }
 
-LOGDIR="${SCHOOL_STATE_PATH%/*}"
-LOGDIR="${LOGDIR:-/app/state}"
+LOGDIR="${SCHOOL_STATE_PATH:-/app/state/school-state.json}"
+LOGDIR="${LOGDIR%/*}"
 LOGFILE="$LOGDIR/digest-weekly.log"
 
 TS=$(date -Iseconds)
@@ -28,15 +28,15 @@ mode = os.environ['DIGEST_MODE']
 title = 'Week in Review' if mode == 'friday' else 'Week Ahead'
 text, cards = build_weekly_digest(
     mode,
-    os.environ['SCHOOL_STATE_PATH'],
-    os.environ['SCHOOL_DB_PATH'],
-    os.environ['SCHOOL_FACTS_PATH'],
+    os.environ.get('SCHOOL_STATE_PATH', '/app/state/school-state.json'),
+    os.environ.get('SCHOOL_DB_PATH', '/app/state/school.db'),
+    os.environ.get('SCHOOL_FACTS_PATH', '/app/state/facts.json'),
     os.environ['LITELLM_URL'],
     os.environ['LITELLM_API_KEY'],
     os.environ['LITELLM_MODEL'],
     gc_path=os.environ.get('SCHOOL_GC_PATH', '/app/state/gc-schedule.json'),
 )
-send_ntfy(os.environ['NTFY_TOPIC'], text, title, cards=cards, db_path=os.environ.get('SCHOOL_DB_PATH'))
+send_ntfy(os.environ['NTFY_TOPIC'], text, title, cards=cards, db_path=os.environ.get('SCHOOL_DB_PATH', '/app/state/school.db'))
 " >> "$LOGFILE" 2>&1; then
     echo "[$TS] weekly $MODE OK" >> "$LOGFILE"
 else

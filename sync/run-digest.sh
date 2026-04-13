@@ -15,8 +15,8 @@ MODE="${1:?usage: run-digest.sh morning|afternoon|night}"
 ENVFILE="${SCHOOL_DASHBOARD_ENV:-/app/config/env}"
 [[ -f "$ENVFILE" ]] && { set -a; source "$ENVFILE"; set +a; }
 
-LOGDIR="${SCHOOL_STATE_PATH%/*}"   # derive dir from state path, default /app/state
-LOGDIR="${LOGDIR:-/app/state}"
+LOGDIR="${SCHOOL_STATE_PATH:-/app/state/school-state.json}"
+LOGDIR="${LOGDIR%/*}"
 LOGFILE="$LOGDIR/digest.log"
 
 TS=$(date -Iseconds)
