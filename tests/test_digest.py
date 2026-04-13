@@ -10,6 +10,7 @@ from school_dashboard.digest import (
     build_afternoon_digest,
     build_night_digest,
     build_weekly_digest,
+    build_quick_check,
     send_ntfy,
     _load_state,
     _load_facts,
@@ -599,3 +600,99 @@ def test_morning_digest_gc_none_path_ok(mock_post, tmp_state, tmp_facts, tmp_db)
     )
     assert text == "Good morning!"
     assert all(c["source"] != "gc" for c in cards)
+
+
+# --- build_quick_check tests ---
+
+def test_quick_check_returns_tuple(tmp_path):
+    state = {"schoology": {}, "ixl": {}}
+    p = tmp_path / "state.json"
+    p.write_text(json.dumps(state))
+    result = build_quick_check(str(p))
+    assert isinstance(result, tuple)
+    text, cards = result
+    assert isinstance(text, str)
+    assert isinstance(cards, list)
+
+
+def test_quick_check_missing_file():
+    text, cards = build_quick_check("/nonexistent/state.json")
+    assert isinstance(text, str)
+    assert len(text) > 0
+    assert cards == []
+
+
+def test_quick_check_all_done(tmp_path):
+    state = {
+        "schoology": {"Ford": {"assignments": []}},
+        "ixl": {"Ford": {"totals": {"Math": {"remaining": 0, "assigned": 3, "done": 3}}}},
+    }
+    p = tmp_path / "state.json"
+    p.write_text(json.dumps(state))
+    text, cards = build_quick_check(str(p))
+    assert "Ford" in text
+
+
+def test_quick_check_shows_ixl_remaining(tmp_path):
+    state = {
+        "schoology": {"Ford": {"assignments": []}},
+        "ixl": {"Ford": {"totals": {"Math": {"remaining": 2, "assigned": 5, "done": 3}}}},
+    }
+    p = tmp_path / "state.json"
+    p.write_text(json.dumps(state))
+    text, _ = build_quick_check(str(p))
+    assert "Ford" in text
+    assert "2" in text
+
+
+def test_quick_check_shows_open_sgy_assignments(tmp_path):
+    state = {
+        "schoology": {
+            "Jack": {"assignments": [
+                {"title": "Math HW", "status": "", "due_date": "2026-04-15", "course": "Math"},
+                {"title": "ELA HW", "status": "", "due_date": "2026-04-16", "course": "ELA"},
+            ]}
+        },
+        "ixl": {"Jack": {"totals": {}}},
+    }
+    p = tmp_path / "state.json"
+    p.write_text(json.dumps(state))
+    text, _ = build_quick_check(str(p))
+    assert "Jack" in text
+    assert "2" in text
+
+
+def test_quick_check_multiple_children(tmp_path):
+    state = {
+        "schoology": {
+            "Ford": {"assignments": [{"title": "X", "status": "", "due_date": "2026-04-15", "course": "Math"}]},
+            "Jack": {"assignments": []},
+        },
+        "ixl": {
+            "Ford": {"totals": {"Math": {"remaining": 1, "assigned": 3, "done": 2}}},
+            "Jack": {"totals": {"Math": {"remaining": 0, "assigned": 2, "done": 2}}},
+        },
+    }
+    p = tmp_path / "state.json"
+    p.write_text(json.dumps(state))
+    text, _ = build_quick_check(str(p))
+    assert "Ford" in text
+    assert "Jack" in text
+
+
+# --- send_ntfy with actions ---
+
+@patch("school_dashboard.digest.requests.post")
+def test_send_ntfy_with_actions_appends_to_header(mock_post):
+    mock_post.return_value = MagicMock(ok=True, status_code=200)
+    actions = [
+        {"action": "http", "label": "Check Homework",
+         "url": "https://school.grepon.cc/api/sync",
+         "method": "POST", "body": '{"sources":"ixl,sgy","digest":"quick"}'},
+    ]
+    send_ntfy(topic="test-topic", message="Hello", title="Homework Check", actions=actions)
+    call_kwargs = mock_post.call_args
+    headers = call_kwargs.kwargs.get("headers", {})
+    actions_header = headers.get("Actions", "")
+    assert "Check Homework" in actions_header
+    assert "http" in actions_header

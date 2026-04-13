@@ -55,14 +55,14 @@ school_dashboard/       Core Python package
   db.py                 SQLite schema (events table + facts.json). INSERT OR IGNORE dedup.
   calendar_import.py    Parse school calendar PDF → events DB. Uses pypdf + line-by-line day detection.
   intel.py              Post classified emails to LiteLLM → extract events/facts.
-  digest.py             Build morning digest text via LiteLLM. Send to ntfy.sh push.
+  digest.py             Build morning digest text via LiteLLM. Send to ntfy.sh push. `build_quick_check(state_path)` → no-LLM homework summary (IXL remaining + open SGY assignments per child).
   email.py              Gmail digest fetch + classification.
   state.py              Aggregate IXL + Schoology JSON into school-state.json.
   cli.py                school-state CLI entry point.
   html.py               Render school-state.json → dashboard HTML.
 
 web/
-  app.py                Flask app. Routes: /api/chat, /api/items*, /api/dashboard, /api/readiness, /api/digest/* (carousel)
+  app.py                Flask app. Routes: /api/chat, /api/items*, /api/dashboard, /api/readiness, /api/digest/* (carousel), /api/sync, /api/sync/status
   templates/index.html  Dashboard iframe + chat tab. Uses marked.js for markdown rendering.
 
 sync/
@@ -104,6 +104,8 @@ docker/
 | `/api/chat` | POST | Chat with LiteLLM (JSON: `message`, `history`) |
 | `/api/readiness` | GET | Get readiness checklist |
 | `/api/calendar` | GET | Fetch Google Calendar events |
+| `/api/sync` | POST | Trigger on-demand sync (header: `X-Sync-Token`; JSON: `sources` e.g. `"ixl,sgy"`, `digest` e.g. `"quick"/"full"/"none"`) |
+| `/api/sync/status` | GET | Poll sync state (`{running, last_run, last_result, last_sources, last_error}`) |
 
 ## State Files (all gitignored, in state/)
 
@@ -126,15 +128,18 @@ Required vars: `LITELLM_URL`, `LITELLM_API_KEY`, `LITELLM_MODEL`, `IXL_EMAIL`, `
 
 Optional GameChanger vars: `GC_TOKEN` (bearer token from browser session — preferred), or `GC_EMAIL`/`GC_PASSWORD` (Playwright login fallback). `GC_TEAM_MAP` maps team IDs to child names: `"teamid:Ford,teamid2:Jack"`. `SCHOOL_GC_PATH` overrides the default gc-schedule.json path (default: `/app/state/gc-schedule.json`). Run `gc teams --json` to discover team IDs.
 
+Optional on-demand sync: `SYNC_TOKEN` — shared secret for `POST /api/sync`. Generate with: `python3 -c "import secrets; print(secrets.token_hex(16))"`. Without it, `/api/sync` returns 501.
+
 ## Tests
 
-33 tests across 4 files. All use mocks — no live credentials needed.
+77 tests across 5 files. All use mocks — no live credentials needed.
 
 ```
 tests/test_db.py              7 tests  — SQLite schema, dedup, facts
 tests/test_calendar_import.py 12 tests — PDF parsing, event classification
 tests/test_intel.py           4 tests  — LiteLLM extraction, error handling
-tests/test_digest.py          10 tests — digest build, ntfy send, gc event loading + card rendering
+tests/test_digest.py          46 tests — digest build, ntfy send, gc event loading + card rendering, build_quick_check
+tests/test_sync.py            8 tests  — /api/sync auth, concurrency, /api/sync/status
 ```
 
 ## Submodule Updates

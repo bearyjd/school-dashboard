@@ -3,8 +3,9 @@ import os
 import re
 import sqlite3
 import subprocess
+import threading
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 import requests
 from flask import Flask, jsonify, render_template, request, Response
@@ -102,7 +103,7 @@ def build_system_prompt() -> str:
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", sync_token=os.environ.get("SYNC_TOKEN", ""))
 
 
 @app.route("/dashboard-frame")
@@ -365,6 +366,136 @@ def api_digest_card_update(digest_id, index):
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ── On-demand sync ───────────────────────────────────────────────────────────
+
+_sync_lock = threading.Lock()
+_sync_status: dict = {
+    "running": False,
+    "last_run": None,
+    "last_result": None,
+    "last_sources": [],
+    "last_error": None,
+}
+
+
+def _run_sync_background(sources: str, digest: str) -> None:
+    """Run scrapers in a background thread, update state, optionally send digest."""
+    global _sync_status
+    _sync_status["running"] = True
+    _sync_status["last_sources"] = [s.strip() for s in sources.split(",")]
+    _sync_status["last_error"] = None
+
+    ixl_dir = os.environ.get("IXL_DIR", "/tmp/ixl")
+    sgy_file = os.environ.get("SGY_FILE", "/tmp/schoology-daily.json")
+    ixl_cron = os.environ.get("IXL_CRON", "")
+    state_path = os.environ.get("SCHOOL_STATE_PATH", "/app/state/school-state.json")
+    db_path = os.environ.get("SCHOOL_DB_PATH", "/app/state/school.db")
+    facts_path = os.environ.get("SCHOOL_FACTS_PATH", "/app/state/facts.json")
+    gc_path = os.environ.get("SCHOOL_GC_PATH", "/app/state/gc-schedule.json")
+    ntfy_topic = os.environ.get("NTFY_TOPIC", "")
+
+    source_list = [s.strip() for s in sources.split(",")]
+    if "all" in source_list:
+        source_list = ["ixl", "sgy", "gc"]
+
+    errors = []
+
+    try:
+        for src in source_list:
+            try:
+                if src == "ixl":
+                    if ixl_cron and Path(ixl_cron).exists():
+                        subprocess.run(["bash", ixl_cron], timeout=120, check=False)
+                    else:
+                        Path(ixl_dir).mkdir(parents=True, exist_ok=True)
+                        result = subprocess.run(
+                            ["ixl", "summary", "--json"],
+                            capture_output=True, text=True, timeout=120,
+                        )
+                        if result.stdout:
+                            (Path(ixl_dir) / "ixl-summary.json").write_text(result.stdout)
+                elif src == "sgy":
+                    result = subprocess.run(
+                        ["sgy", "summary", "--json"],
+                        capture_output=True, text=True, timeout=60,
+                    )
+                    if result.stdout:
+                        Path(sgy_file).write_text(result.stdout)
+                elif src == "gc":
+                    gc_script = "/app/sync/gc-scrape.sh"
+                    if Path(gc_script).exists():
+                        subprocess.run(["bash", gc_script], timeout=60, check=False)
+            except Exception as exc:
+                errors.append(f"{src}: {exc}")
+
+        # Update state (only if ixl or sgy were synced)
+        if any(s in source_list for s in ("ixl", "sgy")):
+            subprocess.run(
+                ["school-state", "update", "--ixl-dir", ixl_dir, "--sgy-file", sgy_file],
+                timeout=30, check=False,
+            )
+            subprocess.run(["school-state", "html"], timeout=30, check=False)
+
+        # Digest
+        if ntfy_topic and digest != "none":
+            if digest == "quick":
+                from school_dashboard.digest import build_quick_check, send_ntfy
+                text, cards = build_quick_check(state_path)
+                send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
+                          cards=cards or None, db_path=db_path if cards else None)
+            elif digest == "full":
+                from school_dashboard.digest import build_afternoon_digest, send_ntfy
+                litellm_url = os.environ.get("LITELLM_URL", "")
+                api_key = os.environ.get("LITELLM_API_KEY", "")
+                model = os.environ.get("LITELLM_MODEL", "claude-sonnet")
+                if litellm_url:
+                    text, cards = build_afternoon_digest(
+                        state_path=state_path, db_path=db_path,
+                        litellm_url=litellm_url, api_key=api_key, model=model,
+                        gc_path=gc_path,
+                    )
+                    send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
+                              cards=cards, db_path=db_path)
+
+        _sync_status["last_result"] = "ok" if not errors else "error"
+        if errors:
+            _sync_status["last_error"] = "; ".join(errors)
+    except Exception as exc:
+        _sync_status["last_result"] = "error"
+        _sync_status["last_error"] = str(exc)
+    finally:
+        _sync_status["running"] = False
+        _sync_status["last_run"] = datetime.utcnow().isoformat(timespec="seconds")
+        _sync_lock.release()
+
+
+@app.route("/api/sync", methods=["POST"])
+def api_sync():
+    sync_token = os.environ.get("SYNC_TOKEN", "")
+    if not sync_token:
+        return jsonify({"error": "SYNC_TOKEN not configured"}), 501
+
+    provided = request.headers.get("X-Sync-Token", "")
+    if not provided or provided != sync_token:
+        return jsonify({"error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    sources = (data.get("sources") or "ixl,sgy").strip()
+    digest = (data.get("digest") or "quick").strip()
+
+    if not _sync_lock.acquire(blocking=False):
+        return jsonify({"error": "sync already running"}), 409
+
+    t = threading.Thread(target=_run_sync_background, args=(sources, digest), daemon=True)
+    t.start()
+    return jsonify({"started": True, "sources": sources, "digest": digest}), 202
+
+
+@app.route("/api/sync/status")
+def api_sync_status():
+    return jsonify(dict(_sync_status))
 
 
 if __name__ == "__main__":

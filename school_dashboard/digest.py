@@ -591,12 +591,62 @@ _DEEP_LINKS: dict[str, str] = {
 DASHBOARD_BASE = "https://school.grepon.cc"
 
 
+def build_quick_check(state_path: str) -> tuple[str, list]:
+    """Fast homework check — no LLM. Returns per-child IXL + SGY summary as plain text."""
+    state = _load_state(state_path)
+    if not state:
+        return "Could not load state.", []
+
+    children = sorted(set(
+        list((state.get("ixl") or {}).keys()) +
+        list((state.get("schoology") or {}).keys())
+    ))
+    if not children:
+        return "No children found in state.", []
+
+    lines = []
+    for child in children:
+        ixl_totals = ((state.get("ixl") or {}).get(child) or {}).get("totals") or {}
+        sgy_assignments = ((state.get("schoology") or {}).get(child) or {}).get("assignments") or []
+
+        ixl_remaining = sum(v.get("remaining", 0) for v in ixl_totals.values())
+        open_sgy = [
+            a for a in sgy_assignments
+            if (a.get("status") or "").lower() not in (
+                "submitted", "graded", "complete", "completed", "turned in"
+            )
+        ]
+
+        if ixl_remaining > 0:
+            subjects = [s for s, v in ixl_totals.items() if v.get("remaining", 0) > 0]
+            ixl_part = f"IXL {ixl_remaining} remaining ({', '.join(subjects)})"
+        else:
+            ixl_part = "IXL all done"
+
+        sgy_part = f"SGY {len(open_sgy)} open" if open_sgy else "SGY all done"
+        lines.append(f"{child}: {ixl_part}, {sgy_part}")
+
+    return "\n".join(lines), []
+
+
+def _format_ntfy_action(action: dict) -> str:
+    parts = [action.get("action", "http"), action["label"], action["url"]]
+    if action.get("method"):
+        parts.append(f"method={action['method']}")
+    if action.get("body"):
+        parts.append(f"body={action['body']}")
+    for k, v in (action.get("headers") or {}).items():
+        parts.append(f"headers.{k}={v}")
+    return ", ".join(parts)
+
+
 def send_ntfy(
     topic: str,
     message: str,
     title: str = "School",
     cards: list[dict] | None = None,
     db_path: str | None = None,
+    actions: list[dict] | None = None,
 ) -> None:
     """Push message to ntfy.sh topic. If cards provided, store digest and deep-link to carousel."""
     if cards and db_path:
@@ -614,6 +664,13 @@ def send_ntfy(
         deep = _DEEP_LINKS.get(title, "")
         url = f"{DASHBOARD_BASE}/{deep}" if deep else DASHBOARD_BASE
 
+    base_action = f"view, Open Dashboard, {url}"
+    if actions:
+        extra = "; ".join(_format_ntfy_action(a) for a in actions)
+        actions_header = f"{base_action}; {extra}"
+    else:
+        actions_header = base_action
+
     resp = requests.post(
         f"https://ntfy.sh/{topic}",
         data=message.encode("utf-8"),
@@ -622,7 +679,7 @@ def send_ntfy(
             "Priority": "default",
             "Tags": "school",
             "Click": url,
-            "Actions": f"view, Open Dashboard, {url}",
+            "Actions": actions_header,
         },
         timeout=15,
     )
