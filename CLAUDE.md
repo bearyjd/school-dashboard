@@ -132,7 +132,7 @@ Optional on-demand sync: `SYNC_TOKEN` — shared secret for `POST /api/sync`. Ge
 
 ## Tests
 
-77 tests across 5 files. All use mocks — no live credentials needed.
+83 tests across 6 files. All use mocks — no live credentials needed.
 
 ```
 tests/test_db.py              7 tests  — SQLite schema, dedup, facts
@@ -140,6 +140,7 @@ tests/test_calendar_import.py 12 tests — PDF parsing, event classification
 tests/test_intel.py           4 tests  — LiteLLM extraction, error handling
 tests/test_digest.py          46 tests — digest build, ntfy send, gc event loading + card rendering, build_quick_check
 tests/test_sync.py            8 tests  — /api/sync auth, concurrency, /api/sync/status
+tests/test_wrapper_scripts.py 6 tests  — run-digest.sh / run-weekly.sh LOGDIR logic, bash syntax
 ```
 
 ## Submodule Updates
