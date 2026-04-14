@@ -5,7 +5,7 @@ import sqlite3
 import subprocess
 import threading
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import requests
 from flask import Flask, jsonify, render_template, request, Response
@@ -65,7 +65,7 @@ def load_facts() -> list[dict]:
 
 def _format_freshness(meta: dict) -> str:
     """Format per-source sync freshness for LLM system prompt."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     lines = []
     for source in ("ixl", "sgy", "gc"):
         entry = meta.get(source)
@@ -83,7 +83,7 @@ def _format_freshness(meta: dict) -> str:
                 age = "yesterday"
             else:
                 age = f"{days} days ago"
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, TypeError):
             age = "unknown"
         result_str = entry.get("last_result", "?")
         lines.append(f"{source.upper()}: last pulled {age} — {result_str}")

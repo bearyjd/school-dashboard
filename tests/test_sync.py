@@ -185,8 +185,8 @@ def test_format_freshness_shows_never_for_missing_sources():
 
 def test_format_freshness_shows_days_ago():
     from web.app import _format_freshness
-    from datetime import datetime, timedelta
-    old_ts = (datetime.utcnow() - timedelta(days=12)).isoformat(timespec="seconds")
+    from datetime import datetime, timedelta, timezone
+    old_ts = (datetime.now(timezone.utc) - timedelta(days=12)).isoformat(timespec="seconds")
     meta = {"ixl": {"last_run": old_ts, "last_result": "ok"}}
     result = _format_freshness(meta)
     assert "12 days ago" in result
@@ -195,8 +195,8 @@ def test_format_freshness_shows_days_ago():
 
 def test_format_freshness_shows_today_for_recent():
     from web.app import _format_freshness
-    from datetime import datetime
-    ts = datetime.utcnow().isoformat(timespec="seconds")
+    from datetime import datetime, timezone
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
     meta = {"sgy": {"last_run": ts, "last_result": "ok"}}
     result = _format_freshness(meta)
     assert "today" in result or "just now" in result
@@ -204,8 +204,8 @@ def test_format_freshness_shows_today_for_recent():
 
 def test_format_freshness_shows_yesterday():
     from web.app import _format_freshness
-    from datetime import datetime, timedelta
-    ts = (datetime.utcnow() - timedelta(days=1)).isoformat(timespec="seconds")
+    from datetime import datetime, timedelta, timezone
+    ts = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(timespec="seconds")
     meta = {"gc": {"last_run": ts, "last_result": "ok"}}
     result = _format_freshness(meta)
     assert "yesterday" in result
