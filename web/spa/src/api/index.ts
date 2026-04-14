@@ -43,7 +43,7 @@ export const fetchSyncStatus = () => apiFetch<SyncStatus>('/api/sync/status');
 export const fetchSyncMeta = () => apiFetch<SyncMeta>('/api/sync/meta');
 
 export async function fetchDigest(id: string): Promise<Digest> {
-  return apiFetch(`/api/digest/${id}`);
+  return apiFetch<Digest>(`/api/digest/${id}`);
 }
 
 export async function patchDigestCard(id: string, index: number, done: boolean): Promise<void> {
