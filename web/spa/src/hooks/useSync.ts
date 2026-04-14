@@ -21,7 +21,10 @@ export function useSync() {
         const s = await fetchSyncStatus()
         setStatus(s)
         if (!s.running) stopPolling()
-      } catch {}
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'polling failed')
+        stopPolling()
+      }
     }, 3000)
   }, [stopPolling])
 

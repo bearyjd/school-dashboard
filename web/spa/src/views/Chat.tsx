@@ -41,7 +41,7 @@ export function Chat() {
     setLoading(true)
 
     try {
-      const history: ChatMessage[] = messages
+      const history: ChatMessage[] = [...messages, userMsg]
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
 

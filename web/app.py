@@ -570,7 +570,8 @@ def spa(path: str):
         return "SPA not built. Run: npm --prefix web/spa run build", 503
     html = index.read_text()
     # Inject SYNC_TOKEN as a global so the SPA can read it without a separate API call
-    injection = f'<script>window.__SYNC_TOKEN__="{sync_token}";</script>'
+    safe_token = json.dumps(sync_token).replace("</", r"<\/")
+    injection = f'<script>window.__SYNC_TOKEN__={safe_token};</script>'
     html = html.replace("</head>", f"{injection}</head>", 1)
     return Response(html, mimetype="text/html")
 
