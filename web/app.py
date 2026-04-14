@@ -8,7 +8,7 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import requests
-from flask import Flask, jsonify, render_template, request, Response
+from flask import Flask, jsonify, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta, DEFAULT_PATH as SYNC_META_DEFAULT_PATH
 
@@ -553,6 +553,46 @@ def assetlinks():
             "sha256_cert_fingerprints": [fingerprint],
         },
     }])
+
+
+# ── SPA (React build served at /app) ─────────────────────────────────────────
+
+_SPA_DIST = Path(__file__).parent / "spa" / "dist"
+
+
+@app.route("/app/", defaults={"path": ""})
+@app.route("/app/<path:path>")
+def spa(path: str):
+    """Serve the React SPA — inject sync token and serve index.html for all routes."""
+    sync_token = os.environ.get("SYNC_TOKEN", "")
+    index = _SPA_DIST / "index.html"
+    if not index.exists():
+        return "SPA not built. Run: npm --prefix web/spa run build", 503
+    html = index.read_text()
+    # Inject SYNC_TOKEN as a global so the SPA can read it without a separate API call
+    injection = f'<script>window.__SYNC_TOKEN__="{sync_token}";</script>'
+    html = html.replace("</head>", f"{injection}</head>", 1)
+    return Response(html, mimetype="text/html")
+
+
+@app.route("/app/assets/<path:filename>")
+def spa_assets(filename: str):
+    return send_from_directory(_SPA_DIST / "assets", filename)
+
+
+@app.route("/app/icons/<path:filename>")
+def spa_icons(filename: str):
+    return send_from_directory(_SPA_DIST / "icons", filename)
+
+
+@app.route("/app/manifest.json")
+def spa_manifest():
+    return send_from_directory(_SPA_DIST, "manifest.json", mimetype="application/manifest+json")
+
+
+@app.route("/app/sw.js")
+def spa_sw():
+    return send_from_directory(_SPA_DIST, "sw.js", mimetype="application/javascript")
 
 
 if __name__ == "__main__":
