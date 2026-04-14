@@ -63,7 +63,39 @@ def load_facts() -> list[dict]:
     return []
 
 
+def _format_freshness(meta: dict) -> str:
+    """Format per-source sync freshness for LLM system prompt."""
+    now = datetime.utcnow()
+    lines = []
+    for source in ("ixl", "sgy", "gc"):
+        entry = meta.get(source)
+        if not entry:
+            lines.append(f"{source.upper()}: never pulled")
+            continue
+        try:
+            last = datetime.fromisoformat(entry["last_run"])
+            delta = now - last
+            days = delta.days
+            if days == 0:
+                hours = delta.seconds // 3600
+                age = f"today ({hours}h ago)" if hours > 0 else "just now"
+            elif days == 1:
+                age = "yesterday"
+            else:
+                age = f"{days} days ago"
+        except (KeyError, ValueError):
+            age = "unknown"
+        result_str = entry.get("last_result", "?")
+        lines.append(f"{source.upper()}: last pulled {age} — {result_str}")
+    return "\n".join(lines)
+
+
 def build_system_prompt() -> str:
+    from school_dashboard.sync_meta import read_sync_meta
+    meta_path = os.environ.get("SCHOOL_SYNC_META_PATH", "/app/state/sync_meta.json")
+    meta = read_sync_meta(meta_path)
+    freshness_str = _format_freshness(meta)
+
     state = load_json(STATE_PATH)
     emails = load_json(EMAIL_DIGEST_PATH)
     events = load_upcoming_events(days=30)
@@ -95,6 +127,7 @@ def build_system_prompt() -> str:
         "Answer questions about the children's grades, assignments, upcoming school events, and what needs attention.\n"
         f"Today: {today}\n\n"
         "Answer questions about grades, assignments, upcoming school events, and what needs attention. Be concise and practical.\n\n"
+        f"## Data Freshness\n{freshness_str}\n\n"
         f"=== UPCOMING SCHOOL EVENTS (next 30 days) ===\n{events_str}\n\n"
         f"=== KNOWN FACTS ===\n{facts_str}\n\n"
         f"=== SCHOOL STATE (grades, IXL, assignments) ===\n{state_str}\n\n"
