@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchSyncMeta } from '../api'
 import { useSync } from '../hooks/useSync'
+import { InlineAgent } from '../components/InlineAgent'
 
 const SOURCES = [
   { key: 'ixl', label: 'IXL', icon: '📚', description: 'Skills + diagnostic scores' },
@@ -48,23 +49,28 @@ export function Sync() {
           const badgeCls = !entry ? 'badge--error' : result === 'ok' ? 'badge--ok' : 'badge--error'
 
           return (
-            <div key={src.key} className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-              <span style={{ fontSize: '24px' }}>{src.icon}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700 }}>{src.label}</div>
-                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{src.description}</div>
+            <div key={src.key} className="card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+                <span style={{ fontSize: '24px' }}>{src.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700 }}>{src.label}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{src.description}</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <span className={`badge ${badgeCls}`}>{age}</span>
+                  <button
+                    className="btn btn--secondary"
+                    style={{ padding: '6px 12px', fontSize: '12px' }}
+                    disabled={isRunning}
+                    onClick={() => handleSync(src.key)}
+                  >Pull</button>
+                </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                <span className={`badge ${badgeCls}`}>{age}</span>
-                <button
-                  className="btn btn--secondary"
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
-                  disabled={isRunning}
-                  onClick={() => handleSync(src.key)}
-                >
-                  Pull
-                </button>
-              </div>
+              <InlineAgent
+                contextType="sync_source"
+                contextId={src.key}
+                suggestions={['Why stale?', 'Sync now']}
+              />
             </div>
           )
         })}
