@@ -25,10 +25,7 @@ log() { echo "[$(date '+%H:%M:%S')] $*" >&2; }
 # Helper: write sync metadata for a source (non-fatal)
 write_sync_meta() {
     local source="$1" result="$2"
-    python3 -c "
-from school_dashboard.sync_meta import write_sync_source
-write_sync_source('${source}', '${result}')
-" 2>/dev/null || true
+    python3 -c "import sys; from school_dashboard.sync_meta import write_sync_source; write_sync_source(sys.argv[1], sys.argv[2])" "$source" "$result" 2>/dev/null || true
 }
 
 # --- Step 1: IXL scrape ---

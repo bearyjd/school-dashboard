@@ -10,7 +10,7 @@ from pathlib import Path
 import requests
 from flask import Flask, jsonify, render_template, request, Response
 from school_dashboard.gcal import fetch_gcal_events
-from school_dashboard.sync_meta import write_sync_source
+from school_dashboard.sync_meta import write_sync_source, read_sync_meta, DEFAULT_PATH as SYNC_META_DEFAULT_PATH
 
 app = Flask(__name__)
 
@@ -91,8 +91,7 @@ def _format_freshness(meta: dict) -> str:
 
 
 def build_system_prompt() -> str:
-    from school_dashboard.sync_meta import read_sync_meta
-    meta_path = os.environ.get("SCHOOL_SYNC_META_PATH", "/app/state/sync_meta.json")
+    meta_path = os.environ.get("SCHOOL_SYNC_META_PATH", SYNC_META_DEFAULT_PATH)
     meta = read_sync_meta(meta_path)
     freshness_str = _format_freshness(meta)
 
@@ -504,7 +503,7 @@ def _run_sync_background(sources: str, digest: str) -> None:
         _sync_status["last_error"] = str(exc)
     finally:
         _sync_status["running"] = False
-        _sync_status["last_run"] = datetime.utcnow().isoformat(timespec="seconds")
+        _sync_status["last_run"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
         _sync_lock.release()
 
 
@@ -537,8 +536,7 @@ def api_sync_status():
 
 @app.route("/api/sync/meta")
 def api_sync_meta():
-    from school_dashboard.sync_meta import read_sync_meta
-    meta_path = os.environ.get("SCHOOL_SYNC_META_PATH", "/app/state/sync_meta.json")
+    meta_path = os.environ.get("SCHOOL_SYNC_META_PATH", SYNC_META_DEFAULT_PATH)
     return jsonify(read_sync_meta(meta_path))
 
 
