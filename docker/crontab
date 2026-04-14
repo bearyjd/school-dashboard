@@ -1,6 +1,7 @@
 # school-dashboard cron
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/local/sbin:/bin:/usr/bin:/sbin:/usr/sbin
+PYTHONPATH=/app
 # Set env file path so school-sync.sh finds Docker secrets
 SCHOOL_DASHBOARD_ENV=/app/config/env
 
