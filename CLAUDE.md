@@ -106,6 +106,8 @@ docker/
 | `/api/calendar` | GET | Fetch Google Calendar events |
 | `/api/sync` | POST | Trigger on-demand sync (header: `X-Sync-Token`; JSON: `sources` e.g. `"ixl,sgy"`, `digest` e.g. `"quick"/"full"/"none"`) |
 | `/api/sync/status` | GET | Poll sync state (`{running, last_run, last_result, last_sources, last_error}`) |
+| `/api/sync/meta` | GET | Per-source sync freshness (`{ixl: {last_run, last_result}, ...}`) |
+| `/.well-known/assetlinks.json` | GET | TWA domain verification (fingerprint from `TWA_CERT_FINGERPRINT` env var) |
 
 ## State Files (all gitignored, in state/)
 
@@ -116,6 +118,7 @@ docker/
 | `school-state.json` | Latest IXL + Schoology aggregate |
 | `email-digest.json` | Latest classified Gmail digest |
 | `gc-schedule.json` | Latest GameChanger schedule: `{scraped_at, teams: [{team_id, team_name, child, schedule: [{date, time, type, opponent, location, home_away}]}]}` |
+| `sync_meta.json` | Per-source scrape timestamps: `{ixl: {last_run, last_result}, sgy: ..., gc: ...}` |
 | `calendar.pdf` | Source PDF (drop in manually each school year) |
 
 ## Config
@@ -130,17 +133,20 @@ Optional GameChanger vars: `GC_TOKEN` (bearer token from browser session — pre
 
 Optional on-demand sync: `SYNC_TOKEN` — shared secret for `POST /api/sync`. Generate with: `python3 -c "import secrets; print(secrets.token_hex(16))"`. Without it, `/api/sync` returns 501.
 
+`SCHOOL_SYNC_META_PATH` overrides the sync metadata path (default: `/app/state/sync_meta.json`). TWA domain verification: `TWA_PACKAGE_NAME` (default: `cc.grepon.school`), `TWA_CERT_FINGERPRINT` (populate after signing APK).
+
 ## Tests
 
-83 tests across 6 files. All use mocks — no live credentials needed.
+101 tests across 7 files. All use mocks — no live credentials needed.
 
 ```
 tests/test_db.py              7 tests  — SQLite schema, dedup, facts
 tests/test_calendar_import.py 12 tests — PDF parsing, event classification
 tests/test_intel.py           4 tests  — LiteLLM extraction, error handling
 tests/test_digest.py          46 tests — digest build, ntfy send, gc event loading + card rendering, build_quick_check
-tests/test_sync.py            8 tests  — /api/sync auth, concurrency, /api/sync/status
+tests/test_sync.py            20 tests — /api/sync auth, concurrency, /api/sync/status, /api/sync/meta, assetlinks, freshness, sync_meta writes
 tests/test_wrapper_scripts.py 6 tests  — run-digest.sh / run-weekly.sh LOGDIR logic, bash syntax
+tests/test_sync_meta.py        8 tests  — sync_meta module read/write, env var path
 ```
 
 ## Submodule Updates
