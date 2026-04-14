@@ -209,3 +209,19 @@ def test_format_freshness_shows_yesterday():
     meta = {"gc": {"last_run": ts, "last_result": "ok"}}
     result = _format_freshness(meta)
     assert "yesterday" in result
+
+
+def test_assetlinks_returns_json_list(client):
+    r = client.get("/.well-known/assetlinks.json")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert isinstance(data, list)
+    assert data[0]["relation"] == ["delegate_permission/common.handle_all_urls"]
+    assert "namespace" in data[0]["target"]
+
+
+def test_assetlinks_uses_env_package_name(client, monkeypatch):
+    monkeypatch.setenv("TWA_PACKAGE_NAME", "com.example.myapp")
+    r = client.get("/.well-known/assetlinks.json")
+    data = r.get_json()
+    assert data[0]["target"]["package_name"] == "com.example.myapp"

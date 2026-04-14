@@ -542,5 +542,20 @@ def api_sync_meta():
     return jsonify(read_sync_meta(meta_path))
 
 
+@app.route("/.well-known/assetlinks.json")
+def assetlinks():
+    """TWA domain verification — fingerprint populated when signing APK."""
+    package = os.environ.get("TWA_PACKAGE_NAME", "cc.grepon.school")
+    fingerprint = os.environ.get("TWA_CERT_FINGERPRINT", "PLACEHOLDER_REPLACE_WITH_APK_SIGNING_CERT_SHA256")
+    return jsonify([{
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {
+            "namespace": "android_app",
+            "package_name": package,
+            "sha256_cert_fingerprints": [fingerprint],
+        },
+    }])
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
