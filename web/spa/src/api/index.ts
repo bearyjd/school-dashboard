@@ -1,4 +1,4 @@
-import type { Item, Dashboard, SyncStatus, SyncMeta, ChatMessage } from './types';
+import type { Item, Dashboard, SyncStatus, SyncMeta, ChatMessage, Digest } from './types';
 
 const BASE = '';  // same origin — Flask serves both SPA and API
 
@@ -42,7 +42,7 @@ export const fetchSyncStatus = () => apiFetch<SyncStatus>('/api/sync/status');
 
 export const fetchSyncMeta = () => apiFetch<SyncMeta>('/api/sync/meta');
 
-export async function fetchDigest(id: string): Promise<{ id: string; created_at: string; title: string; cards: unknown[] }> {
+export async function fetchDigest(id: string): Promise<Digest> {
   return apiFetch(`/api/digest/${id}`);
 }
 

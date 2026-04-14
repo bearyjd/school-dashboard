@@ -42,3 +42,17 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
+
+export interface DigestCard {
+  title: string;
+  body: string;
+  done: boolean;
+  type: string;
+}
+
+export interface Digest {
+  id: string;
+  created_at: string;
+  title: string;
+  cards: DigestCard[];
+}

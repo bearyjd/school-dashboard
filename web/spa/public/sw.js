@@ -31,6 +31,10 @@ self.addEventListener('fetch', e => {
   }
   // Cache-first for assets
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    caches.match(e.request).then(cached =>
+      cached || fetch(e.request).catch(() =>
+        new Response('Offline', { status: 503 })
+      )
+    )
   );
 });
