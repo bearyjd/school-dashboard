@@ -1,6 +1,6 @@
 """Tests for school_dashboard/sync_meta.py"""
-import json
-import pytest
+from datetime import datetime, timezone
+
 from school_dashboard.sync_meta import read_sync_meta, write_sync_source
 
 
@@ -47,11 +47,19 @@ def test_write_creates_parent_dirs(tmp_path):
     assert meta["gc"]["last_result"] == "ok"
 
 
-def test_last_run_is_iso_timestamp(tmp_path):
+def test_last_run_is_utc_iso_timestamp(tmp_path):
     p = str(tmp_path / "meta.json")
     write_sync_source("ixl", "ok", path=p)
     meta = read_sync_meta(p)
     ts = meta["ixl"]["last_run"]
-    from datetime import datetime
     dt = datetime.fromisoformat(ts)
-    assert dt.year >= 2026
+    assert dt.tzinfo is not None, "timestamp must be timezone-aware"
+    assert dt.tzinfo == timezone.utc
+
+
+def test_read_uses_env_var_path(tmp_path, monkeypatch):
+    p = str(tmp_path / "meta.json")
+    monkeypatch.setenv("SCHOOL_SYNC_META_PATH", p)
+    write_sync_source("ixl", "ok")  # no explicit path — uses env var
+    meta = read_sync_meta()  # no explicit path — uses env var
+    assert meta["ixl"]["last_result"] == "ok"
