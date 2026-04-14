@@ -155,3 +155,21 @@ def test_run_sync_background_writes_meta_on_error(mock_sub, tmp_path, monkeypatc
 
     meta = read_sync_meta(meta_path)
     assert meta.get("ixl", {}).get("last_result") == "error"
+
+
+def test_sync_meta_returns_empty_dict_when_no_file(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("SCHOOL_SYNC_META_PATH", str(tmp_path / "nonexistent.json"))
+    r = client.get("/api/sync/meta")
+    assert r.status_code == 200
+    assert r.get_json() == {}
+
+
+def test_sync_meta_returns_written_data(client, tmp_path, monkeypatch):
+    from school_dashboard.sync_meta import write_sync_source
+    p = str(tmp_path / "meta.json")
+    monkeypatch.setenv("SCHOOL_SYNC_META_PATH", p)
+    write_sync_source("ixl", "ok", path=p)
+    r = client.get("/api/sync/meta")
+    data = r.get_json()
+    assert data["ixl"]["last_result"] == "ok"
+    assert "last_run" in data["ixl"]

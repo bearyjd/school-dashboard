@@ -502,5 +502,12 @@ def api_sync_status():
     return jsonify(dict(_sync_status))
 
 
+@app.route("/api/sync/meta")
+def api_sync_meta():
+    from school_dashboard.sync_meta import read_sync_meta
+    meta_path = os.environ.get("SCHOOL_SYNC_META_PATH", "/app/state/sync_meta.json")
+    return jsonify(read_sync_meta(meta_path))
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
