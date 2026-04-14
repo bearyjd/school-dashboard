@@ -105,3 +105,53 @@ def test_sync_default_sources_is_ixl_sgy(mock_run, client):
     sources = call_kwargs[0][0] if call_kwargs[0] else call_kwargs[1].get("sources", "")
     assert "ixl" in sources
     assert "sgy" in sources
+
+
+@patch("web.app.subprocess.run")
+def test_run_sync_background_writes_meta_on_success(mock_sub, tmp_path, monkeypatch):
+    """_run_sync_background writes sync_meta.json after each source completes."""
+    import web.app as app_module
+    from school_dashboard.sync_meta import read_sync_meta
+
+    meta_path = str(tmp_path / "meta.json")
+    monkeypatch.setenv("SCHOOL_SYNC_META_PATH", meta_path)
+    monkeypatch.setenv("SCHOOL_STATE_PATH", str(tmp_path / "state.json"))
+    monkeypatch.setenv("SCHOOL_DB_PATH", str(tmp_path / "db.db"))
+    monkeypatch.setenv("IXL_DIR", str(tmp_path / "ixl"))
+    monkeypatch.setenv("SGY_FILE", str(tmp_path / "sgy.json"))
+    monkeypatch.setenv("IXL_CRON", "")
+
+    mock_sub.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+    acquired = app_module._sync_lock.acquire(blocking=False)
+    assert acquired, "lock should be free before test"
+
+    app_module._run_sync_background("ixl", "none")
+
+    meta = read_sync_meta(meta_path)
+    assert meta.get("ixl", {}).get("last_result") == "ok"
+
+
+@patch("web.app.subprocess.run")
+def test_run_sync_background_writes_meta_on_error(mock_sub, tmp_path, monkeypatch):
+    """_run_sync_background writes error result when scraper raises."""
+    import web.app as app_module
+    from school_dashboard.sync_meta import read_sync_meta
+
+    meta_path = str(tmp_path / "meta.json")
+    monkeypatch.setenv("SCHOOL_SYNC_META_PATH", meta_path)
+    monkeypatch.setenv("SCHOOL_STATE_PATH", str(tmp_path / "state.json"))
+    monkeypatch.setenv("SCHOOL_DB_PATH", str(tmp_path / "db.db"))
+    monkeypatch.setenv("IXL_DIR", str(tmp_path / "ixl"))
+    monkeypatch.setenv("SGY_FILE", str(tmp_path / "sgy.json"))
+    monkeypatch.setenv("IXL_CRON", "")
+
+    mock_sub.side_effect = [Exception("scraper failed"), MagicMock(returncode=0), MagicMock(returncode=0)]
+
+    acquired = app_module._sync_lock.acquire(blocking=False)
+    assert acquired
+
+    app_module._run_sync_background("ixl", "none")
+
+    meta = read_sync_meta(meta_path)
+    assert meta.get("ixl", {}).get("last_result") == "error"

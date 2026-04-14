@@ -10,6 +10,7 @@ from pathlib import Path
 import requests
 from flask import Flask, jsonify, render_template, request, Response
 from school_dashboard.gcal import fetch_gcal_events
+from school_dashboard.sync_meta import write_sync_source
 
 app = Flask(__name__)
 
@@ -429,6 +430,9 @@ def _run_sync_background(sources: str, digest: str) -> None:
                         subprocess.run(["bash", gc_script], timeout=60, check=False)
             except Exception as exc:
                 errors.append(f"{src}: {exc}")
+                write_sync_source(src, "error")
+            else:
+                write_sync_source(src, "ok")
 
         # Update state (only if ixl or sgy were synced)
         if any(s in source_list for s in ("ixl", "sgy")):
