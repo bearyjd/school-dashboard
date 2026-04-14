@@ -16,6 +16,7 @@ cp .env.example config/env        # fill in secrets
 # drop 2025-2026 calendar PDF into state/calendar.pdf
 gog auth add EMAIL                # one-time Google OAuth setup
 docker compose up -d
+# Access SPA at https://school.grepon.cc/app (install to homescreen for PWA)
 ```
 
 ## Development (no Docker)
@@ -26,6 +27,8 @@ playwright install chromium
 pytest                            # run all tests
 pytest tests/test_db.py -v        # single file
 pytest -k "test_name"             # single test
+# Run SPA dev server (proxies API to Flask on :5000)
+npm --prefix web/spa run dev   # → http://localhost:5173/app/
 ```
 
 ## One-off Commands
