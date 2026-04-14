@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchItems, updateItem, deleteItem } from '../api'
 import { ItemSheet } from '../components/ItemSheet'
+import { InlineAgent } from '../components/InlineAgent'
 import type { Item } from '../api/types'
 
 const FILTER_TYPES = ['All', 'IXL', 'SGY', 'Manual']
@@ -64,17 +65,31 @@ export function Child() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
         {items.map(item => (
-          <div key={item.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', opacity: item.completed ? 0.5 : 1 }}>
-            <button
-              onClick={() => patchMutation.mutate({ id: item.id, updates: { completed: !item.completed } })}
-              style={{ width: 24, height: 24, borderRadius: '50%', border: `2px solid ${item.completed ? 'var(--color-success)' : 'var(--color-border)'}`, background: item.completed ? 'var(--color-success)' : 'transparent', color: '#fff', flexShrink: 0 }}
-            >{item.completed ? '✓' : ''}</button>
-            <div style={{ flex: 1, minWidth: 0 }} onClick={() => setEditing(item)}>
-              <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</div>
-              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                {item.type} · {item.due_date ?? 'no due date'}
+          <div key={item.id} className="card" style={{ opacity: item.completed ? 0.5 : 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+              <button
+                onClick={() => patchMutation.mutate({ id: item.id, updates: { completed: !item.completed } })}
+                style={{
+                  width: 24, height: 24, borderRadius: '50%',
+                  border: `2px solid ${item.completed ? 'var(--color-success)' : 'var(--color-border)'}`,
+                  background: item.completed ? 'var(--color-success)' : 'transparent',
+                  color: '#fff', flexShrink: 0,
+                }}
+              >{item.completed ? '✓' : ''}</button>
+              <div style={{ flex: 1, minWidth: 0 }} onClick={() => setEditing(item)}>
+                <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {item.title}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                  {item.type} · {item.due_date ?? 'no due date'}
+                </div>
               </div>
             </div>
+            <InlineAgent
+              contextType="item"
+              contextId={String(item.id)}
+              suggestions={['Explain this', 'Mark done', 'Reschedule']}
+            />
           </div>
         ))}
         {!isLoading && items.length === 0 && (
