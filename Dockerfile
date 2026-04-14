@@ -32,6 +32,17 @@ RUN pip install --no-cache-dir -e ".[server]" \
 # Install Playwright + Chromium (for IXL login)
 RUN playwright install chromium --with-deps
 
+# Install Node.js for SPA build
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Build React SPA
+COPY web/spa/package*.json /app/web/spa/
+RUN npm --prefix /app/web/spa ci
+COPY web/spa/ /app/web/spa/
+RUN npm --prefix /app/web/spa run build
+
 # Copy app source
 COPY school_dashboard/ ./school_dashboard/
 COPY web/ ./web/
