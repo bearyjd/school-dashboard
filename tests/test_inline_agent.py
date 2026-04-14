@@ -82,6 +82,14 @@ def test_inline_agent_item_reply_with_action(client):
     assert "ACTION:" not in body["reply"]
 
 
+def test_inline_agent_item_non_integer_context_id_returns_400(client):
+    r = client.post("/api/agent/inline", json={
+        "context_type": "item", "context_id": "abc", "message": "hi"
+    })
+    assert r.status_code == 400
+    assert "integer" in r.get_json()["error"]
+
+
 def test_inline_agent_sync_source(client, tmp_path, monkeypatch):
     meta_path = tmp_path / "sync_meta.json"
     meta_path.write_text(json.dumps({

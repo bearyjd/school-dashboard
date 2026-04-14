@@ -188,13 +188,19 @@ def _build_inline_context(context_type: str, context_id: str) -> tuple[str, list
     if context_type == "item":
         from school_dashboard.db import init_db, get_item
         init_db(db_path)
-        item = get_item(db_path, int(context_id))
+        try:
+            item_id = int(context_id)
+        except ValueError:
+            raise ValueError(f"context_id must be a valid integer for context_type 'item', got {context_id!r}")
+        item = get_item(db_path, item_id)
         if item is None:
             raise ValueError(f"item {context_id} not found")
+        safe_title = (item.get('title') or '').replace('\n', ' ').replace('\r', ' ')
+        safe_notes = (item.get('notes') or 'none').replace('\n', ' ').replace('\r', ' ')
         ctx = (
-            f"Homework item for {item['child']}: '{item['title']}', "
+            f"Homework item for {item['child']}: '{safe_title}', "
             f"type={item['type']}, due={item.get('due_date') or 'unset'}, "
-            f"completed={bool(item['completed'])}, notes={item.get('notes') or 'none'}"
+            f"completed={bool(item['completed'])}, notes={safe_notes}"
         )
         return ctx, ["mark_item_done", "reschedule_item", "create_item"]
 
@@ -250,19 +256,20 @@ def api_agent_inline():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    # Strip optional ACTION line from reply
+    # Only check the last non-empty line for ACTION (prevents mid-reply injection)
     action: dict | None = None
-    clean_lines = []
-    for line in reply_text.strip().split("\n"):
-        if line.strip().startswith("ACTION:"):
-            try:
-                rest = line.strip()[len("ACTION:"):].strip()
-                action_type, payload_str = rest.split(" ", 1)
-                action = {"type": action_type, "payload": json.loads(payload_str)}
-            except Exception:
-                pass
-        else:
-            clean_lines.append(line)
+    lines = reply_text.strip().split("\n")
+    if lines and lines[-1].strip().startswith("ACTION:"):
+        try:
+            rest = lines[-1].strip()[len("ACTION:"):].strip()
+            action_type, payload_str = rest.split(" ", 1)
+            action = {"type": action_type, "payload": json.loads(payload_str)}
+            clean_lines = lines[:-1]
+        except Exception:
+            action = None
+            clean_lines = lines
+    else:
+        clean_lines = lines
 
     return jsonify({"reply": "\n".join(clean_lines).strip(), "action": action})
 
