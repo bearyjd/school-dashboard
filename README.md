@@ -7,7 +7,7 @@ All-in-one Docker deployment for family school situational awareness. Scrapes IX
 ## Quick Start
 
 ```bash
-git clone --recurse-submodules https://github.com/your-username/school-dashboard
+git clone --recurse-submodules https://github.com/bearyjd/school-dashboard
 cd school-dashboard
 cp .env.example config/env        # fill in secrets
 # drop 2025-2026 calendar PDF into state/calendar.pdf
@@ -29,31 +29,38 @@ school_dashboard/       Core Python package
   html.py               Render school-state.json → dashboard HTML.
 
 web/
-  app.py                Flask app. /api/chat streams reply from LiteLLM.
-  templates/index.html  Dashboard iframe + chat tab (marked.js markdown rendering).
+  app.py                Flask app. Routes: /api/chat, /api/agent/inline, /api/items*, /api/sync*, /api/digest*, /app (SPA).
+  templates/index.html  Legacy dashboard iframe.
+  spa/                  React + TypeScript SPA (Vite build → served at /app).
 
 sync/
-  school-sync.sh        Cron script: IXL → SGY → state → email-sync → intel → HTML → digest.
+  school-sync.sh        Cron script: IXL → SGY → GC → state → email-sync → intel → HTML → digest.
+  gc-scrape.sh          GameChanger schedule scraper; writes gc-schedule.json.
+  run-digest.sh         Wrapper for daily digest jobs (env load, logging, ntfy on failure).
+  run-weekly.sh         Wrapper for weekly digest jobs.
 
 vendor/
   ixl-scrape/           git submodule (pip install -e)
   schoology-scrape/     git submodule (pip install -e)
+  gc/                   git submodule (pip install -e) — GameChanger CLI
 
 docker/
-  Dockerfile            python:3.12-slim + gog v0.12.0 + Playwright/Chromium + scrapers
+  Dockerfile            python:3.12-slim + Node 20 + gog v0.12.0 + Playwright/Chromium + scrapers + SPA build
   entrypoint.sh         loads config/env → starts cron → starts Flask on :5000
-  crontab               6:00am + 2:30pm weekday syncs
+  crontab               6:00am + 2:30pm weekday syncs; 7am/3:30pm/8:30pm digest jobs
 ```
 
 ## Data Flow
 
 | Time | What happens |
 |------|-------------|
-| **6:00am** (weekdays) | IXL scrape → SGY scrape → state merge → email intel → dashboard HTML |
-| **2:30pm** (weekdays) | IXL + SGY + email re-scrape (catch late homework posts) |
-| **6:00am** (daily) | Morning digest — 7-day events + IXL state + facts → LiteLLM → cards → digests DB → ntfy.sh carousel |
+| **6:00am** (weekdays) | IXL scrape → SGY scrape → GC scrape → state merge → email intel → dashboard HTML |
+| **2:30pm** (weekdays) | IXL + SGY + GC + email re-scrape (catch late homework posts) |
+| **7:00am** (daily) | Morning digest — 7-day events + IXL state + facts + GC schedule → LiteLLM → cards → digests DB → ntfy.sh carousel |
 | **3:30pm** (weekdays) | Afternoon digest — homework check + cards → digests DB → ntfy.sh |
 | **8:30pm** (daily) | Night digest — next-day prep + cards → digests DB → ntfy.sh |
+| **Fri 3pm / Sun 7pm** | Weekly digest — week-in-review / week-ahead preview |
+| **On demand** | `/api/sync` — trigger per-source sync from the PWA; `/api/sync/meta` for freshness |
 | **On demand** | `/api/chat` — query 30-day events + facts + full state via LiteLLM |
 | **On demand** | `/api/digest/<id>` — retrieve carousel history + toggle card done state |
 
@@ -63,9 +70,9 @@ Copy `.env.example` to `config/env` and fill in all values:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `LITELLM_URL` | Yes | LiteLLM proxy base URL (e.g. `http://192.168.1.20:4000`) |
+| `LITELLM_URL` | Yes | LiteLLM proxy base URL (e.g. `http://your-litellm-host:8080`) — never include `/v1` |
 | `LITELLM_API_KEY` | Yes | API key for LiteLLM proxy |
-| `LITELLM_MODEL` | Yes | Model name (e.g. `claude-sonnet`) |
+| `LITELLM_MODEL` | Yes | Model name (e.g. `cliproxy/claude-sonnet-4-6`) |
 | `IXL_EMAIL` | Yes | IXL student login email |
 | `IXL_PASSWORD` | Yes | IXL student login password |
 | `SGY_EMAIL` | Yes | Schoology parent login email |
@@ -75,13 +82,18 @@ Copy `.env.example` to `config/env` and fill in all values:
 | `GOG_ACCOUNT` | Yes | Gmail account for gog OAuth |
 | `NTFY_TOPIC` | Yes | ntfy.sh topic slug for push notifications |
 | `SCHOOL_EMAIL_ACCOUNT` | Yes | Gmail account for school email intel |
-| `DIGEST_EMAIL` | No | Additional digest recipient email |
+| `SYNC_TOKEN` | No | Shared secret for `POST /api/sync`. Generate: `python3 -c "import secrets; print(secrets.token_hex(16))"` |
+| `GC_TOKEN` | No | GameChanger bearer token (from browser DevTools → Authorization header) |
+| `GC_EMAIL` / `GC_PASSWORD` | No | GameChanger credentials (Playwright fallback if `GC_TOKEN` unset) |
+| `GC_TEAM_MAP` | No | Map team IDs to child names: `"teamid:Ford,teamid2:Jack"` |
+| `TWA_CERT_FINGERPRINT` | No | Android APK signing fingerprint for TWA domain verification |
 
 Path overrides (default to `/app/state/` inside Docker):
 
 ```
 SCHOOL_STATE_PATH, SCHOOL_DB_PATH, SCHOOL_FACTS_PATH,
-SCHOOL_EMAIL_DIGEST, SCHOOL_CALENDAR_PDF
+SCHOOL_EMAIL_DIGEST, SCHOOL_CALENDAR_PDF, SCHOOL_GC_PATH,
+SCHOOL_SYNC_META_PATH
 ```
 
 ## State Files
@@ -94,6 +106,8 @@ All gitignored, stored in `state/`:
 | `facts.json` | Long-term memory: `{subject, fact, source, created_at}` |
 | `school-state.json` | Latest IXL + Schoology aggregate |
 | `email-digest.json` | Latest classified Gmail digest |
+| `gc-schedule.json` | Latest GameChanger schedule: `{scraped_at, teams: [{team_id, team_name, schedule: [...]}]}` |
+| `sync_meta.json` | Per-source scrape timestamps: `{ixl: {last_run, last_result}, sgy: ..., gc: ...}` |
 | `calendar.pdf` | Source PDF (drop in manually each school year) |
 
 ## API Endpoints
@@ -110,6 +124,11 @@ All gitignored, stored in `state/`:
 | `/api/chat` | POST | Chat with LiteLLM (JSON: `message`, `history`) |
 | `/api/readiness` | GET | Get readiness checklist |
 | `/api/calendar` | GET | Fetch Google Calendar events |
+| `/api/sync` | POST | Trigger on-demand sync (header: `X-Sync-Token`; JSON: `sources` e.g. `"ixl,sgy"`) |
+| `/api/sync/status` | GET | Poll sync state (`{running, last_run, last_result, last_sources, last_error}`) |
+| `/api/sync/meta` | GET | Per-source sync freshness (`{ixl: {last_run, last_result}, ...}`) |
+| `/api/agent/inline` | POST | Inline AI agent for item and sync-source context (JSON: `context_type`, `context_id`, `message`) |
+| `/.well-known/assetlinks.json` | GET | Android TWA domain verification |
 
 ## One-off Commands
 
@@ -125,22 +144,29 @@ docker compose exec dashboard bash -c \
 ## Development (no Docker)
 
 ```bash
-pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape
+pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc
 playwright install chromium
 pytest                            # run all tests
 pytest tests/test_db.py -v        # single file
 pytest -k "test_name"             # single test
+# Run SPA dev server (proxies API to Flask on :5000)
+npm --prefix web/spa run dev      # → http://localhost:5173/app/
 ```
 
 ## Tests
 
-26 tests across 4 files. All use mocks — no live credentials needed.
+101 tests across 9 files. All use mocks — no live credentials needed.
 
 ```
 tests/test_db.py              7 tests  — SQLite schema, dedup, facts
 tests/test_calendar_import.py 12 tests — PDF parsing, event classification
 tests/test_intel.py           4 tests  — LiteLLM extraction, error handling
-tests/test_digest.py          3 tests  — digest build, ntfy send
+tests/test_digest.py          40 tests — digest build, ntfy send, GC events, card rendering
+tests/test_sync.py            18 tests — /api/sync auth, concurrency, status, meta, TWA
+tests/test_sync_meta.py        8 tests — sync_meta module read/write, env var path
+tests/test_wrapper_scripts.py  6 tests — run-digest/weekly LOGDIR logic, bash syntax
+tests/test_items.py            9 tests — items API CRUD
+tests/test_inline_agent.py     6 tests — inline agent endpoint, context types
 ```
 
 ## Submodule Updates
@@ -148,6 +174,7 @@ tests/test_digest.py          3 tests  — digest build, ntfy send
 ```bash
 git submodule update --remote vendor/ixl-scrape
 git submodule update --remote vendor/schoology-scrape
+git submodule update --remote vendor/gc
 git add vendor/ && git commit -m "chore: update scrapers"
 ```
 
