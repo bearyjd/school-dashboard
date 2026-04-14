@@ -181,6 +181,92 @@ def api_chat():
         return jsonify({"error": str(e)}), 500
 
 
+def _build_inline_context(context_type: str, context_id: str) -> tuple[str, list[str]]:
+    """Return (context_description, available_actions) for the inline agent."""
+    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+
+    if context_type == "item":
+        from school_dashboard.db import init_db, get_item
+        init_db(db_path)
+        item = get_item(db_path, int(context_id))
+        if item is None:
+            raise ValueError(f"item {context_id} not found")
+        ctx = (
+            f"Homework item for {item['child']}: '{item['title']}', "
+            f"type={item['type']}, due={item.get('due_date') or 'unset'}, "
+            f"completed={bool(item['completed'])}, notes={item.get('notes') or 'none'}"
+        )
+        return ctx, ["mark_item_done", "reschedule_item", "create_item"]
+
+    if context_type == "sync_source":
+        meta_path = os.environ.get("SCHOOL_SYNC_META_PATH", SYNC_META_DEFAULT_PATH)
+        meta = read_sync_meta(meta_path)
+        entry = meta.get(context_id, {})
+        ctx = (
+            f"Sync source '{context_id}': "
+            f"last_run={entry.get('last_run') or 'never'}, "
+            f"last_result={entry.get('last_result') or 'unknown'}"
+        )
+        return ctx, ["trigger_sync"]
+
+    raise ValueError(f"unknown context_type: {context_type!r}")
+
+
+@app.route("/api/agent/inline", methods=["POST"])
+def api_agent_inline():
+    data = request.get_json(silent=True) or {}
+    context_type = (data.get("context_type") or "").strip()
+    context_id = (data.get("context_id") or "").strip()
+    message = (data.get("message") or "").strip()
+    if not context_type or not context_id or not message:
+        return jsonify({"error": "context_type, context_id, and message are required"}), 400
+
+    try:
+        context_str, available_actions = _build_inline_context(context_type, context_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    system = (
+        "You are a focused assistant for a family school dashboard.\n"
+        f"Context: {context_str}\n"
+        f"Available actions: {', '.join(available_actions)}\n"
+        "If you want to take an action, end your reply with exactly one line:\n"
+        "ACTION: <action_type> <json_payload>\n"
+        "Otherwise reply with plain helpful text. Be brief (1-3 sentences)."
+    )
+
+    try:
+        resp = requests.post(
+            f"{LITELLM_URL.rstrip('/')}/v1/chat/completions",
+            headers={"Authorization": f"Bearer {LITELLM_API_KEY}", "Content-Type": "application/json"},
+            json={"model": LITELLM_MODEL, "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": message},
+            ], "max_tokens": 400},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        reply_text = resp.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    # Strip optional ACTION line from reply
+    action: dict | None = None
+    clean_lines = []
+    for line in reply_text.strip().split("\n"):
+        if line.strip().startswith("ACTION:"):
+            try:
+                rest = line.strip()[len("ACTION:"):].strip()
+                action_type, payload_str = rest.split(" ", 1)
+                action = {"type": action_type, "payload": json.loads(payload_str)}
+            except Exception:
+                pass
+        else:
+            clean_lines.append(line)
+
+    return jsonify({"reply": "\n".join(clean_lines).strip(), "action": action})
+
+
 @app.route("/api/items", methods=["GET"])
 def api_items_list():
     db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
