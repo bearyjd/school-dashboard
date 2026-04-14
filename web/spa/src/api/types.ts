@@ -56,3 +56,13 @@ export interface Digest {
   title: string;
   cards: DigestCard[];
 }
+
+export interface InlineAgentAction {
+  type: 'mark_item_done' | 'reschedule_item' | 'create_item' | 'trigger_sync';
+  payload: Record<string, unknown>;
+}
+
+export interface InlineAgentResponse {
+  reply: string;
+  action: InlineAgentAction | null;
+}

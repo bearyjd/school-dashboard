@@ -1,4 +1,4 @@
-import type { Item, Dashboard, SyncStatus, SyncMeta, ChatMessage, Digest } from './types';
+import type { Item, Dashboard, SyncStatus, SyncMeta, ChatMessage, Digest, InlineAgentResponse } from './types';
 
 const BASE = '';  // same origin — Flask serves both SPA and API
 
@@ -67,4 +67,12 @@ export const sendChat = (message: string, history: ChatMessage[]) =>
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, history }),
+  });
+
+// Inline Agent
+export const askInlineAgent = (contextType: string, contextId: string, message: string) =>
+  apiFetch<InlineAgentResponse>('/api/agent/inline', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ context_type: contextType, context_id: contextId, message }),
   });
