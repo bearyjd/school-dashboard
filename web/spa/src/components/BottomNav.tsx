@@ -3,6 +3,7 @@ import './BottomNav.css'
 
 const tabs = [
   { to: '/home', label: 'Home', icon: '🏠' },
+  { to: '/child/Ford', label: 'Child', icon: '👤' },
   { to: '/chat', label: 'Chat', icon: '💬' },
   { to: '/sync', label: 'Sync', icon: '🔄' },
   { to: '/settings', label: 'Settings', icon: '⚙️' },

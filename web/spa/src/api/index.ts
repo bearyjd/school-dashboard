@@ -12,7 +12,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 // Items
-export const getItems = (child?: string, includeCompleted = false) =>
+export const fetchItems = (child?: string, includeCompleted = false) =>
   apiFetch<{ items: Item[] }>(
     `/api/items?${child ? `child=${encodeURIComponent(child)}&` : ''}include_completed=${includeCompleted ? 1 : 0}`
   );
@@ -35,12 +35,24 @@ export const deleteItem = (id: number) =>
   apiFetch<{ ok: boolean }>(`/api/items/${id}`, { method: 'DELETE' });
 
 // Dashboard
-export const getDashboard = () => apiFetch<Dashboard>('/api/dashboard');
+export const fetchDashboard = () => apiFetch<Dashboard>('/api/dashboard');
 
 // Sync
-export const getSyncStatus = () => apiFetch<SyncStatus>('/api/sync/status');
+export const fetchSyncStatus = () => apiFetch<SyncStatus>('/api/sync/status');
 
-export const getSyncMeta = () => apiFetch<SyncMeta>('/api/sync/meta');
+export const fetchSyncMeta = () => apiFetch<SyncMeta>('/api/sync/meta');
+
+export async function fetchDigest(id: string): Promise<{ id: string; created_at: string; title: string; cards: unknown[] }> {
+  return apiFetch(`/api/digest/${id}`);
+}
+
+export async function patchDigestCard(id: string, index: number, done: boolean): Promise<void> {
+  await apiFetch(`/api/digest/${id}/cards/${index}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ done }),
+  });
+}
 
 export const triggerSync = (sources: string, digest: string, token: string) =>
   apiFetch<{ started: boolean; sources: string; digest: string }>('/api/sync', {

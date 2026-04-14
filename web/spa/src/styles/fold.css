@@ -7,12 +7,12 @@
     overflow: hidden;
   }
 
-  .fold-pane-left {
+  .fold-left {
     border-right: 1px solid var(--color-border);
     overflow-y: auto;
   }
 
-  .fold-pane-right {
+  .fold-right {
     overflow-y: auto;
   }
 
