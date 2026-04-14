@@ -22,10 +22,24 @@ SGY_FILE="${SGY_FILE:-/tmp/schoology-daily.json}"
 
 log() { echo "[$(date '+%H:%M:%S')] $*" >&2; }
 
+# Helper: write sync metadata for a source (non-fatal)
+write_sync_meta() {
+    local source="$1" result="$2"
+    python3 -c "
+from school_dashboard.sync_meta import write_sync_source
+write_sync_source('${source}', '${result}')
+" 2>/dev/null || true
+}
+
 # --- Step 1: IXL scrape ---
 if [[ -x "$IXL_CRON" ]]; then
     log "Running IXL scrape..."
-    bash "$IXL_CRON" || log "WARN: IXL scrape had errors"
+    if bash "$IXL_CRON"; then
+        write_sync_meta "ixl" "ok"
+    else
+        log "WARN: IXL scrape had errors"
+        write_sync_meta "ixl" "error"
+    fi
 else
     log "WARN: IXL cron script not found at $IXL_CRON — skipping"
 fi
@@ -33,7 +47,12 @@ fi
 # --- Step 2: Schoology scrape ---
 if command -v sgy &>/dev/null; then
     log "Running Schoology scrape..."
-    sgy summary --json > "$SGY_FILE" 2>/dev/null || log "WARN: SGY scrape had errors"
+    if sgy summary --json > "$SGY_FILE" 2>/dev/null; then
+        write_sync_meta "sgy" "ok"
+    else
+        log "WARN: SGY scrape had errors"
+        write_sync_meta "sgy" "error"
+    fi
 else
     log "WARN: sgy command not found — skipping"
 fi
@@ -41,7 +60,12 @@ fi
 # --- Step 2b: GameChanger scrape (non-fatal if not configured) ---
 if command -v gc &>/dev/null && [[ -n "${GC_TOKEN:-}${GC_EMAIL:-}" ]]; then
     log "Running GameChanger scrape..."
-    bash /app/sync/gc-scrape.sh || log "WARN: GC scrape had errors"
+    if bash /app/sync/gc-scrape.sh; then
+        write_sync_meta "gc" "ok"
+    else
+        log "WARN: GC scrape had errors"
+        write_sync_meta "gc" "error"
+    fi
 else
     log "INFO: gc not configured — skipping (set GC_TOKEN or GC_EMAIL in config/env)"
 fi
