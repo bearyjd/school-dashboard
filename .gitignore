@@ -27,10 +27,17 @@ accounts.env
 # gog OAuth tokens
 .config/gogcli/
 
+# Local deployment docs
+docs/deployment-lxc.md
+
 # Superpowers / OMC / Claude working dirs
 .superpowers/
 .omc/
 .claude/
+
+# SPA build artifacts
+web/spa/node_modules/
+web/spa/dist/
 
 # Python
 __pycache__/
