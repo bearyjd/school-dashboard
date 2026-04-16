@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 All-in-one Docker deployment for the family school dashboard. Scrapes IXL and Schoology, parses the school calendar PDF, extracts events/facts from Gmail via LiteLLM, sends a morning digest via ntfy, and serves a Flask web app with a chat interface.
 
-**External dependency:** LiteLLM proxy at `LITELLM_URL` (e.g. `http://your-litellm-host:8080`). Not included — point to your own instance.
+**External dependency:** LiteLLM proxy at `LITELLM_URL` (e.g. `https://llm.grepon.cc/v1`). Not included — point to your own instance.
 
 ## Quick Start
 
@@ -128,7 +128,7 @@ docker/
 
 All secrets in `config/env` (gitignored). Template at `.env.example`. `.env` at repo root is legacy — do not use as primary.
 
-`LITELLM_URL` must be the bare base URL (e.g. `http://your-litellm-host:8080`) — never include `/v1`. Both `web/app.py` and `digest.py` append `/v1/chat/completions` themselves.
+`LITELLM_URL` must be the full URL including `/v1` (e.g. `https://llm.grepon.cc/v1`). Both `web/app.py` and `digest.py` append `/v1/chat/completions` to this URL.
 
 Required vars: `LITELLM_URL`, `LITELLM_API_KEY`, `LITELLM_MODEL`, `IXL_EMAIL`, `IXL_PASSWORD`, `SGY_EMAIL`, `SGY_PASSWORD`, `GOG_ACCOUNT`, `NTFY_TOPIC`.
 

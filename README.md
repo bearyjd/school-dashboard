@@ -70,9 +70,9 @@ Copy `.env.example` to `config/env` and fill in all values:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `LITELLM_URL` | Yes | LiteLLM proxy base URL (e.g. `http://your-litellm-host:8080`) — never include `/v1` |
+| `LITELLM_URL` | Yes | LiteLLM proxy full URL including `/v1` (e.g. `https://llm.grepon.cc/v1`) |
 | `LITELLM_API_KEY` | Yes | API key for LiteLLM proxy |
-| `LITELLM_MODEL` | Yes | Model name (e.g. `cliproxy/claude-sonnet-4-6`) |
+| `LITELLM_MODEL` | Yes | Model name (e.g. `school-dash`) |
 | `IXL_EMAIL` | Yes | IXL student login email |
 | `IXL_PASSWORD` | Yes | IXL student login password |
 | `SGY_EMAIL` | Yes | Schoology parent login email |
