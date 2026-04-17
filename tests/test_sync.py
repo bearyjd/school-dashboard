@@ -121,7 +121,13 @@ def test_run_sync_background_writes_meta_on_success(mock_sub, tmp_path, monkeypa
     monkeypatch.setenv("SGY_FILE", str(tmp_path / "sgy.json"))
     monkeypatch.setenv("IXL_CRON", "")
 
-    mock_sub.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    # IXL assigned returns valid JSON; subsequent calls (school-state update etc.) return empty stdout
+    ixl_json = '{"totals": {"Math": {"assigned": 2, "done": 1, "remaining": 1}}, "remaining": []}'
+    mock_sub.side_effect = [
+        MagicMock(returncode=0, stdout=ixl_json, stderr=""),   # ixl assigned --json
+        MagicMock(returncode=0, stdout="", stderr=""),          # school-state update
+        MagicMock(returncode=0, stdout="", stderr=""),          # school-state html
+    ]
 
     acquired = app_module._sync_lock.acquire(blocking=False)
     assert acquired, "lock should be free before test"

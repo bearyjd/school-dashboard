@@ -536,12 +536,37 @@ def _run_sync_background(sources: str, digest: str) -> None:
                         subprocess.run(["bash", ixl_cron], timeout=120, check=False)
                     else:
                         Path(ixl_dir).mkdir(parents=True, exist_ok=True)
-                        result = subprocess.run(
-                            ["ixl", "summary", "--json"],
-                            capture_output=True, text=True, timeout=120,
-                        )
-                        if result.stdout:
-                            (Path(ixl_dir) / "ixl-summary.json").write_text(result.stdout)
+                        files_written = 0
+                        accounts_env = Path.home() / ".ixl" / "accounts.env"
+                        if accounts_env.exists():
+                            for line in accounts_env.read_text().splitlines():
+                                line = line.strip()
+                                if not line or line.startswith("#"):
+                                    continue
+                                parts = line.split(":", 2)
+                                if len(parts) < 3:
+                                    continue
+                                child_name = parts[0].strip().lower()
+                                child_env = {**os.environ, "IXL_EMAIL": parts[1].strip(), "IXL_PASSWORD": parts[2].strip()}
+                                r = subprocess.run(
+                                    ["ixl", "assigned", "--json"],
+                                    capture_output=True, text=True, timeout=120, env=child_env,
+                                )
+                                if r.stdout:
+                                    (Path(ixl_dir) / f"{child_name}-assigned.json").write_text(r.stdout)
+                                    files_written += 1
+                        else:
+                            r = subprocess.run(
+                                ["ixl", "assigned", "--json"],
+                                capture_output=True, text=True, timeout=120,
+                            )
+                            if r.stdout:
+                                ixl_email = os.environ.get("IXL_EMAIL", "student@school")
+                                child_name = ixl_email.split("@")[0].split(".")[0].lower()
+                                (Path(ixl_dir) / f"{child_name}-assigned.json").write_text(r.stdout)
+                                files_written += 1
+                        if files_written == 0:
+                            raise RuntimeError("ixl assigned produced no output")
                 elif src == "sgy":
                     result = subprocess.run(
                         ["sgy", "summary", "--json"],
