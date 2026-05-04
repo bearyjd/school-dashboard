@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-DEFAULT_STATE_PATH = Path("/var/lib/openclaw/school-state.json")
+DEFAULT_STATE_PATH = Path("/app/state/school-state.json")
 DEFAULT_CONFIG_PATH = Path("/etc/school-dashboard/config.json")
 
 PRUNE_COMPLETED_AFTER_DAYS = 7

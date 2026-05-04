@@ -183,7 +183,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="school-state", description="School situational awareness state manager")
-    parser.add_argument("--state-file", type=str, default=None, help="State file path (default: /var/lib/openclaw/school-state.json)")
+    parser.add_argument("--state-file", type=str, default=None, help="State file path (default: $SCHOOL_STATE_PATH or /app/state/school-state.json)")
 
     subs = parser.add_subparsers(dest="command")
 
