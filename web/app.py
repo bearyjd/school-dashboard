@@ -10,6 +10,7 @@ from pathlib import Path
 import requests
 from flask import Flask, jsonify, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
+from school_dashboard.llm import chat_completion
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta, DEFAULT_PATH as SYNC_META_DEFAULT_PATH
 
 app = Flask(__name__)
@@ -168,14 +169,14 @@ def api_chat():
     messages.append({"role": "user", "content": message})
 
     try:
-        resp = requests.post(
-            f"{LITELLM_URL.rstrip('/')}/v1/chat/completions",
-            headers={"Authorization": f"Bearer {LITELLM_API_KEY}", "Content-Type": "application/json"},
-            json={"model": LITELLM_MODEL, "messages": messages, "max_tokens": 1500},
+        reply = chat_completion(
+            messages,
+            LITELLM_URL,
+            LITELLM_API_KEY,
+            LITELLM_MODEL,
+            max_tokens=1500,
             timeout=60,
         )
-        resp.raise_for_status()
-        reply = resp.json()["choices"][0]["message"]["content"]
         return jsonify({"reply": reply})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -242,17 +243,17 @@ def api_agent_inline():
     )
 
     try:
-        resp = requests.post(
-            f"{LITELLM_URL.rstrip('/')}/v1/chat/completions",
-            headers={"Authorization": f"Bearer {LITELLM_API_KEY}", "Content-Type": "application/json"},
-            json={"model": LITELLM_MODEL, "messages": [
+        reply_text = chat_completion(
+            [
                 {"role": "system", "content": system},
                 {"role": "user", "content": message},
-            ], "max_tokens": 400},
+            ],
+            LITELLM_URL,
+            LITELLM_API_KEY,
+            LITELLM_MODEL,
+            max_tokens=400,
             timeout=30,
         )
-        resp.raise_for_status()
-        reply_text = resp.json()["choices"][0]["message"]["content"]
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
