@@ -10,6 +10,8 @@ from pathlib import Path
 
 import requests
 
+from school_dashboard.llm import chat_completion
+
 _log = logging.getLogger(__name__)
 
 
@@ -50,23 +52,8 @@ def _query_db_events(db_path: str, target_date: str) -> list[dict]:
 
 
 def _call_litellm(prompt: str, litellm_url: str, api_key: str, model: str) -> str:
-    """Call LiteLLM and return the reply text. Raises on failure."""
-    resp = requests.post(
-        f"{litellm_url.rstrip('/')}/v1/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 600,
-        },
-        timeout=60,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    try:
-        return data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError) as exc:
-        raise ValueError(f"Unexpected LiteLLM response shape: {data}") from exc
+    """Call the LLM proxy and return reply text. Tolerates SSE responses."""
+    return chat_completion(prompt, litellm_url, api_key, model, max_tokens=600, timeout=60)
 
 
 def _assignments_due_on(state: dict, target_date: str) -> list[dict]:

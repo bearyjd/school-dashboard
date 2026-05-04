@@ -39,7 +39,12 @@ def client(tmp_path, monkeypatch):
 
 
 def _mock_litellm(reply: str) -> MagicMock:
+    body = json.dumps({"choices": [{"message": {"content": reply}}]})
     mock = MagicMock()
+    mock.ok = True
+    mock.status_code = 200
+    mock.text = body
+    mock.headers = {"content-type": "application/json"}
     mock.raise_for_status = lambda: None
     mock.json.return_value = {"choices": [{"message": {"content": reply}}]}
     return mock
@@ -59,7 +64,7 @@ def test_inline_agent_unknown_context_type_returns_400(client):
 
 
 def test_inline_agent_item_reply_no_action(client):
-    with patch("requests.post", return_value=_mock_litellm("It looks done already.")):
+    with patch("school_dashboard.llm.requests.post", return_value=_mock_litellm("It looks done already.")):
         r = client.post("/api/agent/inline", json={
             "context_type": "item", "context_id": "1", "message": "Is this done?"
         })
@@ -71,7 +76,7 @@ def test_inline_agent_item_reply_no_action(client):
 
 def test_inline_agent_item_reply_with_action(client):
     reply = 'Sure, marking it done.\nACTION: mark_item_done {"id": 1}'
-    with patch("requests.post", return_value=_mock_litellm(reply)):
+    with patch("school_dashboard.llm.requests.post", return_value=_mock_litellm(reply)):
         r = client.post("/api/agent/inline", json={
             "context_type": "item", "context_id": "1", "message": "Mark it done"
         })
@@ -96,7 +101,7 @@ def test_inline_agent_sync_source(client, tmp_path, monkeypatch):
         "ixl": {"last_run": "2026-04-13T06:00:00", "last_result": "ok"}
     }))
     monkeypatch.setenv("SCHOOL_SYNC_META_PATH", str(meta_path))
-    with patch("requests.post", return_value=_mock_litellm("IXL synced this morning.")):
+    with patch("school_dashboard.llm.requests.post", return_value=_mock_litellm("IXL synced this morning.")):
         r = client.post("/api/agent/inline", json={
             "context_type": "sync_source", "context_id": "ixl", "message": "Status?"
         })

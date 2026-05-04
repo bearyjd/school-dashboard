@@ -5,6 +5,19 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 
+
+def _llm_response(content):
+    """Build a realistic Response stub the SSE-aware client treats as JSON."""
+    import json as _json
+    body = _json.dumps({"choices": [{"message": {"content": content}}]})
+    r = MagicMock()
+    r.ok = True
+    r.status_code = 200
+    r.text = body
+    r.headers = {"content-type": "application/json"}
+    r.json = lambda: _json.loads(body)
+    return r
+
 from school_dashboard.digest import (
     build_morning_digest,
     build_afternoon_digest,
@@ -95,12 +108,9 @@ def test_send_ntfy(mock_post):
     assert "test-topic" in call_kwargs[0][0]
 
 
-@patch("school_dashboard.digest.requests.post")
+@patch("school_dashboard.llm.requests.post")
 def test_build_morning_digest_calls_litellm(mock_post, tmp_state, tmp_facts, tmp_db):
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"choices": [{"message": {"content": "Good morning!"}}]},
-    )
+    mock_post.return_value = _llm_response("Good morning!")
     result, cards = build_morning_digest(
         state_path=tmp_state,
         db_path=tmp_db,
@@ -116,12 +126,9 @@ def test_build_morning_digest_calls_litellm(mock_post, tmp_state, tmp_facts, tmp
     mock_post.assert_called_once()
 
 
-@patch("school_dashboard.digest.requests.post")
+@patch("school_dashboard.llm.requests.post")
 def test_build_afternoon_digest_calls_litellm(mock_post, tmp_state):
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"choices": [{"message": {"content": "Homework check!"}}]},
-    )
+    mock_post.return_value = _llm_response("Homework check!")
     result, cards = build_afternoon_digest(
         state_path=tmp_state,
         litellm_url="http://localhost:4000",
@@ -133,12 +140,9 @@ def test_build_afternoon_digest_calls_litellm(mock_post, tmp_state):
     assert isinstance(cards, list)
 
 
-@patch("school_dashboard.digest.requests.post")
+@patch("school_dashboard.llm.requests.post")
 def test_build_night_digest_calls_litellm(mock_post, tmp_state, tmp_facts, tmp_db):
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"choices": [{"message": {"content": "Ready for tomorrow!"}}]},
-    )
+    mock_post.return_value = _llm_response("Ready for tomorrow!")
     result, cards = build_night_digest(
         state_path=tmp_state,
         db_path=tmp_db,
@@ -178,13 +182,10 @@ def tmp_state_with_items(tmp_path):
     return str(p)
 
 
-@patch("school_dashboard.digest.requests.post")
+@patch("school_dashboard.llm.requests.post")
 def test_afternoon_digest_includes_checklist(mock_post, tmp_state_with_items, tmp_db):
     """Checklist section appended after LiteLLM response."""
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"choices": [{"message": {"content": "Homework check done."}}]},
-    )
+    mock_post.return_value = _llm_response("Homework check done.")
     from school_dashboard.digest import build_afternoon_digest
     result, cards = build_afternoon_digest(
         state_path=tmp_state_with_items,
@@ -198,13 +199,10 @@ def test_afternoon_digest_includes_checklist(mock_post, tmp_state_with_items, tm
     assert isinstance(cards, list)
 
 
-@patch("school_dashboard.digest.requests.post")
+@patch("school_dashboard.llm.requests.post")
 def test_night_digest_includes_checklist(mock_post, tmp_state_with_items, tmp_facts, tmp_db):
     """Night digest appends checklist with 'Before bed' prefix."""
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"choices": [{"message": {"content": "Night prep ready."}}]},
-    )
+    mock_post.return_value = _llm_response("Night prep ready.")
     from school_dashboard.digest import build_night_digest
     result, cards = build_night_digest(
         state_path=tmp_state_with_items,
@@ -220,12 +218,9 @@ def test_night_digest_includes_checklist(mock_post, tmp_state_with_items, tmp_fa
     assert isinstance(cards, list)
 
 
-@patch("school_dashboard.digest.requests.post")
+@patch("school_dashboard.llm.requests.post")
 def test_weekly_digest_friday_builds_text(mock_post, tmp_state, tmp_facts, tmp_db):
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"choices": [{"message": {"content": "Week in review!"}}]},
-    )
+    mock_post.return_value = _llm_response("Week in review!")
     result, cards = build_weekly_digest(
         mode="friday",
         state_path=tmp_state,
@@ -240,12 +235,9 @@ def test_weekly_digest_friday_builds_text(mock_post, tmp_state, tmp_facts, tmp_d
     mock_post.assert_called_once()
 
 
-@patch("school_dashboard.digest.requests.post")
+@patch("school_dashboard.llm.requests.post")
 def test_weekly_digest_sunday_builds_text(mock_post, tmp_state, tmp_facts, tmp_db):
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"choices": [{"message": {"content": "Week ahead!"}}]},
-    )
+    mock_post.return_value = _llm_response("Week ahead!")
     result, cards = build_weekly_digest(
         mode="sunday",
         state_path=tmp_state,
@@ -263,11 +255,8 @@ def test_weekly_digest_sunday_builds_text(mock_post, tmp_state, tmp_facts, tmp_d
 def test_weekly_digest_empty_state(tmp_path, tmp_facts, tmp_db):
     """Missing state file returns graceful string, not an exception."""
     missing = str(tmp_path / "nonexistent.json")
-    with patch("school_dashboard.digest.requests.post") as mock_post:
-        mock_post.return_value = MagicMock(
-            status_code=200,
-            json=lambda: {"choices": [{"message": {"content": "OK"}}]},
-        )
+    with patch("school_dashboard.llm.requests.post") as mock_post:
+        mock_post.return_value = _llm_response("OK")
         result, cards = build_weekly_digest(
             mode="friday",
             state_path=missing,
@@ -282,12 +271,9 @@ def test_weekly_digest_empty_state(tmp_path, tmp_facts, tmp_db):
     assert isinstance(cards, list)
 
 
-@patch("school_dashboard.digest.requests.post")
+@patch("school_dashboard.llm.requests.post")
 def test_morning_digest_returns_cards(mock_post, tmp_state, tmp_facts, tmp_db):
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"choices": [{"message": {"content": "Good morning!"}}]},
-    )
+    mock_post.return_value = _llm_response("Good morning!")
     text, cards = build_morning_digest(
         state_path=tmp_state,
         db_path=tmp_db,
@@ -513,12 +499,9 @@ def test_load_gc_events_home_away_string(tmp_gc):
 
 # --- Morning digest gc card integration ---
 
-@patch("school_dashboard.digest.requests.post")
+@patch("school_dashboard.llm.requests.post")
 def test_morning_digest_gc_card_present(mock_post, tmp_state, tmp_facts, tmp_db, tmp_gc):
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"choices": [{"message": {"content": "Good morning!"}}]},
-    )
+    mock_post.return_value = _llm_response("Good morning!")
     text, cards = build_morning_digest(
         state_path=tmp_state,
         db_path=tmp_db,
@@ -535,12 +518,9 @@ def test_morning_digest_gc_card_present(mock_post, tmp_state, tmp_facts, tmp_db,
     assert gc_cards[0]["child"] == "Ford"
 
 
-@patch("school_dashboard.digest.requests.post")
+@patch("school_dashboard.llm.requests.post")
 def test_morning_digest_no_gc_when_file_missing(mock_post, tmp_state, tmp_facts, tmp_db, tmp_path):
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"choices": [{"message": {"content": "Good morning!"}}]},
-    )
+    mock_post.return_value = _llm_response("Good morning!")
     text, cards = build_morning_digest(
         state_path=tmp_state,
         db_path=tmp_db,
@@ -556,13 +536,10 @@ def test_morning_digest_no_gc_when_file_missing(mock_post, tmp_state, tmp_facts,
     assert gc_cards == []
 
 
-@patch("school_dashboard.digest.requests.post")
+@patch("school_dashboard.llm.requests.post")
 def test_night_digest_gc_card_tomorrow(mock_post, tmp_state, tmp_facts, tmp_db, tmp_gc):
     """Night digest shows gc events for tomorrow only."""
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"choices": [{"message": {"content": "Ready for tomorrow!"}}]},
-    )
+    mock_post.return_value = _llm_response("Ready for tomorrow!")
     # tomorrow = 2026-04-15 → Jack soccer practice
     text, cards = build_night_digest(
         state_path=tmp_state,
@@ -580,13 +557,10 @@ def test_night_digest_gc_card_tomorrow(mock_post, tmp_state, tmp_facts, tmp_db, 
     assert gc_cards[0]["child"] == "Jack"
 
 
-@patch("school_dashboard.digest.requests.post")
+@patch("school_dashboard.llm.requests.post")
 def test_morning_digest_gc_none_path_ok(mock_post, tmp_state, tmp_facts, tmp_db):
     """gc_path=None should not raise — gc section silently omitted."""
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"choices": [{"message": {"content": "Good morning!"}}]},
-    )
+    mock_post.return_value = _llm_response("Good morning!")
     text, cards = build_morning_digest(
         state_path=tmp_state,
         db_path=tmp_db,
