@@ -18,11 +18,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Digest carousel with deep-linked cards for interactive task management
 - Weekly digest (Friday/Sunday) in addition to daily morning/afternoon/night schedules
 - Node.js SPA build step to Docker image with Vite + React bundling
+- **Self-healing GameChanger sync** at three layers (vendor/gc 0.1.30+):
+  - Layer 1: `GCClient._get` retries any 401 once after a transparent
+    session refresh via the saved Playwright context, persisting the
+    fresh user JWT to `~/.gc/.env` for cron and `/api/sync` to pick up.
+  - Layer 2: `sync/gc-scrape.sh` sums events across all teams; if every
+    team came back empty (the 401-silent-fail signature), exits with a
+    loud ntfy alert instead of overwriting `gc-schedule.json`.
+  - Layer 3: `sync/school-sync.sh` calls `gc token-refresh` upfront so
+    each cron run starts with a hot user JWT.
+- **Auto-OTP via gog** — `gc token-refresh` and `gc summary` recover
+  fully headless from a dead token: Playwright re-auth, Gmail OTP fetch
+  via `gog gmail search`, automatic submission, fresh JWT capture.
 
 ### Changed
 - Flask now serves React SPA at `/app` route with `__SYNC_TOKEN__` injection
 - Digest system stores cards in database for carousel navigation and state persistence
 - Sync metadata persists per-source timestamps to JSON file for freshness calculation
+- `gc token-refresh` no longer requires `--visible` to fall through to a
+  full Playwright login. Headless cron calls now run the complete
+  email + password + auto-OTP flow when the saved context is unusable.
 
 ### Fixed
 - `PYTHONPATH=/app` now set in crontab — cron does not inherit Docker `ENV` variables
@@ -31,6 +46,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dockerfile now copies entire `sync/` directory (was only copying `school-sync.sh`)
 - Stale chat history and silent polling errors in SPA
 - Digest deep-link URL safety and source sanitization
+- `gc-schedule.json` no longer silently goes stale: `gc summary` used to
+  return 200 with empty data on 401, `gc-scrape.sh` treated that as
+  success, and `sync_meta.json` reported `gc.last_result: ok` while
+  `state/gc-schedule.json` sat 3 weeks old. All three layers above
+  close that loop.
+- GameChanger token capture now filters JWTs by `payload.type == "user"`
+  before persisting. The SPA bootstrap fires a `type=client` device
+  JWT (10-min TTL) before the user JWT lands; previous capture path
+  stored whichever arrived first and 401'd every `/me/teams` call.
+- localStorage fallback now collects all JWT candidates and lets Python
+  pick the first user-type one. Previously returned the first `eyJ...`
+  match (often the client token), which the type filter rejected
+  without ever looking further.
+- `_playwright_login` headless OTP selector now includes `input#code` /
+  `input[name="code"]` to match GameChanger's actual OTP input. The
+  generic `autocomplete="one-time-code"` / `type="tel"` /
+  `inputmode="numeric"` selectors did not match.
+- `_fetch_gc_otp` rejects stale OTP emails — codes from prior
+  Sign-in clicks within `newer_than:5m` are skipped (filtered by
+  message timestamp >= function-start with 60-s slack), so the SPA
+  no longer silently rejects an old code.
 
 ## [1.0.0] - 2026-04-10
 

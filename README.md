@@ -83,8 +83,8 @@ Copy `.env.example` to `config/env` and fill in all values:
 | `NTFY_TOPIC` | Yes | ntfy.sh topic slug for push notifications |
 | `SCHOOL_EMAIL_ACCOUNT` | Yes | Gmail account for school email intel |
 | `SYNC_TOKEN` | No | Shared secret for `POST /api/sync`. Generate: `python3 -c "import secrets; print(secrets.token_hex(16))"` |
-| `GC_TOKEN` | No | GameChanger bearer token (from browser DevTools → Authorization header) |
-| `GC_EMAIL` / `GC_PASSWORD` | No | GameChanger credentials (Playwright fallback if `GC_TOKEN` unset) |
+| `GC_EMAIL` / `GC_PASSWORD` | No | GameChanger credentials. Required for headless self-healing — `gc token-refresh` uses Playwright + auto-OTP via gog Gmail to recover when the token expires. |
+| `GC_TOKEN` | No | Optional bearer token from browser DevTools. Only useful for first-run bootstrap; subsequent refreshes write a fresh token to `~/.gc/.env` automatically. |
 | `GC_TEAM_MAP` | No | Map team IDs to child names: `"teamid:Ford,teamid2:Jack"` |
 | `TWA_CERT_FINGERPRINT` | No | Android APK signing fingerprint for TWA domain verification |
 
@@ -155,18 +155,20 @@ npm --prefix web/spa run dev      # → http://localhost:5173/app/
 
 ## Tests
 
-101 tests across 9 files. All use mocks — no live credentials needed.
+124 tests across 10 files. All use mocks — no live credentials needed.
 
 ```
-tests/test_db.py              7 tests  — SQLite schema, dedup, facts
-tests/test_calendar_import.py 12 tests — PDF parsing, event classification
-tests/test_intel.py           4 tests  — LiteLLM extraction, error handling
-tests/test_digest.py          40 tests — digest build, ntfy send, GC events, card rendering
-tests/test_sync.py            18 tests — /api/sync auth, concurrency, status, meta, TWA
-tests/test_sync_meta.py        8 tests — sync_meta module read/write, env var path
-tests/test_wrapper_scripts.py  6 tests — run-digest/weekly LOGDIR logic, bash syntax
-tests/test_items.py            9 tests — items API CRUD
-tests/test_inline_agent.py     6 tests — inline agent endpoint, context types
+tests/test_api_items.py        6 tests  — items API auth + filter combinations
+tests/test_digest.py          40 tests  — digest build, ntfy send, GC events, card rendering
+tests/test_html.py             6 tests  — dashboard HTML rendering
+tests/test_inline_agent.py     6 tests  — inline agent endpoint, context types
+tests/test_items.py            9 tests  — items table CRUD
+tests/test_llm.py             12 tests  — LiteLLM client, SSE handling, retry
+tests/test_readiness.py        8 tests  — readiness checklist generation
+tests/test_sync.py            18 tests  — /api/sync auth, concurrency, status, meta, TWA
+tests/test_sync_meta.py        8 tests  — sync_meta module read/write, env var path
+tests/test_wrapper_scripts.py 11 tests  — wrapper LOGDIR logic, bash syntax,
+                                          gc-scrape empty-data detection
 ```
 
 ## Submodule Updates
