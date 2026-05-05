@@ -101,7 +101,22 @@ print(json.dumps(existing))
     }
 done <<< "$TEAM_LINES"
 
-# --- Step 4: Write output ---
+# --- Step 4: Sanity-check before write ---
+# Every team returning an empty schedule means the gc CLI 401'd silently
+# (it returns exit 0 with empty data on auth failure). Treat that as a
+# hard failure so cron's last_result reflects reality instead of
+# overwriting a good gc-schedule.json with empty data.
+TOTAL_EVENTS=$(python3 -c "
+import json, sys
+teams = json.loads(sys.argv[1])
+print(sum(len(t.get('schedule', [])) for t in teams))
+" "$OUTPUT_TEAMS" 2>>"$LOGFILE" || echo "0")
+
+if [[ "$TEAM_COUNT" -gt 0 && "$TOTAL_EVENTS" -eq 0 ]]; then
+    fail "All $TEAM_COUNT team(s) returned empty schedules — likely auth failure (gc returns 200 with empty data on 401). Refusing to overwrite $GC_PATH."
+fi
+
+# --- Step 5: Write output ---
 mkdir -p "$LOGDIR"
 python3 -c "
 import json, sys
@@ -109,4 +124,4 @@ print(json.dumps({'scraped_at': sys.argv[1], 'teams': json.loads(sys.argv[2])}, 
 " "$TS" "$OUTPUT_TEAMS" > "$GC_PATH" || fail "Failed to write $GC_PATH"
 
 WRITTEN=$(python3 -c "import json; d=json.load(open('$GC_PATH')); print(len(d['teams']))" 2>/dev/null || echo "?")
-log "Done — $WRITTEN team(s) written to $GC_PATH"
+log "Done — $WRITTEN team(s), $TOTAL_EVENTS event(s) written to $GC_PATH"
