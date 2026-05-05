@@ -99,6 +99,12 @@ fi
 
 # --- Step 2b: GameChanger scrape (non-fatal if not configured) ---
 if command -v gc &>/dev/null && [[ -n "${GC_TOKEN:-}${GC_EMAIL:-}" ]]; then
+    # Refresh first so the scrape starts with a hot user JWT. The CLI also
+    # auto-recovers from 401 mid-flight (vendor/gc 0.1.30+), but doing this
+    # upfront avoids a Playwright launch in the middle of the loop.
+    log "Refreshing GC token..."
+    gc token-refresh 2>&1 | sed 's/^/  /' >&2 || log "WARN: gc token-refresh exited non-zero (continuing — auto-retry on 401 is the safety net)"
+
     log "Running GameChanger scrape..."
     if bash /app/sync/gc-scrape.sh; then
         write_sync_meta "gc" "ok"
