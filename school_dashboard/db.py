@@ -35,6 +35,7 @@ def init_db(db_path: str) -> None:
         """)
     conn.close()
     init_digests_table(db_path)
+    init_events_table(db_path)
 
 
 def create_item(
@@ -167,6 +168,31 @@ def init_digests_table(db_path: str) -> None:
                 title TEXT NOT NULL,
                 cards TEXT NOT NULL
             )
+        """)
+    conn.close()
+
+
+def init_events_table(db_path: str) -> None:
+    """Create events table if it doesn't exist.
+
+    Populated by calendar/email import (readiness.py's test/quiz query reads
+    from this table). Columns match what readiness.py::get_checklist selects:
+    date, title, type, child.
+    """
+    conn = _connect(db_path)
+    with conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS events (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                date       TEXT NOT NULL,
+                title      TEXT NOT NULL,
+                type       TEXT NOT NULL,
+                child      TEXT,
+                source     TEXT NOT NULL DEFAULT 'manual',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);
+            CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);
         """)
     conn.close()
 
