@@ -4,6 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from school_dashboard import db as db_module
 from school_dashboard.readiness import get_checklist, format_checklist_text
 
 
@@ -113,3 +114,37 @@ def test_empty_state_returns_empty(tmp_path, tmp_db):
     empty.write_text(json.dumps({}))
     result = get_checklist(str(empty), tmp_db)
     assert result == {}
+
+
+def test_init_db_creates_events_table_and_checklist_surfaces_test_event(tmp_state, tmp_path):
+    """Regression test for the events-table bug (agent_roadmap.md item 3).
+
+    `calendar_import.py` used to create + populate the SQLite `events` table but
+    has been removed from the codebase. Nothing else creates that table, so a
+    real `school.db` produced via the normal `db.init_db()` init path never gets
+    an `events` table, and `get_checklist`'s test/quiz query fails against it —
+    silently, because it's wrapped in a bare `except Exception`.
+
+    This test exercises the REAL init path (`db.init_db`, the same function the
+    app calls to set up a fresh `school.db`), not a hand-crafted table like the
+    `tmp_db` fixture above. Before the fix, `db.init_db` does not create an
+    `events` table at all, so the INSERT below raises
+    `sqlite3.OperationalError: no such table: events` and this test fails
+    loudly (proving the bug), rather than passing vacuously.
+    """
+    db_path = str(tmp_path / "real_school.db")
+    db_module.init_db(db_path)
+
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "INSERT INTO events (date, title, type, child) VALUES (?, ?, ?, ?)",
+        (tomorrow, "Science Test", "TEST", "Jack"),
+    )
+    conn.commit()
+    conn.close()
+
+    result = get_checklist(tmp_state, db_path)
+    jack = result["Jack"]
+    test_items = [i for i in jack if i["type"] == "test"]
+    assert "Science Test" in [i["label"] for i in test_items]
