@@ -12,10 +12,11 @@ mkdir -p state
 # drop 2025-2026 calendar PDF → state/calendar.pdf
 gog auth add EMAIL                # one-time Google OAuth (host machine)
 docker compose up -d
-# Import calendar PDF into DB
-docker compose exec dashboard python -m school_dashboard.calendar_import \
-  /app/state/calendar.pdf /app/state/school.db
 ```
+
+**Note:** calendar-PDF import (`calendar_import.py`) has been removed from this
+codebase — see `CLAUDE.md`'s Architecture section. There is currently no way to
+populate the `events` table from a calendar PDF.
 
 ### Update
 
@@ -47,7 +48,7 @@ docker compose exec dashboard tail -f /tmp/digest.log
 
 | Time | Job | Log |
 |------|-----|-----|
-| 6:00am (weekdays) | Data sync (IXL → SGY → state → intel → HTML) | `/tmp/school-sync.log` |
+| 6:00am (weekdays) | Data sync (IXL → SGY → GC → state → HTML) | `/tmp/school-sync.log` |
 | 2:30pm (weekdays) | Data re-sync | `/tmp/school-sync.log` |
 | 7:00am (daily) | Morning digest → ntfy.sh | `/tmp/digest.log` |
 | 3:30pm (weekdays) | Afternoon homework check → ntfy.sh | `/tmp/digest.log` |
@@ -59,10 +60,6 @@ docker compose exec dashboard tail -f /tmp/digest.log
 # Force a digest manually
 docker compose exec dashboard bash -c \
   'set -a && source /app/config/env && set +a && school-state digest --mode morning'
-
-# Re-import calendar PDF
-docker compose exec dashboard python -m school_dashboard.calendar_import \
-  /app/state/calendar.pdf /app/state/school.db
 
 # Run a manual data sync
 docker compose exec dashboard bash /app/sync/school-sync.sh

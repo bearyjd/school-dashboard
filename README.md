@@ -1,6 +1,6 @@
 # school-dashboard
 
-All-in-one Docker deployment for family school situational awareness. Scrapes IXL and Schoology, parses the school calendar PDF, extracts events and facts from Gmail via LiteLLM, sends a morning digest via ntfy.sh, and serves a Flask web app with a streaming chat interface.
+All-in-one Docker deployment for family school situational awareness. Scrapes IXL and Schoology, sends a morning digest via ntfy.sh, and serves a Flask web app with a streaming chat interface. (Calendar-PDF parsing and Gmail-based event/fact extraction — `calendar_import.py`/`intel.py` — existed at `v1.0.0` but have since been removed from the codebase; see `CLAUDE.md`'s Architecture section for details, including a known bug this causes in the readiness checklist's tests/quizzes line item.)
 
 **External dependency:** LiteLLM proxy at `LITELLM_URL`. Not included — point to your own instance.
 
@@ -19,9 +19,7 @@ docker compose up -d
 
 ```
 school_dashboard/       Core Python package
-  db.py                 SQLite schema (events table + facts.json). INSERT OR IGNORE dedup.
-  calendar_import.py    Parse school calendar PDF → events DB.
-  intel.py              Classify emails via LiteLLM → extract events/facts → DB.
+  db.py                 SQLite: `items`, `digests`, `events` tables (inline migrations in `init_db`).
   digest.py             Build morning digest via LiteLLM. Send to ntfy.sh.
   email.py              Gmail digest fetch + classification via gog CLI.
   state.py              Aggregate IXL + Schoology JSON into school-state.json.
@@ -34,7 +32,7 @@ web/
   spa/                  React + TypeScript SPA (Vite build → served at /app).
 
 sync/
-  school-sync.sh        Cron script: IXL → SGY → GC → state → email-sync → intel → HTML → digest.
+  school-sync.sh        Cron script: IXL → SGY → GC → state → email-sync → HTML → digest (intel step permanently skipped — `intel.py` no longer exists).
   gc-scrape.sh          GameChanger schedule scraper; writes gc-schedule.json.
   run-digest.sh         Wrapper for daily digest jobs (env load, logging, ntfy on failure).
   run-weekly.sh         Wrapper for weekly digest jobs.
@@ -132,10 +130,9 @@ All gitignored, stored in `state/`:
 
 ## One-off Commands
 
-```bash
-# Import school calendar PDF into DB
-python -m school_dashboard.calendar_import state/calendar.pdf state/school.db
+**There is currently no PDF-calendar-import path in this codebase** (`calendar_import.py` was removed).
 
+```bash
 # Force a digest (morning/afternoon/night)
 docker compose exec dashboard bash -c \
   'set -a && source /app/config/env && set +a && school-state digest --mode morning'
