@@ -1,15 +1,20 @@
 import { NavLink } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { fetchDashboard } from '../api'
 import './BottomNav.css'
 
-const tabs = [
+const buildTabs = (childTo: string | null) => [
   { to: '/home', label: 'Home', icon: '🏠' },
-  { to: '/child/Ford', label: 'Child', icon: '👤' },
+  ...(childTo ? [{ to: childTo, label: 'Child', icon: '👤' }] : []),
   { to: '/chat', label: 'Chat', icon: '💬' },
   { to: '/sync', label: 'Sync', icon: '🔄' },
   { to: '/settings', label: 'Settings', icon: '⚙️' },
 ]
 
 export function BottomNav() {
+  const { data: dashboard } = useQuery({ queryKey: ['dashboard'], queryFn: fetchDashboard })
+  const first = dashboard?.children?.[0]
+  const tabs = buildTabs(first ? `/child/${encodeURIComponent(first.name)}` : null)
   return (
     <nav className="bottom-nav">
       {tabs.map(t => (

@@ -1,6 +1,7 @@
 # Private config — never commit
 config/env
 config/*.env
+config/school-dashboard.json
 .env
 .env.*
 !.env.example
@@ -11,6 +12,7 @@ state/
 *.json
 !pyproject.toml
 !docker-compose.yml
+!config/school-dashboard.example.json
 
 # School calendar PDF (may contain private family data)
 *.pdf

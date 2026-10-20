@@ -11,6 +11,7 @@ import requests
 from flask import Flask, jsonify, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
+from school_dashboard.state import get_roster
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta, DEFAULT_PATH as SYNC_META_DEFAULT_PATH
 
 app = Flask(__name__)
@@ -364,6 +365,19 @@ def _normalize_child(name: str) -> str:
     return _CHILD_ALIASES.get(name, name)
 
 
+def _has_data_flags(state: dict) -> dict:
+    """Per-child {ixl, sgy} flags: True only if the child has a non-empty entry in state."""
+    def populated(section: object) -> set:
+        if not isinstance(section, dict):
+            return set()
+        return {_normalize_child(k) for k, v in section.items() if isinstance(v, dict) and v}
+
+    ixl_keys = populated(state.get("ixl"))
+    sgy_keys = populated(state.get("schoology"))
+    names = [r["name"] for r in get_roster()] + sorted((ixl_keys | sgy_keys) - {r["name"] for r in get_roster()})
+    return {n: {"ixl": n in ixl_keys, "sgy": n in sgy_keys} for n in names}
+
+
 def _parse_due_iso(s: str | None) -> str | None:
     """Parse due string to ISO date. Handles:
     - Already-ISO: '2026-04-14'
@@ -442,6 +456,8 @@ def api_dashboard():
         return jsonify({
             "schoology": schoology,
             "ixl": ixl,
+            "children": get_roster(),
+            "has_data": _has_data_flags(state),
             "email_items": email_items,
             "last_updated": state.get("last_updated", ""),
         })

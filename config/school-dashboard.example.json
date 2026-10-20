@@ -1,0 +1,8 @@
+{
+  "children": {
+    "Ford": {"grade": "3rd", "school": "St Mark"},
+    "Penn": {"grade": "6th", "school": "St Mark"},
+    "Jack": {"grade": "8th", "school": "St Mark"}
+  },
+  "name_aliases": {}
+}
