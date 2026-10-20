@@ -12,18 +12,14 @@ from flask import Flask, jsonify, render_template, request, Response, send_from_
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.state import get_roster
-from school_dashboard.sync_meta import write_sync_source, read_sync_meta, DEFAULT_PATH as SYNC_META_DEFAULT_PATH
+from school_dashboard import paths
+from school_dashboard.sync_meta import write_sync_source, read_sync_meta
 
 app = Flask(__name__)
 
 LITELLM_URL = os.environ.get("LITELLM_URL", "http://localhost:8080")
 LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
 LITELLM_MODEL = os.environ.get("LITELLM_MODEL", "school-dash")
-STATE_PATH = os.environ.get("SCHOOL_STATE_PATH", "/opt/school/state/school-state.json")
-EMAIL_DIGEST_PATH = os.environ.get("SCHOOL_EMAIL_DIGEST", "/opt/school/state/email-digest.json")
-DB_PATH = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
-FACTS_PATH = os.environ.get("SCHOOL_FACTS_PATH", "/opt/school/state/facts.json")
-DASHBOARD_HTML = os.environ.get("SCHOOL_DASHBOARD_HTML", "/opt/school/state/school-dashboard.html")
 GOG_ACCOUNT = os.environ.get("GOG_ACCOUNT", "")
 SGY_BASE_URL = os.environ.get("SGY_BASE_URL", "https://arlingtondiocese.schoology.com")
 
@@ -37,12 +33,12 @@ def load_json(path: str) -> dict | list:
 
 
 def load_upcoming_events(days: int = 30) -> list[dict]:
-    if not Path(DB_PATH).exists():
+    if not paths.db_path().exists():
         return []
     try:
         from_date = date.today().isoformat()
         end_date = (date.today() + timedelta(days=days)).isoformat()
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(paths.db_path())
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(
             "SELECT date, title, type, child FROM events WHERE date >= ? AND date < ? ORDER BY date",
@@ -57,7 +53,7 @@ def load_upcoming_events(days: int = 30) -> list[dict]:
 
 def load_facts() -> list[dict]:
     try:
-        p = Path(FACTS_PATH)
+        p = paths.facts_path()
         if p.exists():
             return json.loads(p.read_text())
     except Exception:
@@ -93,12 +89,12 @@ def _format_freshness(meta: dict) -> str:
 
 
 def build_system_prompt() -> str:
-    meta_path = os.environ.get("SCHOOL_SYNC_META_PATH", SYNC_META_DEFAULT_PATH)
+    meta_path = paths.sync_meta_path()
     meta = read_sync_meta(meta_path)
     freshness_str = _format_freshness(meta)
 
-    state = load_json(STATE_PATH)
-    emails = load_json(EMAIL_DIGEST_PATH)
+    state = load_json(str(paths.state_path()))
+    emails = load_json(str(paths.email_digest_path()))
     events = load_upcoming_events(days=30)
     facts = load_facts()
 
@@ -144,7 +140,7 @@ def index():
 @app.route("/dashboard-frame")
 def dashboard_frame():
     try:
-        with open(DASHBOARD_HTML) as f:
+        with open(paths.dashboard_html_path()) as f:
             return Response(f.read(), mimetype="text/html")
     except Exception as e:
         return Response(
@@ -185,7 +181,7 @@ def api_chat():
 
 def _build_inline_context(context_type: str, context_id: str) -> tuple[str, list[str]]:
     """Return (context_description, available_actions) for the inline agent."""
-    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    db_path = str(paths.db_path())
 
     if context_type == "item":
         from school_dashboard.db import init_db, get_item
@@ -207,7 +203,7 @@ def _build_inline_context(context_type: str, context_id: str) -> tuple[str, list
         return ctx, ["mark_item_done", "reschedule_item", "create_item"]
 
     if context_type == "sync_source":
-        meta_path = os.environ.get("SCHOOL_SYNC_META_PATH", SYNC_META_DEFAULT_PATH)
+        meta_path = paths.sync_meta_path()
         meta = read_sync_meta(meta_path)
         entry = meta.get(context_id, {})
         ctx = (
@@ -278,7 +274,7 @@ def api_agent_inline():
 
 @app.route("/api/items", methods=["GET"])
 def api_items_list():
-    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    db_path = str(paths.db_path())
     child = request.args.get("child") or None
     include_completed = request.args.get("include_completed", "0") == "1"
     try:
@@ -292,7 +288,7 @@ def api_items_list():
 
 @app.route("/api/items", methods=["POST"])
 def api_items_create():
-    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    db_path = str(paths.db_path())
     data = request.get_json(silent=True) or {}
     child = (data.get("child") or "").strip()
     title = (data.get("title") or "").strip()
@@ -320,7 +316,7 @@ def api_items_create():
 
 @app.route("/api/items/<int:item_id>", methods=["PATCH"])
 def api_items_update(item_id):
-    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    db_path = str(paths.db_path())
     data = request.get_json(silent=True) or {}
     allowed = {"child", "title", "type", "due_date", "notes", "completed"}
     kwargs = {k: v for k, v in data.items() if k in allowed}
@@ -339,7 +335,7 @@ def api_items_update(item_id):
 
 @app.route("/api/items/<int:item_id>", methods=["DELETE"])
 def api_items_delete(item_id):
-    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    db_path = str(paths.db_path())
     try:
         from school_dashboard.db import init_db, delete_item
         init_db(db_path)
@@ -400,7 +396,7 @@ def _parse_due_iso(s: str | None) -> str | None:
 @app.route("/api/dashboard")
 def api_dashboard():
     try:
-        state = load_json(STATE_PATH)
+        state = load_json(str(paths.state_path()))
         if "error" in state:
             return jsonify({"error": state["error"]}), 500
 
@@ -475,7 +471,7 @@ def api_calendar():
 def api_readiness():
     from school_dashboard.readiness import get_checklist
     try:
-        checklist = get_checklist(STATE_PATH, DB_PATH)
+        checklist = get_checklist(str(paths.state_path()), str(paths.db_path()))
         return jsonify({"checklist": checklist})
     except Exception as e:
         return jsonify({"error": str(e), "checklist": {}}), 500
@@ -485,8 +481,8 @@ def api_readiness():
 def api_digest_get(digest_id):
     from school_dashboard.db import init_digests_table, get_digest
     try:
-        init_digests_table(DB_PATH)
-        result = get_digest(DB_PATH, digest_id)
+        init_digests_table(str(paths.db_path()))
+        result = get_digest(str(paths.db_path()), digest_id)
         if result is None:
             return jsonify({"error": "not found"}), 404
         return jsonify(result)
@@ -502,8 +498,8 @@ def api_digest_card_update(digest_id, index):
     if done is None:
         return jsonify({"error": "done field required"}), 400
     try:
-        init_digests_table(DB_PATH)
-        ok = mark_digest_card_done(DB_PATH, digest_id, index, bool(done))
+        init_digests_table(str(paths.db_path()))
+        ok = mark_digest_card_done(str(paths.db_path()), digest_id, index, bool(done))
         if not ok:
             return jsonify({"error": "not found"}), 404
         return jsonify({"ok": True})
@@ -533,10 +529,10 @@ def _run_sync_background(sources: str, digest: str) -> None:
     ixl_dir = os.environ.get("IXL_DIR", "/tmp/ixl")
     sgy_file = os.environ.get("SGY_FILE", "/tmp/schoology-daily.json")
     ixl_cron = os.environ.get("IXL_CRON", "")
-    state_path = os.environ.get("SCHOOL_STATE_PATH", "/app/state/school-state.json")
-    db_path = os.environ.get("SCHOOL_DB_PATH", "/app/state/school.db")
-    facts_path = os.environ.get("SCHOOL_FACTS_PATH", "/app/state/facts.json")
-    gc_path = os.environ.get("SCHOOL_GC_PATH", "/app/state/gc-schedule.json")
+    state_path = str(paths.state_path())
+    db_path = str(paths.db_path())
+    facts_path = str(paths.facts_path())
+    gc_path = str(paths.gc_path())
     ntfy_topic = os.environ.get("NTFY_TOPIC", "")
 
     source_list = [s.strip() for s in sources.split(",")]
@@ -671,7 +667,7 @@ def api_sync_status():
 
 @app.route("/api/sync/meta")
 def api_sync_meta():
-    meta_path = os.environ.get("SCHOOL_SYNC_META_PATH", SYNC_META_DEFAULT_PATH)
+    meta_path = paths.sync_meta_path()
     return jsonify(read_sync_meta(meta_path))
 
 

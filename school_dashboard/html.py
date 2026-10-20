@@ -128,8 +128,8 @@ def render(state: dict, output_path: Optional[str] = None) -> Path:
     if output_path:
         out = Path(output_path)
     else:
-        from school_dashboard.state import _state_path
-        out = _state_path().parent / "school-dashboard.html"
+        from school_dashboard import paths
+        out = paths.dashboard_html_path()
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html)
     return out

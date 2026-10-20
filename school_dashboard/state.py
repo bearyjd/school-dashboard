@@ -8,7 +8,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-DEFAULT_STATE_PATH = Path("/app/state/school-state.json")
+from school_dashboard import paths
+
 DEFAULT_CONFIG_PATH = Path("/etc/school-dashboard/config.json")
 
 PRUNE_COMPLETED_AFTER_DAYS = 7
@@ -136,10 +137,7 @@ def _empty_state() -> dict:
 def _state_path(override: Optional[str] = None) -> Path:
     if override:
         return Path(override)
-    env = os.environ.get("SCHOOL_STATE_PATH")
-    if env:
-        return Path(env)
-    return DEFAULT_STATE_PATH
+    return paths.state_path()
 
 
 def load(path: Optional[str] = None) -> dict:
