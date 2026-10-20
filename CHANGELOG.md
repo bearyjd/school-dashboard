@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `school-state transition dry-run --to-year YYYY-YY [--from-year YYYY-YY] [--archive-dest DIR] [--json]`: strictly read-only year-transition report (roster, record counts, carryover proposals with duplicate/collision flags, activity memberships, stale scraper inputs, archive destination check, gaps); opens SQLite with `mode=ro`, creates nothing, no network, and works with maintenance on or off
 - Maintenance mode (`school-state transition maintenance on|off|status|check`): pauses API writes (503), ntfy digests, pruning, CLI write commands (exit 3) and cron scripts while active; a corrupt flag fails closed
 - `school-state transition backup` / `restore`: verified (sha256 manifest) backups of the SQLite DB, state JSON files and roster config, with restore safety checks (empty target or `--confirm-live` under maintenance); credentials are never copied
 - `backup --wait-idle SECONDS` and per-sync `sync.running.*` markers so backups never overlap an in-flight sync; live restore keeps a private `.pre-restore-*` snapshot and rolls back on failure
