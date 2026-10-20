@@ -17,10 +17,19 @@ export interface IxlSubject {
   done: number;
 }
 
+export interface RosterChild {
+  id: string;
+  name: string;
+  grade: string;
+  school: string;
+}
+
 export interface Dashboard {
   schoology: Record<string, Array<{ title: string; course: string; due_date: string; status: string; url: string }>>;
   ixl: Record<string, IxlSubject[]>;
   email_items: Array<{ id: string; child: string; summary: string; due_iso: string | null; due_raw: string }>;
+  children: RosterChild[];
+  has_data: Record<string, { ixl: boolean; sgy: boolean }>;
   last_updated: string;
 }
 

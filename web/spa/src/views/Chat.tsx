@@ -100,7 +100,7 @@ export function Chat() {
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
         {messages.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: 'var(--space-xl)' }}>
-            Ask about homework, grades, or upcoming events.<br />I can also take actions — try "Mark Ford's math done."
+            Ask about homework, grades, or upcoming events.<br />I can also take actions — try "Mark a math assignment done."
           </div>
         )}
         {messages.map((msg, i) => (

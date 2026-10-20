@@ -8,7 +8,9 @@ services:
     volumes:
       - ./state:/app/state
       - ./web:/app/web
-      - ./config/env:/app/config/env:ro
+      # config/ holds env and school-dashboard.json (roster); dir mount avoids
+      # Docker creating a directory when the roster file is missing
+      - ./config:/app/config:ro
       # gog OAuth credentials (set up once with: gog auth add ...)
       - /root/.config/gogcli:/root/.config/gogcli
       # IXL session cache
@@ -21,6 +23,7 @@ services:
       - config/env
     environment:
       - TZ=America/New_York
+      - SCHOOL_DASHBOARD_CONFIG=/app/config/school-dashboard.json
       - SCHOOL_STATE_PATH=/app/state/school-state.json
       - SCHOOL_DB_PATH=/app/state/school.db
       - SCHOOL_FACTS_PATH=/app/state/facts.json
