@@ -32,6 +32,24 @@ IXL_DIR="${IXL_DIR:-/tmp/ixl}"
 SGY_FILE="${SGY_FILE:-/tmp/schoology-daily.json}"
 
 log() { echo "[$(date '+%H:%M:%S')] $*" >&2; }
+# Fail closed: a step runs only if `check` exits exactly 10 (inactive). Active (0),
+# a crash (1), a missing binary (127) or any other code all skip.
+maintenance_skip() {
+    local rc=0
+    school-state transition maintenance check >/dev/null 2>&1 || rc=$?
+    [ "$rc" -ne 10 ] || return 1
+    log "Maintenance mode active or check failed (rc=$rc) — skipping $1"
+}
+
+# Per-process in-flight marker, written BEFORE the maintenance check so a backup
+# that sees no marker knows we have not yet passed the check. Removed on any exit.
+SYNC_MARKER="${SCHOOL_STATE_DIR:-$(dirname "$SCHOOL_STATE_PATH")}/sync.running.$$"
+trap 'rm -f "$SYNC_MARKER"' EXIT
+{ mkdir -p "$(dirname "$SYNC_MARKER")" && echo "$$" > "$SYNC_MARKER"; } 2>/dev/null \
+    || log "ERROR: could not write sync marker $SYNC_MARKER — a concurrent backup will not wait for this sync"
+
+maintenance_skip "sync" && exit 0
+
 
 # Helper: write sync metadata for a source (non-fatal)
 write_sync_meta() {
@@ -117,13 +135,23 @@ else
 fi
 
 # --- Step 3: Merge into state ---
+maintenance_skip "state update" && exit 0
 log "Updating state..."
-school-state update --ixl-dir "$IXL_DIR" --sgy-file "$SGY_FILE" || { log "ERROR: State update failed — skipping remaining steps"; exit 1; }
+school-state update --ixl-dir "$IXL_DIR" --sgy-file "$SGY_FILE" || {
+    rc=$?
+    if [ "$rc" -eq 3 ]; then log "Maintenance mode active — state update skipped"; exit 0; fi
+    log "ERROR: State update failed — skipping remaining steps"; exit 1
+}
 
 # --- Step 4: Email sync (fetch, normalize, classify — no LLM) ---
 if [[ -n "${SCHOOL_EMAIL_ACCOUNT:-}" ]]; then
+    maintenance_skip "email sync" && exit 0
     log "Syncing emails..."
-    school-state email-sync --account "$SCHOOL_EMAIL_ACCOUNT" || log "WARN: Email sync had errors"
+    school-state email-sync --account "$SCHOOL_EMAIL_ACCOUNT" || {
+        rc=$?
+        if [ "$rc" -eq 3 ]; then log "Maintenance mode active — email sync skipped"; exit 0; fi
+        log "WARN: Email sync had errors"
+    }
 else
     log "WARN: SCHOOL_EMAIL_ACCOUNT not set — skipping email sync"
 fi
@@ -157,7 +185,12 @@ else
 fi
 
 # --- Step 6: Regenerate dashboard ---
+maintenance_skip "dashboard regeneration" && exit 0
 log "Regenerating dashboard..."
-school-state html
+school-state html || {
+    rc=$?
+    if [ "$rc" -eq 3 ]; then log "Maintenance mode active — dashboard regeneration skipped"; exit 0; fi
+    exit "$rc"
+}
 
 log "Sync complete."

@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import subprocess
@@ -7,8 +8,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from school_dashboard import paths
+from school_dashboard import maintenance, paths
+from school_dashboard.atomic import write_atomic
 from school_dashboard.state import get_children
+
+logger = logging.getLogger(__name__)
 
 GOG_ACCOUNT = os.environ.get("SCHOOL_EMAIL_ACCOUNT", "")
 SNIPPET_BODY_CHARS = 2000
@@ -277,6 +281,14 @@ def ensure_labels(account: str) -> None:
         _run_gog(["gmail", "labels", "create", label, "-a", account], timeout=15)
 
 
+def write_digest(digest: dict, out_path: Path) -> None:
+    """Atomically write the email digest; no-op while maintenance mode is active."""
+    if maintenance.is_active():
+        logger.info("Maintenance mode active; not writing %s", out_path)
+        return
+    write_atomic(Path(out_path), json.dumps(digest, indent=2))
+
+
 def sync_emails(
     account: str,
     query: str = "in:inbox newer_than:12h",
@@ -301,8 +313,7 @@ def sync_emails(
             "skipped": 0,
             "emails": [],
         }
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(digest, indent=2))
+        write_digest(digest, out_path)
         return digest
 
     emails = []
@@ -334,8 +345,7 @@ def sync_emails(
     digest_json = json.dumps(digest, indent=2)
     digest["_context_bytes"] = len(digest_json)
 
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(digest, indent=2))
+    write_digest(digest, out_path)
 
     return digest
 

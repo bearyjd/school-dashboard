@@ -5,6 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from school_dashboard import maintenance
+
 
 def _connect(db_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
@@ -254,6 +256,8 @@ def mark_digest_card_done(db_path: str, digest_id: str, card_index: int, done: b
 
 def purge_old_digests(db_path: str, days: int = 7) -> int:
     """Delete digests older than `days`. Returns count deleted."""
+    if maintenance.is_active():
+        return 0
     if not Path(db_path).exists():
         return 0
     conn = _connect(db_path)

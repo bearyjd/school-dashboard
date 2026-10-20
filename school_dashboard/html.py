@@ -1,10 +1,16 @@
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from markupsafe import Markup
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+from school_dashboard import maintenance
+from school_dashboard.atomic import write_atomic
+
+logger = logging.getLogger(__name__)
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
@@ -130,6 +136,8 @@ def render(state: dict, output_path: Optional[str] = None) -> Path:
     else:
         from school_dashboard import paths
         out = paths.dashboard_html_path()
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(html)
+    if maintenance.is_active():
+        logger.info("Maintenance mode active; not writing %s", out)
+        return out
+    write_atomic(out, html, mode=0o644)
     return out

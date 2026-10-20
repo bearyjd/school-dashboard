@@ -20,6 +20,16 @@ LOGFILE="$LOGDIR/gc-scrape.log"
 TS=$(date -Iseconds)
 
 log() { echo "[$TS] $*" >> "$LOGFILE"; echo "[$TS] $*" >&2; }
+# Fail closed: only an explicit "inactive" (exit 10) lets a step run; 0 means active
+# and any other code (crash, missing binary) is treated as active.
+maintenance_skip() {
+    local rc=0
+    school-state transition maintenance check >/dev/null 2>&1 || rc=$?
+    [ "$rc" -ne 10 ] || return 1
+    log "Maintenance mode active or check failed (rc=$rc) — skipping $1"
+}
+
+maintenance_skip "gc scrape" && exit 0
 
 fail() {
     log "ERROR: $*"
@@ -121,7 +131,10 @@ mkdir -p "$LOGDIR"
 python3 -c "
 import json, sys
 print(json.dumps({'scraped_at': sys.argv[1], 'teams': json.loads(sys.argv[2])}, indent=2))
-" "$TS" "$OUTPUT_TEAMS" > "$GC_PATH" || fail "Failed to write $GC_PATH"
+" "$TS" "$OUTPUT_TEAMS" > "$GC_PATH.tmp.$$" || { rm -f "$GC_PATH.tmp.$$"; fail "Failed to write $GC_PATH"; }
+# Re-check right before publishing: maintenance may have started during the scrape.
+if maintenance_skip "gc-schedule write"; then rm -f "$GC_PATH.tmp.$$"; exit 0; fi
+mv -f "$GC_PATH.tmp.$$" "$GC_PATH" || { rm -f "$GC_PATH.tmp.$$"; fail "Failed to write $GC_PATH"; }
 
 WRITTEN=$(python3 -c "import json; d=json.load(open('$GC_PATH')); print(len(d['teams']))" 2>/dev/null || echo "?")
 log "Done — $WRITTEN team(s), $TOTAL_EVENTS event(s) written to $GC_PATH"

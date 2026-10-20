@@ -3,12 +3,15 @@ import json
 import os
 import sys
 
-from school_dashboard import paths
+from school_dashboard import maintenance, paths, transition
 from school_dashboard import state
 from school_dashboard import html
 from school_dashboard import email
 from school_dashboard import digest as _digest
 from school_dashboard.gcal import fetch_gcal_events
+
+
+EXIT_MAINTENANCE = 3
 
 
 def cmd_update(args: argparse.Namespace) -> None:
@@ -191,11 +194,11 @@ def main() -> None:
     p_update = subs.add_parser("update", help="Merge latest scraper output into state")
     p_update.add_argument("--ixl-dir", default="/tmp/ixl", help="IXL output directory")
     p_update.add_argument("--sgy-file", default="/tmp/schoology-daily.json", help="SGY summary JSON file")
-    p_update.set_defaults(func=cmd_update)
+    p_update.set_defaults(func=cmd_update, writes=True)
 
     p_html = subs.add_parser("html", help="Regenerate static dashboard")
     p_html.add_argument("--output", type=str, default=None, help="Output HTML path")
-    p_html.set_defaults(func=cmd_html)
+    p_html.set_defaults(func=cmd_html, writes=True)
 
     p_show = subs.add_parser("show", help="Print current state summary")
     p_show.add_argument("--json", action="store_true")
@@ -210,11 +213,11 @@ def main() -> None:
     p_add.add_argument("--due", type=str, default=None)
     p_add.add_argument("--source", type=str, default=None)
     p_add.add_argument("--type", type=str, default=None)
-    p_add.set_defaults(func=cmd_action_add)
+    p_add.set_defaults(func=cmd_action_add, writes=True)
 
     p_complete = action_subs.add_parser("complete", help="Mark an action item completed")
     p_complete.add_argument("id", help="Action item ID")
-    p_complete.set_defaults(func=cmd_action_complete)
+    p_complete.set_defaults(func=cmd_action_complete, writes=True)
 
     p_list = action_subs.add_parser("list", help="List pending action items")
     p_list.add_argument("--child", type=str, default=None)
@@ -228,7 +231,7 @@ def main() -> None:
     p_email.add_argument("--no-label", action="store_true", help="Skip labeling processed emails")
     p_email.add_argument("--digest-file", type=str, default=None, help="Output digest JSON path")
     p_email.add_argument("--json", action="store_true")
-    p_email.set_defaults(func=cmd_email_sync)
+    p_email.set_defaults(func=cmd_email_sync, writes=True)
 
     p_email_show = subs.add_parser("email-show", help="Print email digest summary")
     p_email_show.add_argument("--digest-file", type=str, default=None)
@@ -242,7 +245,9 @@ def main() -> None:
         required=True,
         help="Which digest to send",
     )
-    p_digest.set_defaults(func=cmd_digest)
+    p_digest.set_defaults(func=cmd_digest, writes=True)
+
+    transition.add_parser(subs)
 
     args = parser.parse_args()
     if not args.command:
@@ -252,6 +257,11 @@ def main() -> None:
     if args.command == "action" and not getattr(args, "action_command", None):
         p_action.print_help()
         sys.exit(1)
+
+    if getattr(args, "writes", False) and maintenance.is_active():
+        print("Error: maintenance mode is active; write commands are disabled "
+              "(school-state transition maintenance off)", file=sys.stderr)
+        sys.exit(EXIT_MAINTENANCE)
 
     args.func(args)
 

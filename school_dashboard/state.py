@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from school_dashboard import paths
+from school_dashboard import maintenance, paths
 
 DEFAULT_CONFIG_PATH = Path("/etc/school-dashboard/config.json")
 
@@ -152,6 +152,9 @@ def load(path: Optional[str] = None) -> dict:
 
 def save(state: dict, path: Optional[str] = None) -> Path:
     p = _state_path(path)
+    if maintenance.is_active():
+        logger.warning("Maintenance mode active; not saving state to %s", p)
+        return p
     p.parent.mkdir(parents=True, exist_ok=True)
     state["last_updated"] = datetime.now().isoformat()
     tmp = p.with_suffix(".tmp")
@@ -244,6 +247,8 @@ def complete_action_item(state: dict, action_id: str) -> bool:
 
 
 def prune_stale(state: dict) -> int:
+    if maintenance.is_active():
+        return 0
     now = datetime.now()
     pruned = 0
     kept = []
