@@ -1,10 +1,10 @@
-"""`school-state transition ...`: maintenance mode, backup and restore."""
+"""`school-state transition ...`: maintenance mode, backup, restore and dry-run."""
 import argparse
 import json
 import sys
 from pathlib import Path
 
-from school_dashboard import backup, maintenance
+from school_dashboard import backup, dry_run, maintenance
 
 EXIT_USAGE = 2
 EXIT_INACTIVE = 10  # `maintenance check`: 0 active, 10 inactive; anything else = failure
@@ -34,6 +34,14 @@ def add_parser(subs) -> argparse.ArgumentParser:
     p_r.add_argument("--target", type=Path, required=True, help="Directory to restore into")
     p_r.add_argument("--confirm-live", action="store_true", help="Allow restoring over the live state dir")
     p_r.set_defaults(func=cmd_transition)
+
+    p_d = ts.add_parser("dry-run", help="Read-only year-transition report (no writes, works with or without maintenance)")
+    p_d.add_argument("--to-year", required=True, help="Target school year, YYYY-YY (e.g. 2026-27)")
+    p_d.add_argument("--from-year", default=None, help="Current school year (default: derived from today, Aug start)")
+    p_d.add_argument("--archive-dest", type=Path, default=None,
+                     help="Planned archive dir (default: <state>/archive/<from>-to-<to>); validated, never created")
+    p_d.add_argument("--json", action="store_true", help="Machine-readable output")
+    p_d.set_defaults(func=cmd_transition)
     p.set_defaults(func=cmd_transition)
     return p
 
@@ -76,11 +84,21 @@ def _restore(args: argparse.Namespace) -> int:
     return 0
 
 
+def _dry_run(args: argparse.Namespace) -> int:
+    try:
+        report = dry_run.build_report(args.to_year, args.from_year, args.archive_dest)
+    except dry_run.DryRunArgError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    print(json.dumps(report, indent=2) if args.json else dry_run.render_text(report), end="\n" if args.json else "")
+    return 0
+
+
 def cmd_transition(args: argparse.Namespace) -> None:
     sub = getattr(args, "transition_command", None)
-    handlers = {"maintenance": _maintenance, "backup": _backup, "restore": _restore}
+    handlers = {"maintenance": _maintenance, "backup": _backup, "restore": _restore, "dry-run": _dry_run}
     if sub not in handlers:
-        print("usage: school-state transition maintenance|backup|restore", file=sys.stderr)
+        print("usage: school-state transition maintenance|backup|restore|dry-run", file=sys.stderr)
         sys.exit(EXIT_USAGE)
     try:
         code = handlers[sub](args)

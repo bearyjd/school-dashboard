@@ -94,6 +94,22 @@ credentials; restore verifies sha256 and DB integrity before writing.
   publishes the DB last, and rolls back from that snapshot on failure. Delete the
   snapshot once the restore is verified.
 
+### Transition dry run
+
+```bash
+school-state transition dry-run --to-year 2027-28 --from-year 2026-27 [--json]
+```
+
+Read-only preview of the year transition: reads never modify any file under the
+state dir (SQLite opened `mode=ro`; a WAL-mode DB is read from a temporary copy;
+no backup, no flag change, no network, no Gmail label changes), so it is safe with
+maintenance on or off. `--from-year` defaults to the current school year (Aug start). Reports roster/children, record counts, proposed carryover
+treatments (carry / review / archive-candidate; completed items kept as history)
+with duplicate and same-title collision flags, GameChanger memberships, leftover
+scraper inputs (`IXL_DIR`, `SGY_FILE`), the archive destination (validated, never
+created) and a gaps list. Exit 0 = report produced (even with gaps), 2 = bad args.
+Treatments are proposals; the family owner decides.
+
 ## Common Issues
 
 ### Port 5000 Already in Use
