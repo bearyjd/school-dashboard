@@ -3,6 +3,7 @@ import json
 import os
 import sys
 
+from school_dashboard import paths
 from school_dashboard import state
 from school_dashboard import html
 from school_dashboard import email
@@ -120,10 +121,10 @@ def cmd_digest(args: argparse.Namespace) -> None:
     api_key = os.environ.get("LITELLM_API_KEY", "")
     model = os.environ.get("LITELLM_MODEL", "claude-sonnet")
     ntfy_topic = os.environ.get("NTFY_TOPIC", "")
-    db_path = os.environ.get("SCHOOL_DB_PATH", "/app/state/school.db")
-    facts_path = os.environ.get("SCHOOL_FACTS_PATH", "/app/state/facts.json")
+    db_path = str(paths.db_path())
+    facts_path = str(paths.facts_path())
     gog_account = os.environ.get("GOG_ACCOUNT", "")
-    state_file = args.state_file or os.environ.get("SCHOOL_STATE_PATH", "/app/state/school-state.json")
+    state_file = args.state_file or str(paths.state_path())
 
     if not litellm_url:
         print("Error: LITELLM_URL not set", file=sys.stderr)
@@ -132,7 +133,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
         print("Error: NTFY_TOPIC not set", file=sys.stderr)
         sys.exit(1)
 
-    gc_path = os.environ.get("SCHOOL_GC_PATH", "/app/state/gc-schedule.json")
+    gc_path = str(paths.gc_path())
     gcal_events = fetch_gcal_events(gog_account) if gog_account else []
 
     if args.mode == "morning":

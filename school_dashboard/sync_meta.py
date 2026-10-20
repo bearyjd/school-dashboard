@@ -1,20 +1,19 @@
 """Per-source sync metadata: read/write state/sync_meta.json."""
 import json
 import logging
-import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-DEFAULT_PATH = "/app/state/sync_meta.json"
+from school_dashboard import paths
 
 _write_lock = threading.Lock()
 logger = logging.getLogger(__name__)
 
 
 def _resolve_path(path: str | None) -> str:
-    return path or os.environ.get("SCHOOL_SYNC_META_PATH", DEFAULT_PATH)
+    return str(path or paths.sync_meta_path())
 
 
 def read_sync_meta(path: str | None = None) -> dict[str, Any]:

@@ -138,7 +138,7 @@ def dash_client(tmp_path, monkeypatch):
     def make(state_data, config):
         sp = tmp_path / "state.json"
         sp.write_text(json.dumps(state_data))
-        monkeypatch.setattr("web.app.STATE_PATH", str(sp))
+        monkeypatch.setenv("SCHOOL_STATE_PATH", str(sp))
         _write_config(tmp_path, monkeypatch, config)
         flask_app.config["TESTING"] = True
         return flask_app.test_client()
