@@ -10,6 +10,7 @@ from pathlib import Path
 
 import requests
 
+from school_dashboard import maintenance
 from school_dashboard.llm import chat_completion
 
 _log = logging.getLogger(__name__)
@@ -636,6 +637,9 @@ def send_ntfy(
     actions: list[dict] | None = None,
 ) -> None:
     """Push message to ntfy.sh topic. If cards provided, store digest and deep-link to carousel."""
+    if maintenance.is_active():
+        _log.info("Maintenance mode active; skipping digest store and ntfy send")
+        return
     if cards and db_path:
         try:
             from school_dashboard.db import init_digests_table, create_digest, purge_old_digests

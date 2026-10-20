@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Maintenance mode (`school-state transition maintenance on|off|status|check`): pauses API writes (503), ntfy digests, pruning, CLI write commands (exit 3) and cron scripts while active; a corrupt flag fails closed
+- `school-state transition backup` / `restore`: verified (sha256 manifest) backups of the SQLite DB, state JSON files and roster config, with restore safety checks (empty target or `--confirm-live` under maintenance); credentials are never copied
+- `backup --wait-idle SECONDS` and per-sync `sync.running.*` markers so backups never overlap an in-flight sync; live restore keeps a private `.pre-restore-*` snapshot and rolls back on failure
 - React SPA frontend with responsive multi-screen layout (Home, Child, Sync, Chat tabs)
 - Inline AI agent component for contextual LLM interactions on homework items and sync sources
 - On-demand sync endpoint with per-source trigger buttons and status polling

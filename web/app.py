@@ -12,10 +12,32 @@ from flask import Flask, jsonify, render_template, request, Response, send_from_
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.state import get_roster
-from school_dashboard import paths
+from school_dashboard import maintenance, paths
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta
 
 app = Flask(__name__)
+
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+_MAINTENANCE_RETRY_AFTER = "60"
+# /api/chat only reads state and calls the LLM; it persists nothing.
+_MAINTENANCE_EXEMPT = frozenset({"/api/chat"})
+
+
+@app.before_request
+def _block_writes_in_maintenance():
+    """Reject API writes with 503 while the maintenance flag is active."""
+    if (request.method in _SAFE_METHODS or not request.path.startswith("/api/")
+            or request.path in _MAINTENANCE_EXEMPT):
+        return None
+    info = maintenance.status()
+    if info is None:
+        return None
+    app.logger.info("Maintenance active (%s); rejected %s %s",
+                    info.get("reason", ""), request.method, request.path)
+    resp = jsonify({"error": "maintenance"})
+    resp.status_code = 503
+    resp.headers["Retry-After"] = _MAINTENANCE_RETRY_AFTER
+    return resp
 
 LITELLM_URL = os.environ.get("LITELLM_URL", "http://localhost:8080")
 LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
@@ -519,12 +541,32 @@ _sync_status: dict = {
 }
 
 
+def _sync_paused_for_maintenance() -> bool:
+    """True (and status updated) when maintenance is active, so the sync must stop."""
+    if not maintenance.is_active():
+        return False
+    _sync_status["last_result"] = "skipped: maintenance"
+    return True
+
+
 def _run_sync_background(sources: str, digest: str) -> None:
     """Run scrapers in a background thread, update state, optionally send digest."""
     global _sync_status
     _sync_status["running"] = True
     _sync_status["last_sources"] = [s.strip() for s in sources.split(",")]
     _sync_status["last_error"] = None
+
+    # Marker first, then the maintenance check: a backup that sees no marker
+    # knows no sync can have passed the check before it.
+    marker = maintenance.mark_sync_running()
+    if marker is None:
+        app.logger.error("Sync marker could not be written; a concurrent backup may not wait for this sync")
+    if _sync_paused_for_maintenance():
+        _sync_status["running"] = False
+        _sync_status["last_run"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        maintenance.clear_sync_running(marker)
+        _sync_lock.release()
+        return
 
     ixl_dir = os.environ.get("IXL_DIR", "/tmp/ixl")
     sgy_file = os.environ.get("SGY_FILE", "/tmp/schoology-daily.json")
@@ -543,6 +585,8 @@ def _run_sync_background(sources: str, digest: str) -> None:
 
     try:
         for src in source_list:
+            if _sync_paused_for_maintenance():
+                return
             try:
                 if src == "ixl":
                     if ixl_cron and Path(ixl_cron).exists():
@@ -599,14 +643,20 @@ def _run_sync_background(sources: str, digest: str) -> None:
 
         # Update state (only if ixl or sgy were synced)
         if any(s in source_list for s in ("ixl", "sgy")):
+            if _sync_paused_for_maintenance():
+                return
             subprocess.run(
                 ["school-state", "update", "--ixl-dir", ixl_dir, "--sgy-file", sgy_file],
                 timeout=30, check=False,
             )
+            if _sync_paused_for_maintenance():
+                return
             subprocess.run(["school-state", "html"], timeout=30, check=False)
 
         # Digest
         if ntfy_topic and digest != "none":
+            if _sync_paused_for_maintenance():
+                return
             if digest == "quick":
                 from school_dashboard.digest import build_quick_check, send_ntfy
                 text, cards = build_quick_check(state_path)
@@ -635,6 +685,7 @@ def _run_sync_background(sources: str, digest: str) -> None:
     finally:
         _sync_status["running"] = False
         _sync_status["last_run"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        maintenance.clear_sync_running(marker)
         _sync_lock.release()
 
 

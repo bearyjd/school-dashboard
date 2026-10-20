@@ -20,6 +20,14 @@ LOGDIR="${LOGDIR%/*}"
 LOGFILE="$LOGDIR/digest-weekly.log"
 
 TS=$(date -Iseconds)
+# Skip while maintenance mode is active (backup/restore in progress).
+# Fail closed: only an explicit "inactive" (exit 10) lets the script run; 0 means
+# active, and any other code (crash, missing binary) is treated as active.
+maint_rc=0; school-state transition maintenance check >/dev/null 2>&1 || maint_rc=$?
+if [ "$maint_rc" -ne 10 ]; then
+    echo "[$TS] weekly digest $MODE skipped (maintenance mode active or check failed, rc=$maint_rc)" >> "$LOGFILE"
+    exit 0
+fi
 
 if DIGEST_MODE="$MODE" python3 -c "
 import os
