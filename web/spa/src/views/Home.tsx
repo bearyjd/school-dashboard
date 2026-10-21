@@ -22,9 +22,10 @@ export function Home() {
   if (isLoading) return <div className="screen"><p style={{ color: 'var(--color-text-muted)' }}>Loading…</p></div>
 
   const children = Array.from(new Set([
+    ...(dashboard?.children ?? []).map(c => c.name),
     ...Object.keys(dashboard?.ixl ?? {}),
     ...Object.keys(dashboard?.schoology ?? {}),
-  ])).sort()
+  ]))
 
   return (
     <div className="screen">
@@ -37,11 +38,13 @@ export function Home() {
           const ixlRemaining = ixlSubjects.reduce((s, x) => s + x.remaining, 0)
           const sgyAssignments = dashboard?.schoology[child] ?? []
           const openSgy = sgyAssignments.filter(a => !['submitted','graded','complete','completed','turned in'].includes((a.status ?? '').toLowerCase()))
+          const hasIxl = dashboard?.has_data?.[child]?.ixl ?? child in (dashboard?.ixl ?? {})
+          const hasSgy = dashboard?.has_data?.[child]?.sgy ?? child in (dashboard?.schoology ?? {})
           const ixlBadge = freshnessLabel(meta, 'ixl')
           const sgyBadge = freshnessLabel(meta, 'sgy')
 
           return (
-            <div key={child} className="card" onClick={() => navigate(`/child/${child}`)}
+            <div key={child} className="card" onClick={() => navigate(`/child/${encodeURIComponent(child)}`)}
               style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>{child}</h2>
@@ -53,8 +56,8 @@ export function Home() {
                     <span>IXL</span>
                     <span className={`badge ${ixlBadge.cls}`}>{ixlBadge.label}</span>
                   </div>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: ixlRemaining > 0 ? 'var(--color-warn)' : 'var(--color-success)' }}>
-                    {ixlRemaining > 0 ? `${ixlRemaining} left` : '✓ Done'}
+                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: !hasIxl ? 'var(--color-text-muted)' : ixlRemaining > 0 ? 'var(--color-warn)' : 'var(--color-success)' }}>
+                    {!hasIxl ? 'No data yet' : ixlRemaining > 0 ? `${ixlRemaining} left` : '✓ Done'}
                   </div>
                 </div>
                 <div className="card" style={{ flex: 1, minWidth: 120, background: 'var(--color-surface2)', padding: '10px 12px' }}>
@@ -62,8 +65,8 @@ export function Home() {
                     <span>SGY</span>
                     <span className={`badge ${sgyBadge.cls}`}>{sgyBadge.label}</span>
                   </div>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: openSgy.length > 0 ? 'var(--color-warn)' : 'var(--color-success)' }}>
-                    {openSgy.length > 0 ? `${openSgy.length} open` : '✓ Done'}
+                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: !hasSgy ? 'var(--color-text-muted)' : openSgy.length > 0 ? 'var(--color-warn)' : 'var(--color-success)' }}>
+                    {!hasSgy ? 'No data yet' : openSgy.length > 0 ? `${openSgy.length} open` : '✓ Done'}
                   </div>
                 </div>
               </div>

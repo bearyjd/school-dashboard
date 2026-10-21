@@ -68,6 +68,48 @@ docker compose exec dashboard bash /app/sync/school-sync.sh
 docker compose exec dashboard bash
 ```
 
+## Maintenance, Backup & Restore
+
+```bash
+school-state transition maintenance on --reason "backup"   # pauses writers
+school-state transition backup                              # -> $STATE_DIR/backups/<UTC ts>/
+school-state transition maintenance off
+school-state transition restore BACKUP_DIR --target DIR     # DIR must be empty/new
+# live restore: maintenance on, then add --confirm-live (target = the state dir)
+```
+
+While maintenance is on: API writes return 503, CLI write commands exit 3, cron
+scripts and ntfy digests skip. A corrupt `maintenance.json` counts as active.
+Backups hold only data files (DB, state/facts/gc/sync JSON, roster config), never
+credentials; restore verifies sha256 and DB integrity before writing.
+
+- `maintenance check` exits 0 = ACTIVE, 10 = INACTIVE. Cron scripts run only on
+  10 and skip on anything else (0, a crash exiting 1, 127, a missing `school-state`).
+- `backup` refuses while a sync is running (per-sync `sync.running.<pid>.<token>`
+  markers, written before the maintenance check, ignored when older than 30 min);
+  use `--wait-idle SECONDS` to wait.
+- Manifests are unauthenticated (sha256 only, no signature): keep backups
+  owner-only (0700) and never restore a backup from an untrusted source.
+- Live restore saves the previous files in `<state>/.pre-restore-<ts>/` (0700),
+  publishes the DB last, and rolls back from that snapshot on failure. Delete the
+  snapshot once the restore is verified.
+
+### Transition dry run
+
+```bash
+school-state transition dry-run --to-year 2027-28 --from-year 2026-27 [--json]
+```
+
+Read-only preview of the year transition: reads never modify any file under the
+state dir (SQLite opened `mode=ro`; a WAL-mode DB is read from a temporary copy;
+no backup, no flag change, no network, no Gmail label changes), so it is safe with
+maintenance on or off. `--from-year` defaults to the current school year (Aug start). Reports roster/children, record counts, proposed carryover
+treatments (carry / review / archive-candidate; completed items kept as history)
+with duplicate and same-title collision flags, GameChanger memberships, leftover
+scraper inputs (`IXL_DIR`, `SGY_FILE`), the archive destination (validated, never
+created) and a gaps list. Exit 0 = report produced (even with gaps), 2 = bad args.
+Treatments are proposals; the family owner decides.
+
 ## Common Issues
 
 ### Port 5000 Already in Use

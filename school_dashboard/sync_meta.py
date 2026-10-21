@@ -1,20 +1,20 @@
 """Per-source sync metadata: read/write state/sync_meta.json."""
 import json
 import logging
-import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-DEFAULT_PATH = "/app/state/sync_meta.json"
+from school_dashboard import maintenance, paths
+from school_dashboard.atomic import write_atomic
 
 _write_lock = threading.Lock()
 logger = logging.getLogger(__name__)
 
 
 def _resolve_path(path: str | None) -> str:
-    return path or os.environ.get("SCHOOL_SYNC_META_PATH", DEFAULT_PATH)
+    return str(path or paths.sync_meta_path())
 
 
 def read_sync_meta(path: str | None = None) -> dict[str, Any]:
@@ -30,6 +30,9 @@ def read_sync_meta(path: str | None = None) -> dict[str, Any]:
 def write_sync_source(source: str, result: str, path: str | None = None) -> None:
     """Write/update a single source entry in sync_meta.json."""
     p = _resolve_path(path)
+    if maintenance.is_active():
+        logger.info("Maintenance mode active; not recording sync result for %s", source)
+        return
     with _write_lock:
         meta = read_sync_meta(p)
         meta[source] = {
@@ -37,8 +40,6 @@ def write_sync_source(source: str, result: str, path: str | None = None) -> None
             "last_result": result,
         }
         try:
-            Path(p).parent.mkdir(parents=True, exist_ok=True)
-            with open(p, "w") as f:
-                json.dump(meta, f, indent=2)
+            write_atomic(Path(p), json.dumps(meta, indent=2))
         except OSError as exc:
             logger.error("Failed to write sync meta to %s: %s", p, exc)

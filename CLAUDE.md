@@ -138,7 +138,7 @@ school_dashboard/       Core Python package
   (`.agent_native/agent_roadmap.md` item 3), not a mystery to reverse-engineer.
 
 web/
-  app.py                Flask app. Routes: /api/chat, /api/items*, /api/dashboard, /api/readiness, /api/digest/* (carousel), /api/sync, /api/sync/status. **Inconsistent DB_PATH resolution**: most handlers re-read `os.environ.get("SCHOOL_DB_PATH", ...)` per request, but `/api/readiness` and `/api/digest/*` (plus `load_upcoming_events`) use a module-level constant frozen at import time — `monkeypatch.setenv("SCHOOL_DB_PATH", ...)` in a new test for those specific routes will silently no-op. See `.agent_native/agent_roadmap.md` item 5 before writing new tests against these routes.
+  app.py                Flask app. Routes: /api/chat, /api/items*, /api/dashboard, /api/readiness, /api/digest/* (carousel), /api/sync, /api/sync/status. **Paths:** every state path resolves per call via `school_dashboard/paths.py` (`SCHOOL_STATE_DIR`, default `/app/state`, plus per-file overrides such as `SCHOOL_DB_PATH`), so `monkeypatch.setenv` works for all routes. Also: `/api/*` writes return 503 while `maintenance.json` is present (`school-state transition maintenance on|off`), except `/api/chat`.
   spa/                  Vite + React + TypeScript SPA (`web/spa/`). `npm run build` (tsc -b && vite build) is the only automated check today — no vitest/jest tests exist yet in `package.json` devDependencies.
   templates/index.html  Legacy dashboard iframe + chat tab (pre-SPA). Uses marked.js for markdown rendering.
 

@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `school-state transition dry-run --to-year YYYY-YY [--from-year YYYY-YY] [--archive-dest DIR] [--json]`: strictly read-only year-transition report (roster, record counts, carryover proposals with duplicate/collision flags, activity memberships, stale scraper inputs, archive destination check, gaps); opens SQLite with `mode=ro`, creates nothing, no network, and works with maintenance on or off
+- Maintenance mode (`school-state transition maintenance on|off|status|check`): pauses API writes (503), ntfy digests, pruning, CLI write commands (exit 3) and cron scripts while active; a corrupt flag fails closed
+- `school-state transition backup` / `restore`: verified (sha256 manifest) backups of the SQLite DB, state JSON files and roster config, with restore safety checks (empty target or `--confirm-live` under maintenance); credentials are never copied
+- `backup --wait-idle SECONDS` and per-sync `sync.running.*` markers so backups never overlap an in-flight sync; live restore keeps a private `.pre-restore-*` snapshot and rolls back on failure
 - React SPA frontend with responsive multi-screen layout (Home, Child, Sync, Chat tabs)
 - Inline AI agent component for contextual LLM interactions on homework items and sync sources
 - On-demand sync endpoint with per-source trigger buttons and status polling
@@ -32,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   via `gog gmail search`, automatic submission, fresh JWT capture.
 
 ### Changed
+- `web/app.py` default state dir is now `/app/state` (was `/opt/school/state`), matching the CLI and sync scripts
+- All state paths resolve per call via `school_dashboard/paths.py` (no import-time constants), so `SCHOOL_DB_PATH` and friends set after import now take effect in `/api/readiness` and `/api/digest/*`
+- Added optional `SCHOOL_STATE_DIR` to relocate the whole state directory (defaults to the parent of `SCHOOL_STATE_PATH` if set, else `/app/state`)
 - Flask now serves React SPA at `/app` route with `__SYNC_TOKEN__` injection
 - Digest system stores cards in database for carousel navigation and state persistence
 - Sync metadata persists per-source timestamps to JSON file for freshness calculation

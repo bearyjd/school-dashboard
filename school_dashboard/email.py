@@ -1,15 +1,18 @@
 import json
+import logging
 import os
 import re
 import subprocess
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from school_dashboard.state import _state_path, get_children
+from school_dashboard import maintenance, paths
+from school_dashboard.atomic import write_atomic
+from school_dashboard.state import get_children
 
-DEFAULT_DIGEST_PATH = None  # derived from state path
+logger = logging.getLogger(__name__)
+
 GOG_ACCOUNT = os.environ.get("SCHOOL_EMAIL_ACCOUNT", "")
 SNIPPET_BODY_CHARS = 2000
 SNIPPET_ATTACHMENT_CHARS = 1000
@@ -38,10 +41,7 @@ FINANCIAL_KEYWORDS = {
 def _digest_path(override: Optional[str] = None) -> Path:
     if override:
         return Path(override)
-    env = os.environ.get("SCHOOL_EMAIL_DIGEST")
-    if env:
-        return Path(env)
-    return _state_path().parent / "email-digest.json"
+    return paths.email_digest_path()
 
 
 def _run_gog(args: list[str], timeout: int = 30) -> Optional[dict]:
@@ -153,7 +153,7 @@ def download_attachment(
     account: str, msg_id: str, attachment_id: str, out_dir: str, filename: str,
 ) -> Optional[str]:
     out_path = os.path.join(out_dir, filename)
-    result = _run_gog([
+    _run_gog([
         "gmail", "attachment", msg_id, attachment_id,
         "-a", account, "--out", out_dir, "--name", filename,
     ], timeout=60)
@@ -280,6 +280,14 @@ def ensure_labels(account: str) -> None:
         _run_gog(["gmail", "labels", "create", label, "-a", account], timeout=15)
 
 
+def write_digest(digest: dict, out_path: Path) -> None:
+    """Atomically write the email digest; no-op while maintenance mode is active."""
+    if maintenance.is_active():
+        logger.info("Maintenance mode active; not writing %s", out_path)
+        return
+    write_atomic(Path(out_path), json.dumps(digest, indent=2))
+
+
 def sync_emails(
     account: str,
     query: str = "in:inbox newer_than:12h",
@@ -304,8 +312,7 @@ def sync_emails(
             "skipped": 0,
             "emails": [],
         }
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(digest, indent=2))
+        write_digest(digest, out_path)
         return digest
 
     emails = []
@@ -337,8 +344,7 @@ def sync_emails(
     digest_json = json.dumps(digest, indent=2)
     digest["_context_bytes"] = len(digest_json)
 
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(digest, indent=2))
+    write_digest(digest, out_path)
 
     return digest
 

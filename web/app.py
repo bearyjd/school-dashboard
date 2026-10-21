@@ -4,25 +4,42 @@ import re
 import sqlite3
 import subprocess
 import threading
-import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-import requests
 from flask import Flask, jsonify, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
-from school_dashboard.sync_meta import write_sync_source, read_sync_meta, DEFAULT_PATH as SYNC_META_DEFAULT_PATH
+from school_dashboard.state import get_roster
+from school_dashboard import maintenance, paths
+from school_dashboard.sync_meta import write_sync_source, read_sync_meta
 
 app = Flask(__name__)
+
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+_MAINTENANCE_RETRY_AFTER = "60"
+# /api/chat only reads state and calls the LLM; it persists nothing.
+_MAINTENANCE_EXEMPT = frozenset({"/api/chat"})
+
+
+@app.before_request
+def _block_writes_in_maintenance():
+    """Reject API writes with 503 while the maintenance flag is active."""
+    if (request.method in _SAFE_METHODS or not request.path.startswith("/api/")
+            or request.path in _MAINTENANCE_EXEMPT):
+        return None
+    info = maintenance.status()
+    if info is None:
+        return None
+    app.logger.info("Maintenance active (%s); rejected %s %s",
+                    info.get("reason", ""), request.method, request.path)
+    resp = jsonify({"error": "maintenance"})
+    resp.status_code = 503
+    resp.headers["Retry-After"] = _MAINTENANCE_RETRY_AFTER
+    return resp
 
 LITELLM_URL = os.environ.get("LITELLM_URL", "http://localhost:8080")
 LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
 LITELLM_MODEL = os.environ.get("LITELLM_MODEL", "school-dash")
-STATE_PATH = os.environ.get("SCHOOL_STATE_PATH", "/opt/school/state/school-state.json")
-EMAIL_DIGEST_PATH = os.environ.get("SCHOOL_EMAIL_DIGEST", "/opt/school/state/email-digest.json")
-DB_PATH = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
-FACTS_PATH = os.environ.get("SCHOOL_FACTS_PATH", "/opt/school/state/facts.json")
-DASHBOARD_HTML = os.environ.get("SCHOOL_DASHBOARD_HTML", "/opt/school/state/school-dashboard.html")
 GOG_ACCOUNT = os.environ.get("GOG_ACCOUNT", "")
 SGY_BASE_URL = os.environ.get("SGY_BASE_URL", "https://arlingtondiocese.schoology.com")
 
@@ -36,12 +53,12 @@ def load_json(path: str) -> dict | list:
 
 
 def load_upcoming_events(days: int = 30) -> list[dict]:
-    if not Path(DB_PATH).exists():
+    if not paths.db_path().exists():
         return []
     try:
         from_date = date.today().isoformat()
         end_date = (date.today() + timedelta(days=days)).isoformat()
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(paths.db_path())
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(
             "SELECT date, title, type, child FROM events WHERE date >= ? AND date < ? ORDER BY date",
@@ -56,7 +73,7 @@ def load_upcoming_events(days: int = 30) -> list[dict]:
 
 def load_facts() -> list[dict]:
     try:
-        p = Path(FACTS_PATH)
+        p = paths.facts_path()
         if p.exists():
             return json.loads(p.read_text())
     except Exception:
@@ -92,12 +109,12 @@ def _format_freshness(meta: dict) -> str:
 
 
 def build_system_prompt() -> str:
-    meta_path = os.environ.get("SCHOOL_SYNC_META_PATH", SYNC_META_DEFAULT_PATH)
+    meta_path = paths.sync_meta_path()
     meta = read_sync_meta(meta_path)
     freshness_str = _format_freshness(meta)
 
-    state = load_json(STATE_PATH)
-    emails = load_json(EMAIL_DIGEST_PATH)
+    state = load_json(str(paths.state_path()))
+    emails = load_json(str(paths.email_digest_path()))
     events = load_upcoming_events(days=30)
     facts = load_facts()
 
@@ -143,7 +160,7 @@ def index():
 @app.route("/dashboard-frame")
 def dashboard_frame():
     try:
-        with open(DASHBOARD_HTML) as f:
+        with open(paths.dashboard_html_path()) as f:
             return Response(f.read(), mimetype="text/html")
     except Exception as e:
         return Response(
@@ -184,7 +201,7 @@ def api_chat():
 
 def _build_inline_context(context_type: str, context_id: str) -> tuple[str, list[str]]:
     """Return (context_description, available_actions) for the inline agent."""
-    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    db_path = str(paths.db_path())
 
     if context_type == "item":
         from school_dashboard.db import init_db, get_item
@@ -206,7 +223,7 @@ def _build_inline_context(context_type: str, context_id: str) -> tuple[str, list
         return ctx, ["mark_item_done", "reschedule_item", "create_item"]
 
     if context_type == "sync_source":
-        meta_path = os.environ.get("SCHOOL_SYNC_META_PATH", SYNC_META_DEFAULT_PATH)
+        meta_path = paths.sync_meta_path()
         meta = read_sync_meta(meta_path)
         entry = meta.get(context_id, {})
         ctx = (
@@ -277,7 +294,7 @@ def api_agent_inline():
 
 @app.route("/api/items", methods=["GET"])
 def api_items_list():
-    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    db_path = str(paths.db_path())
     child = request.args.get("child") or None
     include_completed = request.args.get("include_completed", "0") == "1"
     try:
@@ -291,7 +308,7 @@ def api_items_list():
 
 @app.route("/api/items", methods=["POST"])
 def api_items_create():
-    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    db_path = str(paths.db_path())
     data = request.get_json(silent=True) or {}
     child = (data.get("child") or "").strip()
     title = (data.get("title") or "").strip()
@@ -319,7 +336,7 @@ def api_items_create():
 
 @app.route("/api/items/<int:item_id>", methods=["PATCH"])
 def api_items_update(item_id):
-    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    db_path = str(paths.db_path())
     data = request.get_json(silent=True) or {}
     allowed = {"child", "title", "type", "due_date", "notes", "completed"}
     kwargs = {k: v for k, v in data.items() if k in allowed}
@@ -338,7 +355,7 @@ def api_items_update(item_id):
 
 @app.route("/api/items/<int:item_id>", methods=["DELETE"])
 def api_items_delete(item_id):
-    db_path = os.environ.get("SCHOOL_DB_PATH", "/opt/school/state/school.db")
+    db_path = str(paths.db_path())
     try:
         from school_dashboard.db import init_db, delete_item
         init_db(db_path)
@@ -364,6 +381,19 @@ def _normalize_child(name: str) -> str:
     return _CHILD_ALIASES.get(name, name)
 
 
+def _has_data_flags(state: dict) -> dict:
+    """Per-child {ixl, sgy} flags: True only if the child has a non-empty entry in state."""
+    def populated(section: object) -> set:
+        if not isinstance(section, dict):
+            return set()
+        return {_normalize_child(k) for k, v in section.items() if isinstance(v, dict) and v}
+
+    ixl_keys = populated(state.get("ixl"))
+    sgy_keys = populated(state.get("schoology"))
+    names = [r["name"] for r in get_roster()] + sorted((ixl_keys | sgy_keys) - {r["name"] for r in get_roster()})
+    return {n: {"ixl": n in ixl_keys, "sgy": n in sgy_keys} for n in names}
+
+
 def _parse_due_iso(s: str | None) -> str | None:
     """Parse due string to ISO date. Handles:
     - Already-ISO: '2026-04-14'
@@ -386,7 +416,7 @@ def _parse_due_iso(s: str | None) -> str | None:
 @app.route("/api/dashboard")
 def api_dashboard():
     try:
-        state = load_json(STATE_PATH)
+        state = load_json(str(paths.state_path()))
         if "error" in state:
             return jsonify({"error": state["error"]}), 500
 
@@ -442,6 +472,8 @@ def api_dashboard():
         return jsonify({
             "schoology": schoology,
             "ixl": ixl,
+            "children": get_roster(),
+            "has_data": _has_data_flags(state),
             "email_items": email_items,
             "last_updated": state.get("last_updated", ""),
         })
@@ -459,7 +491,7 @@ def api_calendar():
 def api_readiness():
     from school_dashboard.readiness import get_checklist
     try:
-        checklist = get_checklist(STATE_PATH, DB_PATH)
+        checklist = get_checklist(str(paths.state_path()), str(paths.db_path()))
         return jsonify({"checklist": checklist})
     except Exception as e:
         return jsonify({"error": str(e), "checklist": {}}), 500
@@ -469,8 +501,8 @@ def api_readiness():
 def api_digest_get(digest_id):
     from school_dashboard.db import init_digests_table, get_digest
     try:
-        init_digests_table(DB_PATH)
-        result = get_digest(DB_PATH, digest_id)
+        init_digests_table(str(paths.db_path()))
+        result = get_digest(str(paths.db_path()), digest_id)
         if result is None:
             return jsonify({"error": "not found"}), 404
         return jsonify(result)
@@ -486,8 +518,8 @@ def api_digest_card_update(digest_id, index):
     if done is None:
         return jsonify({"error": "done field required"}), 400
     try:
-        init_digests_table(DB_PATH)
-        ok = mark_digest_card_done(DB_PATH, digest_id, index, bool(done))
+        init_digests_table(str(paths.db_path()))
+        ok = mark_digest_card_done(str(paths.db_path()), digest_id, index, bool(done))
         if not ok:
             return jsonify({"error": "not found"}), 404
         return jsonify({"ok": True})
@@ -507,6 +539,14 @@ _sync_status: dict = {
 }
 
 
+def _sync_paused_for_maintenance() -> bool:
+    """True (and status updated) when maintenance is active, so the sync must stop."""
+    if not maintenance.is_active():
+        return False
+    _sync_status["last_result"] = "skipped: maintenance"
+    return True
+
+
 def _run_sync_background(sources: str, digest: str) -> None:
     """Run scrapers in a background thread, update state, optionally send digest."""
     global _sync_status
@@ -514,13 +554,24 @@ def _run_sync_background(sources: str, digest: str) -> None:
     _sync_status["last_sources"] = [s.strip() for s in sources.split(",")]
     _sync_status["last_error"] = None
 
+    # Marker first, then the maintenance check: a backup that sees no marker
+    # knows no sync can have passed the check before it.
+    marker = maintenance.mark_sync_running()
+    if marker is None:
+        app.logger.error("Sync marker could not be written; a concurrent backup may not wait for this sync")
+    if _sync_paused_for_maintenance():
+        _sync_status["running"] = False
+        _sync_status["last_run"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        maintenance.clear_sync_running(marker)
+        _sync_lock.release()
+        return
+
     ixl_dir = os.environ.get("IXL_DIR", "/tmp/ixl")
     sgy_file = os.environ.get("SGY_FILE", "/tmp/schoology-daily.json")
     ixl_cron = os.environ.get("IXL_CRON", "")
-    state_path = os.environ.get("SCHOOL_STATE_PATH", "/app/state/school-state.json")
-    db_path = os.environ.get("SCHOOL_DB_PATH", "/app/state/school.db")
-    facts_path = os.environ.get("SCHOOL_FACTS_PATH", "/app/state/facts.json")
-    gc_path = os.environ.get("SCHOOL_GC_PATH", "/app/state/gc-schedule.json")
+    state_path = str(paths.state_path())
+    db_path = str(paths.db_path())
+    gc_path = str(paths.gc_path())
     ntfy_topic = os.environ.get("NTFY_TOPIC", "")
 
     source_list = [s.strip() for s in sources.split(",")]
@@ -531,6 +582,8 @@ def _run_sync_background(sources: str, digest: str) -> None:
 
     try:
         for src in source_list:
+            if _sync_paused_for_maintenance():
+                return
             try:
                 if src == "ixl":
                     if ixl_cron and Path(ixl_cron).exists():
@@ -587,14 +640,20 @@ def _run_sync_background(sources: str, digest: str) -> None:
 
         # Update state (only if ixl or sgy were synced)
         if any(s in source_list for s in ("ixl", "sgy")):
+            if _sync_paused_for_maintenance():
+                return
             subprocess.run(
                 ["school-state", "update", "--ixl-dir", ixl_dir, "--sgy-file", sgy_file],
                 timeout=30, check=False,
             )
+            if _sync_paused_for_maintenance():
+                return
             subprocess.run(["school-state", "html"], timeout=30, check=False)
 
         # Digest
         if ntfy_topic and digest != "none":
+            if _sync_paused_for_maintenance():
+                return
             if digest == "quick":
                 from school_dashboard.digest import build_quick_check, send_ntfy
                 text, cards = build_quick_check(state_path)
@@ -623,6 +682,7 @@ def _run_sync_background(sources: str, digest: str) -> None:
     finally:
         _sync_status["running"] = False
         _sync_status["last_run"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        maintenance.clear_sync_running(marker)
         _sync_lock.release()
 
 
@@ -655,7 +715,7 @@ def api_sync_status():
 
 @app.route("/api/sync/meta")
 def api_sync_meta():
-    meta_path = os.environ.get("SCHOOL_SYNC_META_PATH", SYNC_META_DEFAULT_PATH)
+    meta_path = paths.sync_meta_path()
     return jsonify(read_sync_meta(meta_path))
 
 

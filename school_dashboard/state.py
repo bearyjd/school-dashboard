@@ -1,16 +1,20 @@
 import hashlib
 import json
+import logging
 import os
-import time
-from datetime import datetime, timedelta
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-DEFAULT_STATE_PATH = Path("/app/state/school-state.json")
+from school_dashboard import maintenance, paths
+
 DEFAULT_CONFIG_PATH = Path("/etc/school-dashboard/config.json")
 
 PRUNE_COMPLETED_AFTER_DAYS = 7
 PRUNE_PAST_DUE_AFTER_DAYS = 3
+
+logger = logging.getLogger(__name__)
 
 _config_cache: Optional[dict] = None
 
@@ -22,25 +26,89 @@ def _config_path() -> Path:
     return DEFAULT_CONFIG_PATH
 
 
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.strip().lower()).strip("-")
+
+
+def _validate_child(name: str, entry: object, seen_ids: set) -> Optional[dict]:
+    """Return a new validated roster dict (with id filled), or None if invalid."""
+    if not isinstance(entry, dict):
+        logger.warning("Config child %r skipped: entry must be an object", name)
+        return None
+    for field in ("grade", "school"):
+        if not isinstance(entry.get(field), str):
+            logger.warning("Config child %r skipped: %r must be a string", name, field)
+            return None
+    child_id = entry.get("id") or _slug(name)
+    if not isinstance(child_id, str) or not child_id:
+        logger.warning("Config child %r skipped: invalid id", name)
+        return None
+    if child_id in seen_ids:
+        logger.warning("Config child %r skipped: duplicate id %r", name, child_id)
+        return None
+    return {"id": child_id, "name": name, "grade": entry["grade"], "school": entry["school"]}
+
+
+def _dict_entries(children: object) -> dict:
+    """Keep only object-valued children (lenient); log anything dropped."""
+    if not isinstance(children, dict):
+        logger.warning("Config 'children' must be an object; ignoring")
+        return {}
+    for name, entry in children.items():
+        if not isinstance(entry, dict):
+            logger.warning("Config child %r skipped: entry must be an object", name)
+    return {k: v for k, v in children.items() if isinstance(v, dict)}
+
+
+def _read_config(p: Path) -> Optional[dict]:
+    """Return the parsed config, or None if it could not be loaded."""
+    try:
+        raw = json.loads(p.read_text())
+    except FileNotFoundError:
+        if os.environ.get("SCHOOL_DASHBOARD_CONFIG"):
+            logger.warning("Config file %s not found", p)
+        return None
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Could not load config %s: %s", p, exc)
+        return None
+    if not isinstance(raw, dict):
+        logger.warning("Config %s must be a JSON object; ignoring", p)
+        return None
+    children = raw.get("children", {})
+    aliases = raw.get("name_aliases", {})
+    return {
+        **raw,
+        "children": _dict_entries(children),
+        "name_aliases": aliases if isinstance(aliases, dict) else {},
+    }
+
+
 def _load_config() -> dict:
+    """Load config; only a successful load is cached so a fixed file is picked up."""
     global _config_cache
     if _config_cache is not None:
         return _config_cache
-
-    p = _config_path()
-    if p.exists():
-        try:
-            _config_cache = json.loads(p.read_text())
-            return _config_cache
-        except (json.JSONDecodeError, OSError):
-            pass
-
-    _config_cache = {"children": {}, "name_aliases": {}}
-    return _config_cache
+    config = _read_config(_config_path())
+    if config is None:
+        return {"children": {}, "name_aliases": {}}
+    _config_cache = config
+    return config
 
 
 def get_children() -> dict:
     return _load_config().get("children", {})
+
+
+def get_roster() -> list:
+    """Return the strictly validated roster as a new list of {id, name, grade, school}."""
+    roster: list = []
+    seen_ids: set = set()
+    for name, entry in get_children().items():
+        child = _validate_child(name, entry, seen_ids)
+        if child is not None:
+            seen_ids.add(child["id"])
+            roster.append(child)
+    return roster
 
 
 def get_name_aliases() -> dict:
@@ -68,10 +136,7 @@ def _empty_state() -> dict:
 def _state_path(override: Optional[str] = None) -> Path:
     if override:
         return Path(override)
-    env = os.environ.get("SCHOOL_STATE_PATH")
-    if env:
-        return Path(env)
-    return DEFAULT_STATE_PATH
+    return paths.state_path()
 
 
 def load(path: Optional[str] = None) -> dict:
@@ -86,6 +151,9 @@ def load(path: Optional[str] = None) -> dict:
 
 def save(state: dict, path: Optional[str] = None) -> Path:
     p = _state_path(path)
+    if maintenance.is_active():
+        logger.warning("Maintenance mode active; not saving state to %s", p)
+        return p
     p.parent.mkdir(parents=True, exist_ok=True)
     state["last_updated"] = datetime.now().isoformat()
     tmp = p.with_suffix(".tmp")
@@ -178,6 +246,8 @@ def complete_action_item(state: dict, action_id: str) -> bool:
 
 
 def prune_stale(state: dict) -> int:
+    if maintenance.is_active():
+        return 0
     now = datetime.now()
     pruned = 0
     kept = []
