@@ -188,3 +188,16 @@ def test_dashboard_empty_roster(dash_client):
     c = dash_client({"ixl": {}, "schoology": {}}, {"children": {}})
     body = c.get("/api/dashboard").get_json()
     assert body["children"] == []
+
+
+def test_dashboard_tolerates_non_dict_child_entries(dash_client):
+    c = dash_client({
+        "ixl": {"Ford": "error: login failed", "Penn": None,
+                "Jack": {"totals": {"math": {"remaining": 3, "assigned": 5, "done": 2}, "bad": "x"}}},
+        "schoology": {"Ford": ["oops"], "Penn": {"assignments": ["junk", {"title": "HW"}]}},
+    }, CONFIG)
+    resp = c.get("/api/dashboard")
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["ixl"]["Jack"] == [{"subject": "math", "remaining": 3, "assigned": 5, "done": 2}]
+    assert [a["title"] for a in body["schoology"]["Penn"]] == ["HW"]
