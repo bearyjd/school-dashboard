@@ -3,7 +3,6 @@ import logging
 import os
 import re
 import subprocess
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -154,7 +153,7 @@ def download_attachment(
     account: str, msg_id: str, attachment_id: str, out_dir: str, filename: str,
 ) -> Optional[str]:
     out_path = os.path.join(out_dir, filename)
-    result = _run_gog([
+    _run_gog([
         "gmail", "attachment", msg_id, attachment_id,
         "-a", account, "--out", out_dir, "--name", filename,
     ], timeout=60)

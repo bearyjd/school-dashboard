@@ -4,10 +4,8 @@ import re
 import sqlite3
 import subprocess
 import threading
-import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-import requests
 from flask import Flask, jsonify, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
@@ -573,7 +571,6 @@ def _run_sync_background(sources: str, digest: str) -> None:
     ixl_cron = os.environ.get("IXL_CRON", "")
     state_path = str(paths.state_path())
     db_path = str(paths.db_path())
-    facts_path = str(paths.facts_path())
     gc_path = str(paths.gc_path())
     ntfy_topic = os.environ.get("NTFY_TOPIC", "")
 
