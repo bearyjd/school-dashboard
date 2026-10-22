@@ -148,3 +148,19 @@ def test_init_db_creates_events_table_and_checklist_surfaces_test_event(tmp_stat
     jack = result["Jack"]
     test_items = [i for i in jack if i["type"] == "test"]
     assert "Science Test" in [i["label"] for i in test_items]
+
+
+def test_comma_joined_child_matches_membership(tmp_path):
+    state = {"schoology": {n: {"assignments": []} for n in ("Ford", "Jack", "Penn")}}
+    sp = tmp_path / "state.json"
+    sp.write_text(json.dumps(state))
+    dbp = tmp_path / "school.db"
+    conn = sqlite3.connect(str(dbp))
+    conn.execute("CREATE TABLE events (id INTEGER PRIMARY KEY, date TEXT, title TEXT, type TEXT, child TEXT)")
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    conn.execute("INSERT INTO events VALUES (1, ?, 'Shared Test', 'TEST', 'Ford, Jack')", (tomorrow,))
+    conn.commit()
+    conn.close()
+    result = get_checklist(str(sp), str(dbp))
+    has = {c: any(i["label"] == "Shared Test" for i in result.get(c, [])) for c in ("Ford", "Jack", "Penn")}
+    assert has == {"Ford": True, "Jack": True, "Penn": False}
