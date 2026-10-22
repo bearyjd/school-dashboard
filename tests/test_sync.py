@@ -231,3 +231,34 @@ def test_assetlinks_uses_env_package_name(client, monkeypatch):
     r = client.get("/.well-known/assetlinks.json")
     data = r.get_json()
     assert data[0]["target"]["package_name"] == "com.example.myapp"
+
+
+@patch("web.app.subprocess.run")
+def test_run_sync_background_survives_state_command_timeout(mock_sub, tmp_path, monkeypatch):
+    """A TimeoutExpired from `school-state update` is recorded as a clean failure."""
+    import subprocess
+
+    import web.app as app_module
+
+    monkeypatch.setenv("SCHOOL_SYNC_META_PATH", str(tmp_path / "meta.json"))
+    monkeypatch.setenv("SCHOOL_STATE_PATH", str(tmp_path / "state.json"))
+    monkeypatch.setenv("SCHOOL_DB_PATH", str(tmp_path / "db.db"))
+    monkeypatch.setenv("IXL_DIR", str(tmp_path / "ixl"))
+    monkeypatch.setenv("SGY_FILE", str(tmp_path / "sgy.json"))
+    monkeypatch.setenv("IXL_CRON", "")
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["school-state", "update"]:
+            raise subprocess.TimeoutExpired(cmd, 120)
+        return MagicMock(returncode=0, stdout="{}", stderr="")
+
+    mock_sub.side_effect = fake_run
+    assert app_module._sync_lock.acquire(blocking=False)
+    app_module._run_sync_background("ixl", "none")
+    assert app_module._sync_status["last_result"] == "error"
+    assert "school-state update" in app_module._sync_status["last_error"]
+    assert app_module._sync_status["running"] is False
+    state_calls = [c for c in mock_sub.call_args_list if c.args[0][0] == "school-state"]
+    assert [c.args[0][1] for c in state_calls] == ["update", "html"]  # html still ran after the timeout
+    assert all(c.kwargs.get("timeout") == 120 for c in state_calls)

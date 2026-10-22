@@ -551,6 +551,17 @@ def _sync_paused_for_maintenance() -> bool:
     return True
 
 
+STATE_COMMAND_TIMEOUT = 120  # must exceed statelock.LOCK_TIMEOUT (60 s)
+
+
+def _run_state_command(cmd: list, errors: list) -> None:
+    """Run a school-state command; a timeout is recorded as a sync error instead of aborting the sync."""
+    try:
+        subprocess.run(cmd, timeout=STATE_COMMAND_TIMEOUT, check=False)
+    except subprocess.TimeoutExpired:
+        errors.append(f"{' '.join(cmd[:2])}: timed out after {STATE_COMMAND_TIMEOUT}s")
+
+
 def _run_sync_background(sources: str, digest: str) -> None:
     """Run scrapers in a background thread, update state, optionally send digest."""
     global _sync_status
@@ -646,13 +657,10 @@ def _run_sync_background(sources: str, digest: str) -> None:
         if any(s in source_list for s in ("ixl", "sgy")):
             if _sync_paused_for_maintenance():
                 return
-            subprocess.run(
-                ["school-state", "update", "--ixl-dir", ixl_dir, "--sgy-file", sgy_file],
-                timeout=30, check=False,
-            )
+            _run_state_command(["school-state", "update", "--ixl-dir", ixl_dir, "--sgy-file", sgy_file], errors)
             if _sync_paused_for_maintenance():
                 return
-            subprocess.run(["school-state", "html"], timeout=30, check=False)
+            _run_state_command(["school-state", "html"], errors)
 
         # Digest
         if ntfy_topic and digest != "none":
