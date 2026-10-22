@@ -115,6 +115,9 @@ Approved school-calendar JSON files in `config/calendars/` are instead loaded wi
 replaces that calendar's rows (`source = calendar:<calendar_id>`) in the `events` table, and
 exits 3 under maintenance mode (`--dry-run` is read-only and always allowed). The app does no PDF parsing.
 
+`school-state schoology reset --sgy-file PATH [--archive-dir DIR] [--max-age-hours 24] [--allow-warnings] [--dry-run] [--json]` (`schoology_reset.py`) archives stale pending schoology action items and the old `schoology` section to `<state>/archive/schoology-<UTC>.json` (0600, verified before the state swap), then rebuilds both from that one fresh `sgy summary --json`. It requires maintenance mode ON and no sync in flight (exit 3 otherwise; `--dry-run` is read-only and always allowed), refuses a scrape that reports `warnings` unless `--allow-warnings`, exits 2 on a missing/stale/empty/malformed scrape or state, 1 on a failed write (state left unchanged), and is idempotent.
+Non-schoology items, completed items and all other state are left untouched.
+
 ## Architecture
 
 ```

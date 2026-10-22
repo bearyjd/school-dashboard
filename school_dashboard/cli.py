@@ -3,7 +3,7 @@ import json
 import os
 import sys
 
-from school_dashboard import maintenance, paths, school_calendar, transition
+from school_dashboard import maintenance, paths, school_calendar, schoology_reset, transition
 from school_dashboard import state
 from school_dashboard import html
 from school_dashboard import email
@@ -249,6 +249,7 @@ def main() -> None:
 
     transition.add_parser(subs)
     school_calendar.add_parser(subs)
+    schoology_reset.add_parser(subs)
 
     args = parser.parse_args()
     if not args.command:
