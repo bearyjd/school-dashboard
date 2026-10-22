@@ -19,13 +19,17 @@ ENVFILE="${SCHOOL_DASHBOARD_ENV:-/etc/school-dashboard/env}"
 # Cron does not inherit the Docker container ENV; re-export the defaults that
 # match the in-container volume layout so school-state writes/reads the
 # correct files.
-export SCHOOL_STATE_PATH="${SCHOOL_STATE_PATH:-/app/state/school-state.json}"
-export SCHOOL_DB_PATH="${SCHOOL_DB_PATH:-/app/state/school.db}"
-export SCHOOL_FACTS_PATH="${SCHOOL_FACTS_PATH:-/app/state/facts.json}"
-export SCHOOL_EMAIL_DIGEST="${SCHOOL_EMAIL_DIGEST:-/app/state/email-digest.json}"
-export SCHOOL_CALENDAR_PDF="${SCHOOL_CALENDAR_PDF:-/app/state/calendar.pdf}"
-export SCHOOL_DASHBOARD_HTML="${SCHOOL_DASHBOARD_HTML:-/app/state/school-dashboard.html}"
-export SCHOOL_GC_PATH="${SCHOOL_GC_PATH:-/app/state/gc-schedule.json}"
+# State dir mirrors school_dashboard/paths.py: SCHOOL_STATE_DIR, else the parent
+# of SCHOOL_STATE_PATH, else /app/state. Per-file SCHOOL_* overrides still win.
+STATE_DIR="${SCHOOL_STATE_DIR:-${SCHOOL_STATE_PATH:+$(dirname "$SCHOOL_STATE_PATH")}}"
+STATE_DIR="${STATE_DIR:-/app/state}"
+export SCHOOL_STATE_PATH="${SCHOOL_STATE_PATH:-$STATE_DIR/school-state.json}"
+export SCHOOL_DB_PATH="${SCHOOL_DB_PATH:-$STATE_DIR/school.db}"
+export SCHOOL_FACTS_PATH="${SCHOOL_FACTS_PATH:-$STATE_DIR/facts.json}"
+export SCHOOL_EMAIL_DIGEST="${SCHOOL_EMAIL_DIGEST:-$STATE_DIR/email-digest.json}"
+export SCHOOL_CALENDAR_PDF="${SCHOOL_CALENDAR_PDF:-$STATE_DIR/calendar.pdf}"
+export SCHOOL_DASHBOARD_HTML="${SCHOOL_DASHBOARD_HTML:-$STATE_DIR/school-dashboard.html}"
+export SCHOOL_GC_PATH="${SCHOOL_GC_PATH:-$STATE_DIR/gc-schedule.json}"
 
 IXL_CRON="${IXL_CRON:-}"
 IXL_DIR="${IXL_DIR:-/tmp/ixl}"
@@ -43,7 +47,7 @@ maintenance_skip() {
 
 # Per-process in-flight marker, written BEFORE the maintenance check so a backup
 # that sees no marker knows we have not yet passed the check. Removed on any exit.
-SYNC_MARKER="${SCHOOL_STATE_DIR:-$(dirname "$SCHOOL_STATE_PATH")}/sync.running.$$"
+SYNC_MARKER="$STATE_DIR/sync.running.$$"
 trap 'rm -f "$SYNC_MARKER"' EXIT
 { mkdir -p "$(dirname "$SYNC_MARKER")" && echo "$$" > "$SYNC_MARKER"; } 2>/dev/null \
     || log "ERROR: could not write sync marker $SYNC_MARKER — a concurrent backup will not wait for this sync"
@@ -80,7 +84,7 @@ elif command -v ixl &>/dev/null; then
             [[ -z "$child_name" || "$child_name" == \#* ]] && continue
             slug="${child_name,,}"
             if IXL_EMAIL="$child_email" IXL_PASSWORD="$child_password" \
-                ixl assigned --json > "$IXL_DIR/${slug}-assigned.json" 2>>"/app/state/school-sync.log"; then
+                ixl assigned --json > "$IXL_DIR/${slug}-assigned.json" 2>>"$STATE_DIR/school-sync.log"; then
                 ixl_files=$((ixl_files + 1))
             else
                 log "WARN: IXL scrape failed for $child_name"
@@ -88,7 +92,7 @@ elif command -v ixl &>/dev/null; then
         done < "$accounts_env"
     elif [[ -n "${IXL_EMAIL:-}" && -n "${IXL_PASSWORD:-}" ]]; then
         slug="$(echo "${IXL_EMAIL%@*}" | tr 'A-Z' 'a-z' | cut -d. -f1)"
-        if ixl assigned --json > "$IXL_DIR/${slug:-student}-assigned.json" 2>>"/app/state/school-sync.log"; then
+        if ixl assigned --json > "$IXL_DIR/${slug:-student}-assigned.json" 2>>"$STATE_DIR/school-sync.log"; then
             ixl_files=1
         fi
     fi
@@ -159,18 +163,18 @@ fi
 # --- Step 5: Email intel (LLM extraction → school.db + facts.json) ---
 # The school_dashboard.intel module was removed; skip cleanly until restored.
 if python3 -c "import school_dashboard.intel" >/dev/null 2>&1; then
-    if [[ -n "${LITELLM_URL:-}" && -f "${SCHOOL_EMAIL_DIGEST:-/app/state/email-digest.json}" ]]; then
+    if [[ -n "${LITELLM_URL:-}" && -f "$SCHOOL_EMAIL_DIGEST" ]]; then
         log "Running email intel extraction..."
         python3 -c "
 import os, json, sys
 from school_dashboard.intel import process_digest
-digest_path = os.environ.get('SCHOOL_EMAIL_DIGEST', '/app/state/email-digest.json')
+digest_path = os.environ['SCHOOL_EMAIL_DIGEST']
 with open(digest_path) as f:
     digest = json.load(f)
 count = process_digest(
     digest=digest,
-    db_path=os.environ.get('SCHOOL_DB_PATH', '/app/state/school.db'),
-    facts_path=os.environ.get('SCHOOL_FACTS_PATH', '/app/state/facts.json'),
+    db_path=os.environ['SCHOOL_DB_PATH'],
+    facts_path=os.environ['SCHOOL_FACTS_PATH'],
     litellm_url=os.environ.get('LITELLM_URL', ''),
     api_key=os.environ.get('LITELLM_API_KEY', ''),
     model=os.environ.get('LITELLM_MODEL', 'claude-sonnet'),
