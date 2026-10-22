@@ -33,6 +33,14 @@ EXIT_MAINTENANCE = 3  # same code cli.py uses for blocked write commands
 class CalendarError(Exception):
     """The calendar file is unreadable or invalid; nothing was written."""
 
+    code = EXIT_USAGE
+
+
+class ImportConflictError(CalendarError):
+    """The file is valid but clashes with existing rows; nothing was written."""
+
+    code = 1
+
 
 def _short(value) -> str:
     text = repr(value)
@@ -100,25 +108,24 @@ def _event_errors(i: int, ev, roster: set) -> list[str]:
     return errs
 
 
-def _duplicates(events: list) -> tuple[list[str], list[str]]:
-    """(errors for identical duplicate rows, warnings for same date+title that differ)."""
-    seen: dict[tuple, dict] = {}
-    errs, warns = [], []
+def _duplicates(events: list) -> list[str]:
+    """Errors for repeated (date, title): the events table has a UNIQUE index on them."""
+    seen: dict[tuple, int] = {}
+    errs = []
     for i, ev in enumerate(events):
+        if not ev["relevant_to"]:
+            continue  # skipped events are never inserted, so they cannot collide
         key = (ev["date"], ev["title"].strip())
-        sig = (ev["kind"], tuple(sorted(ev["relevant_to"])))
-        if key not in seen:
-            seen[key] = {"sig": {sig}, "first": i}
-        elif sig in seen[key]["sig"]:
-            errs.append(f"events[{i}]: duplicate of events[{seen[key]['first']}] {key}")
+        if key in seen:
+            errs.append(f"events[{i}]: duplicate date+title of events[{seen[key]}] "
+                        f"(date {key[0]}, title {_short(key[1])})")
         else:
-            seen[key]["sig"].add(sig)
-            warns.append(f"events[{i}]: same date and title as events[{seen[key]['first']}] but different details {key}")
-    return errs, warns
+            seen[key] = i
+    return errs
 
 
 def validate(data: dict) -> list[str]:
-    """Raise CalendarError listing every problem; return warnings when valid."""
+    """Raise CalendarError listing every problem; return warnings (none today) when valid."""
     errs = [f"missing required key: {k}" for k in REQUIRED_KEYS if k not in data]
     if not errs:
         if not (isinstance(data["calendar_id"], str) and _ID_RE.fullmatch(data["calendar_id"])):
@@ -131,23 +138,25 @@ def validate(data: dict) -> list[str]:
             errs.append(f"roster_grades has invalid names: {_short(bad_names)}")
         if not isinstance(data["events"], list) or not data["events"]:
             errs.append("events must be a non-empty list")
-    warns: list[str] = []
     if not errs:
         for i, ev in enumerate(data["events"]):
             errs.extend(_event_errors(i, ev, set(data["roster_grades"])))
         if not errs:
-            dup_errs, warns = _duplicates(data["events"])
-            errs.extend(dup_errs)
+            errs.extend(_duplicates(data["events"]))
     if errs:
         shown = errs[:MAX_ERRORS]
         extra = len(errs) - len(shown)
         tail = [f"... and {extra} more"] if extra else []
         raise CalendarError("invalid calendar: " + "; ".join(shown + tail))
-    return warns
+    return []
 
 
 def build_rows(data: dict) -> tuple[list[tuple], int]:
-    """Map validated events to (date, title, type, child, source) rows; also the skipped count."""
+    """Map validated events to one (date, title, type, child, source) row each; also the skipped count.
+
+    child is None for the whole roster, else the names joined with ", " (one row per event
+    because the events table has a UNIQUE index on (date, title)).
+    """
     source = f"calendar:{data['calendar_id']}"
     roster = set(data["roster_grades"])
     rows: list[tuple] = []
@@ -158,10 +167,9 @@ def build_rows(data: dict) -> tuple[list[tuple], int]:
         title = ev["title"].strip()
         if not rel:
             skipped += 1
-        elif set(rel) == roster:
-            rows.append((ev["date"], title, etype, None, source))
         else:
-            rows.extend((ev["date"], title, etype, child, source) for child in dict.fromkeys(rel))
+            child = None if set(rel) == roster else ", ".join(dict.fromkeys(rel))
+            rows.append((ev["date"], title, etype, child, source))
     return rows, skipped
 
 
@@ -170,15 +178,22 @@ def _insert_rows(conn: sqlite3.Connection, rows: list[tuple]) -> None:
         "INSERT INTO events (date, title, type, child, source) VALUES (?, ?, ?, ?, ?)", rows)
 
 
-def _count_existing(db_file: Path, source: str) -> int:
-    """Read-only count of rows that a replace would delete (0 if DB or table is absent)."""
+def _preview_existing(db_file: Path, source: str, rows: list[tuple]) -> int:
+    """Read-only: rows a replace would delete; raises ImportConflictError on a predicted collision.
+
+    Returns 0 if the DB or table is absent or unreadable.
+    """
     if not db_file.exists():
         return 0
     try:
         with closing(sqlite3.connect(f"{db_file.resolve().as_uri()}?mode=ro", uri=True)) as conn:
-            return conn.execute("SELECT COUNT(*) FROM events WHERE source = ?", (source,)).fetchone()[0]
+            count = conn.execute("SELECT COUNT(*) FROM events WHERE source = ?", (source,)).fetchone()[0]
+            msg = _find_conflict(conn, source, rows)
     except sqlite3.DatabaseError:
         return 0
+    if msg:
+        raise ImportConflictError(msg)
+    return count
 
 
 def _replace(db_file: Path, source: str, rows: list[tuple]) -> int:
@@ -186,8 +201,28 @@ def _replace(db_file: Path, source: str, rows: list[tuple]) -> int:
     with closing(sqlite3.connect(str(db_file))) as conn:
         with conn:  # one transaction: commit on success, rollback on error
             deleted = conn.execute("DELETE FROM events WHERE source = ?", (source,)).rowcount
-            _insert_rows(conn, rows)
+            try:
+                _insert_rows(conn, rows)
+            except sqlite3.IntegrityError as exc:
+                raise _conflict_error(conn, source, rows, exc) from exc
     return deleted
+
+
+def _find_conflict(conn: sqlite3.Connection, source: str, rows: list[tuple]) -> str | None:
+    """Message for the first row colliding on (date, title) with a row from another source."""
+    for d, title, *_ in rows:
+        hit = conn.execute("SELECT source FROM events WHERE date = ? AND title = ? AND source != ?",
+                           (d, title, source)).fetchone()
+        if hit:
+            return (f"cannot import: {d} {_short(title)} already exists from source {hit[0]!r}; "
+                    "nothing was imported")
+    return None
+
+
+def _conflict_error(conn: sqlite3.Connection, source: str, rows: list[tuple],
+                    exc: sqlite3.IntegrityError) -> ImportConflictError:
+    msg = _find_conflict(conn, source, rows)
+    return ImportConflictError(msg or f"cannot import: constraint failed ({exc}); nothing was imported")
 
 
 def _report(data: dict, rows: list[tuple], skipped: int, deleted: int,
@@ -213,7 +248,7 @@ def import_calendar(path, db_file, dry_run: bool) -> dict:
     rows, skipped = build_rows(data)
     db_file = Path(db_file)
     source = f"calendar:{data['calendar_id']}"
-    deleted = _count_existing(db_file, source) if dry_run else _replace(db_file, source, rows)
+    deleted = _preview_existing(db_file, source, rows) if dry_run else _replace(db_file, source, rows)
     return _report(data, rows, skipped, deleted, warnings, dry_run)
 
 
@@ -258,7 +293,7 @@ def cmd_calendar(args: argparse.Namespace) -> None:
         report = import_calendar(args.file, paths.db_path(), args.dry_run)
     except CalendarError as exc:
         print(f"Error: {exc}", file=sys.stderr)
-        sys.exit(EXIT_USAGE)
+        sys.exit(exc.code)
     except sqlite3.Error as exc:
         print(f"Error: database problem, nothing imported: {exc}", file=sys.stderr)
         sys.exit(1)

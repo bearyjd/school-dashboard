@@ -92,7 +92,7 @@ def get_checklist(
 
         # Tests / quizzes from DB
         for ev in test_events:
-            if ev["child"] and ev["child"] != child:
+            if ev["child"] and child not in {c.strip() for c in ev["child"].split(",")}:
                 continue
             try:
                 event_date = date.fromisoformat(ev["date"])

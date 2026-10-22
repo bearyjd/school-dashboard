@@ -55,21 +55,25 @@ def _query_db_events(db_path: str, target_date: str) -> list[dict]:
 def _collapse_events(rows: list[dict]) -> list[dict]:
     """Merge rows sharing (title, type) so per-child calendar rows read as one line.
 
-    Keeps first-seen order. Child names are joined with ", "; if any merged row has
-    a blank/NULL child ("everyone"), the merged child stays empty.
+    Keeps first-seen order. Child values may already be ", "-joined; names are split,
+    de-duplicated and re-joined. If any merged row has a blank/NULL child ("everyone"),
+    the merged child stays empty.
     """
     merged: dict[tuple, dict] = {}
     for r in rows:
         key = (r["title"], r["type"])
-        child = r.get("child") or ""
+        names = [n.strip() for n in (r.get("child") or "").split(",") if n.strip()]
         prev = merged.get(key)
         if prev is None:
-            merged[key] = {**r, "child": child, "_all": not child}
-        elif prev["_all"] or not child:
-            merged[key] = {**prev, "child": "", "_all": True}
-        elif child not in prev["child"].split(", "):
-            merged[key] = {**prev, "child": f"{prev['child']}, {child}"}
-    return [{k: v for k, v in m.items() if k != "_all"} for m in merged.values()]
+            merged[key] = {**r, "_names": list(dict.fromkeys(names)), "_all": not names}
+        elif prev["_all"] or not names:
+            merged[key] = {**prev, "_names": [], "_all": True}
+        else:
+            merged[key] = {**prev, "_names": list(dict.fromkeys([*prev["_names"], *names]))}
+    return [
+        {**{k: v for k, v in m.items() if k not in ("_names", "_all")}, "child": ", ".join(m["_names"])}
+        for m in merged.values()
+    ]
 
 
 def _call_litellm(prompt: str, litellm_url: str, api_key: str, model: str) -> str:

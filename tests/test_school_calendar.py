@@ -162,6 +162,19 @@ def test_non_object_and_bad_json(tmp_path):
         school_calendar.load_file(tmp_path / "missing.json")
 
 
+def test_single_child_and_deduped_names():
+    rows, _ = school_calendar.build_rows(_cal(events=[
+        _ev(title="One", rel=("Penn",)),
+        _ev(title="Dup", rel=("Jack", "Ford", "Jack")),
+    ]))
+    assert [r[3] for r in rows] == ["Penn", "Jack, Ford"]
+
+
+def test_same_date_title_different_details_is_error():
+    with pytest.raises(school_calendar.CalendarError, match="2026-09-01.*T"):
+        school_calendar.validate(_cal(events=[_ev(), _ev(kind="mass", rel=("Ford",))]))
+
+
 def test_same_title_different_dates_ok():
     school_calendar.validate(_cal(events=[_ev(date="2026-09-01"), _ev(date="2026-09-02")]))
 
@@ -179,11 +192,10 @@ def test_mapping(state_env, tmp_path):
     rows = _rows(db_file)
     assert rows == [
         ("2026-09-01", "All", "NO_SCHOOL", None, "calendar:test-cal"),
-        ("2026-09-01", "Two", "HALF_DAY", "Ford", "calendar:test-cal"),
-        ("2026-09-01", "Two", "HALF_DAY", "Jack", "calendar:test-cal"),
+        ("2026-09-01", "Two", "HALF_DAY", "Ford, Jack", "calendar:test-cal"),
     ]
-    assert rep["inserted"] == 3 and rep["skipped"] == 1 and rep["deleted"] == 0
-    assert rep["by_type"] == {"NO_SCHOOL": 1, "HALF_DAY": 2}
+    assert rep["inserted"] == 2 and rep["skipped"] == 1 and rep["deleted"] == 0
+    assert rep["by_type"] == {"NO_SCHOOL": 1, "HALF_DAY": 1}
     assert rep["date_range"] == ["2026-09-01", "2026-09-01"]
 
 
@@ -220,6 +232,72 @@ def test_failed_insert_rolls_back(state_env, tmp_path, monkeypatch):
     with pytest.raises(sqlite3.OperationalError):
         school_calendar.import_calendar(f2, db_file, dry_run=False)
     assert _rows(db_file) == before
+
+
+PROD_DDL = """
+CREATE TABLE events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, title TEXT NOT NULL,
+    type TEXT NOT NULL, child TEXT, source TEXT NOT NULL DEFAULT 'manual',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')), notes TEXT);
+CREATE UNIQUE INDEX idx_events_dedup ON events(date, title);
+"""
+
+
+def _prod_db(db_file, seed=()):
+    conn = sqlite3.connect(db_file)
+    conn.executescript(PROD_DDL)
+    for d, t, src in seed:
+        conn.execute("INSERT INTO events (date,title,type,source) VALUES (?,?,'EVENT',?)", (d, t, src))
+    conn.commit()
+    conn.close()
+
+
+def test_collision_with_other_source_names_row_and_writes_nothing(state_env, tmp_path):
+    db_file = state_env / "school.db"
+    _prod_db(db_file, [("2026-09-01", "Clash", "calendar_pdf")])
+    f = _write(tmp_path, _cal(events=[_ev(title="Ok"), _ev(title="Clash")]))
+    with pytest.raises(school_calendar.CalendarError, match="2026-09-01.*Clash"):
+        school_calendar.import_calendar(f, db_file, dry_run=False)
+    assert [r[1] for r in _rows(db_file)] == ["Clash"]
+    r = _run(state_env, "calendar", "import", str(f))
+    assert r.returncode == 1 and "Clash" in r.stderr and "Traceback" not in r.stderr
+
+
+@pytest.mark.skipif(not REAL_FILE.exists(), reason="config/calendars/st-mark-2026-27.json not present")
+def test_real_file_against_production_like_table(state_env):
+    data = json.loads(REAL_FILE.read_text())
+    expected = sum(1 for e in data["events"] if e["relevant_to"])
+    db_file = state_env / "school.db"
+    _prod_db(db_file, [("2000-01-01", "Other", "email")])
+    rep = school_calendar.import_calendar(REAL_FILE, db_file, dry_run=False)
+    assert rep["inserted"] == expected
+    assert len(_rows(db_file)) == expected + 1
+    school_calendar.import_calendar(REAL_FILE, db_file, dry_run=False)
+    assert len(_rows(db_file)) == expected + 1
+
+
+def test_dry_run_predicts_collision_like_real_import(state_env, tmp_path):
+    db_file = state_env / "school.db"
+    _prod_db(db_file, [("2026-09-01", "Clash", "calendar_pdf")])
+    h = _sha(db_file)
+    f = _write(tmp_path, _cal(events=[_ev(title="Ok"), _ev(title="Clash")]))
+    dry = _run(state_env, "calendar", "import", str(f), "--dry-run")
+    assert _sha(db_file) == h  # dry-run left the DB untouched
+    real = _run(state_env, "calendar", "import", str(f))
+    assert dry.returncode == real.returncode == 1
+    assert dry.stderr == real.stderr and "Clash" in dry.stderr
+
+
+def test_dry_run_collision_ignores_own_source_and_skipped(state_env, tmp_path):
+    db_file = state_env / "school.db"
+    f = _write(tmp_path, _cal(events=[_ev(title="A")]))
+    _prod_db(db_file)
+    school_calendar.import_calendar(f, db_file, dry_run=False)
+    assert school_calendar.import_calendar(f, db_file, dry_run=True)["inserted"] == 1
+
+
+def test_skipped_events_may_share_date_title():
+    school_calendar.validate(_cal(events=[_ev(rel=()), _ev(rel=()), _ev(title="Other")]))
 
 
 # --- dry-run ---
@@ -306,13 +384,12 @@ def test_cli_missing_subcommand_exit_2(state_env):
 def test_real_calendar_file(state_env):
     data = json.loads(REAL_FILE.read_text())
     assert len(data["events"]) > 0
-    n = len(data["roster_grades"])
     by_len = {}
     for e in data["events"]:
         by_len[len(e["relevant_to"])] = by_len.get(len(e["relevant_to"]), 0) + 1
-    # empty -> skipped; full roster -> 1 row; any other size k -> k rows
+    # empty -> skipped; every other event -> exactly one row
     exp_skip = by_len.get(0, 0)
-    exp_rows = sum(c * (1 if k == n else k) for k, c in by_len.items() if k)
+    exp_rows = sum(c for k, c in by_len.items() if k)
     db_file = state_env / "school.db"
     rep = school_calendar.import_calendar(REAL_FILE, db_file, dry_run=False)
     assert rep["skipped"] == exp_skip and rep["inserted"] == exp_rows
@@ -338,6 +415,33 @@ def test_digest_collapses_identical_title_type(tmp_path):
     assert [(e["title"], e["type"]) for e in out] == [("Field Trip", "EVENT"), ("Mass", "MASS")]
     # a NULL-child row means "everyone": the merged child stays empty
     assert not out[0]["child"]
+
+
+def test_digest_keeps_joined_child_values(tmp_path):
+    p = tmp_path / "s.db"
+    db.init_events_table(str(p))
+    conn = sqlite3.connect(p)
+    conn.execute("INSERT INTO events (date,title,type,child) VALUES "
+                 "('2026-09-01','Trip','EVENT','Ford, Penn')")
+    conn.execute("INSERT INTO events (date,title,type,child) VALUES "
+                 "('2026-09-01','Trip','EVENT','Jack')")
+    conn.commit()
+    conn.close()
+    out = _query_db_events(str(p), "2026-09-01")
+    assert len(out) == 1 and out[0]["child"] == "Ford, Penn, Jack"
+
+
+def test_digest_dedupes_names_inside_joined_values(tmp_path):
+    p = tmp_path / "s.db"
+    db.init_events_table(str(p))
+    conn = sqlite3.connect(p)
+    for i, child in enumerate(("Ford", "Ford, Jack")):
+        conn.execute("INSERT INTO events (date,title,type,child) VALUES "
+                     "('2026-09-01',?,'EVENT',?)", ("Trip", child))
+    conn.commit()
+    conn.close()
+    out = _query_db_events(str(p), "2026-09-01")
+    assert len(out) == 1 and out[0]["child"] == "Ford, Jack"
 
 
 def test_digest_joins_children_when_all_named(tmp_path):
