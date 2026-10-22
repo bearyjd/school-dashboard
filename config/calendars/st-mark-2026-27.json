@@ -1,0 +1,2439 @@
+{
+ "calendar_id": "st-mark-2026-27",
+ "school": "ST. MARK Catholic School",
+ "school_year": "2026-27",
+ "source": "2026-2027 Parent Planning Calendar.pdf (school-published; 'Events subject to change')",
+ "approved_by_family": "2026-10-23",
+ "roster_grades": {
+  "Ford": "3rd",
+  "Penn": "6th",
+  "Jack": "8th"
+ },
+ "events": [
+  {
+   "date": "2026-08-01",
+   "title": "Used Uniform Sale in the CAC",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-08-03",
+   "title": "Gym n’ Java for Preschool - Grade 1",
+   "kind": "event",
+   "relevant_to": []
+  },
+  {
+   "date": "2026-08-18",
+   "title": "New Family Parent Orientation at 3:00 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-08-19",
+   "title": "Welcome Back Day for All K-8 Families at 10:45 am",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-08-20",
+   "title": "OPENING MASS",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-08-20",
+   "title": "Half Day 1st Day of School for K-8 Students",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-08-21",
+   "title": "Full Day of School for K-8 Students",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-08-21",
+   "title": "Preschool Sneak Peek 8:45-9:30 am",
+   "kind": "event",
+   "relevant_to": []
+  },
+  {
+   "date": "2026-08-24",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-08-24",
+   "title": "Extended Daycare Begins",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-08-24",
+   "title": "Preschool Begins (Preschool Parent Coffee) 12:00 Dismissal for Preschool Only",
+   "kind": "event",
+   "relevant_to": []
+  },
+  {
+   "date": "2026-08-25",
+   "title": "12:00 Dismissal for Preschool Only",
+   "kind": "event",
+   "relevant_to": []
+  },
+  {
+   "date": "2026-08-26",
+   "title": "12:00 Dismissal for Preschool Only",
+   "kind": "event",
+   "relevant_to": []
+  },
+  {
+   "date": "2026-08-27",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-08-27",
+   "title": "12:00 Dismissal for Preschool Only",
+   "kind": "event",
+   "relevant_to": []
+  },
+  {
+   "date": "2026-08-28",
+   "title": "12:00 Dismissal for Preschool Only",
+   "kind": "event",
+   "relevant_to": []
+  },
+  {
+   "date": "2026-08-28",
+   "title": "Individual Student Photos",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-08-31",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-08-31",
+   "title": "Full Day of Preschool Begins",
+   "kind": "event",
+   "relevant_to": []
+  },
+  {
+   "date": "2026-09-01",
+   "title": "Chickfila Begins",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-02",
+   "title": "Back to School Night, Grades 5-8 7:00 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-03",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-03",
+   "title": "Back to School Night, Grades K-4 7:00 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Ford"
+   ]
+  },
+  {
+   "date": "2026-09-04",
+   "title": "Half Day - NO PM EDC",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-06",
+   "title": "MAP Growth Testing Week",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-07",
+   "title": "NO SCHOOL Labor Day",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-10",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-10",
+   "title": "8:30 am Virtue Assembly",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-13",
+   "title": "MAP Growth Testing Week",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-14",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-14",
+   "title": "Spirit Wear Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-17",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-17",
+   "title": "8th Grade Parent Mtg 7:00 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-20",
+   "title": "MAP Growth Testing Week",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-20",
+   "title": "Fall Festival after 11:00 am Mass",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-21",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-24",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-24",
+   "title": "8th Grade Parent/Student Confirmation Kickoff Mtg 7:00 pm in CAC",
+   "kind": "event",
+   "relevant_to": [
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-25",
+   "title": "Half Day",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-28",
+   "title": "NO SCHOOL Professional Development Day",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-29",
+   "title": "Design for Excellence Team visits SMCS",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-09-30",
+   "title": "Design for Excellence Team visits SMCS",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-01",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-01",
+   "title": "Design for Excellence Team visits SMCS",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-02",
+   "title": "Half Day - NO PM EDC",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-02",
+   "title": "Design for Excellence Team visits SMCS",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-05",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-05",
+   "title": "Spirit Wear Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-07",
+   "title": "Interim Reports go home today",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-07",
+   "title": "Student Make-Up Picture Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-08",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-08",
+   "title": "8:30 am Virtue Assembly",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-12",
+   "title": "NO SCHOOL Columbus Day",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-14",
+   "title": "PTPO General Meeting",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-15",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-19",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-22",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-23",
+   "title": "Half Day",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-23",
+   "title": "Trunk or Treat",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-26",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-29",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-10-31",
+   "title": "Halloween",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-01",
+   "title": "Daylight Savings Ends",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-01",
+   "title": "All Saints Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-02",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-02",
+   "title": "Spirit Wear Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-05",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-06",
+   "title": "Girls Confirmation Retreat",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-07",
+   "title": "Girls Confirmation Retreat",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-08",
+   "title": "Girls Confirmation Retreat",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-08",
+   "title": "1st Penance Parent/Child Workshops 2:00 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-09",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-10",
+   "title": "PTPO Used Uniform Sale 10:00-11:30 in the CAC",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-10",
+   "title": "Half Day Parent/Teacher Conferences",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-11",
+   "title": "NO SCHOOL",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-11",
+   "title": "Veterans Day and Parent/Teacher Conferences",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-12",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-12",
+   "title": "8:30 am Virtue Assembly",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "title": "Boys Confirmation Retreat",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-14",
+   "title": "Boys Confirmation Retreat",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-15",
+   "title": "Boys Confirmation Retreat",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-15",
+   "title": "Discover Catholic Schools Nov. 15-21",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-15",
+   "title": "SMCS Donut Sunday",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-15",
+   "title": "1st Penance Parent/Child Workshops 2:00 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-16",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-19",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-23",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-24",
+   "title": "1st Trimester Ends",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-25",
+   "title": "NO SCHOOL",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-26",
+   "title": "NO SCHOOL",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-26",
+   "title": "Thanksgiving Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-27",
+   "title": "NO SCHOOL",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-29",
+   "title": "1st Sunday of Advent",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-11-30",
+   "title": "NO SCHOOL Teacher Workday",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-01",
+   "title": "School Resumes",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-03",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-03",
+   "title": "8th Grade High School Placement Exam",
+   "kind": "event",
+   "relevant_to": [
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-04",
+   "title": "No School for 8th Grade Students",
+   "kind": "no_school",
+   "relevant_to": [
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-05",
+   "title": "1st Penance Service at 11:00 am",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-06",
+   "title": "2nd Sunday of Advent",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-07",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-07",
+   "title": "Spirit Wear Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-08",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-08",
+   "title": "Feast of the Immaculate Conception",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-10",
+   "title": "NO MASS",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-10",
+   "title": "8:30 am Virtue Assembly",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-13",
+   "title": "3rd Sunday of Advent",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-14",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-17",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-17",
+   "title": "Re-Registration info to families",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-18",
+   "title": "Half Day - NO PM EDC",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-18",
+   "title": "Christmas Program at 10:30 am",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-20",
+   "title": "4th Sunday of Advent",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-21",
+   "title": "NO SCHOOL",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-22",
+   "title": "NO SCHOOL",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-23",
+   "title": "NO SCHOOL",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-24",
+   "title": "NO SCHOOL Christmas Eve",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-25",
+   "title": "NO SCHOOL Christmas Day",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-28",
+   "title": "NO SCHOOL",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-29",
+   "title": "NO SCHOOL",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-30",
+   "title": "NO SCHOOL",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2026-12-31",
+   "title": "NO SCHOOL New Year’s Eve",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-01",
+   "title": "NO SCHOOL Solemnity of Mary, the Holy Mother of God",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-03",
+   "title": "Epiphany",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-03",
+   "title": "MAP Growth Testing Week",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-04",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-04",
+   "title": "School Resumes",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-04",
+   "title": "Spirit Wear Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-07",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-08",
+   "title": "Half Day - NO PM EDC",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-10",
+   "title": "MAP Growth Testing Week",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-11",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-14",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-14",
+   "title": "8:30 am Virtue Assembly",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-15",
+   "title": "Re-Registration is complete. Notice of Non-Return due by the end of day.",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-17",
+   "title": "MAP Growth Testing Week",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-18",
+   "title": "NO SCHOOL Martin Luther King Jr. Day",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-20",
+   "title": "Interim Reports go home today",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-21",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-25",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-28",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-31",
+   "title": "PTPO Donut Sunday",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-31",
+   "title": "Catholic Schools Week January 31 - Feb 5",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-01-31",
+   "title": "Open House 12:00 - 1:30 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-01",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-01",
+   "title": "Spirit Wear Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-02",
+   "title": "Science Fair",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-03",
+   "title": "Science Fair (Rain Date)",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-04",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-05",
+   "title": "8th Grade/Parent Basketball Game 1:30 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-06",
+   "title": "St. Mark Gala at Westwood Country Club",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-08",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-09",
+   "title": "Mardi Gras Donuts provided by PTPO",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-10",
+   "title": "Ash Wednesday",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-11",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-11",
+   "title": "8:30 am Virtue Assembly",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-12",
+   "title": "Half Day",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-14",
+   "title": "Valentine’s Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-15",
+   "title": "NO SCHOOL Presidents’ Day",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-17",
+   "title": "PTPO General Meeting",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-18",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-22",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-02-25",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-01",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-01",
+   "title": "Spirit Wear Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-04",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-05",
+   "title": "Timester 2 Ends",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-08",
+   "title": "NO SCHOOL Teacher Workday",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-11",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-11",
+   "title": "8:30 am Virtue Assembly",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-11",
+   "title": "All-School Birthday Celebration Pizza provided by PTPO",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-13",
+   "title": "Job Fair",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-15",
+   "title": "NO SCHOOL Professional Development Day",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-17",
+   "title": "St. Patrick’s Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-18",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-19",
+   "title": "Feast of St. Joseph",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-21",
+   "title": "PALM SUNDAY",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-21",
+   "title": "World Down Syndrome Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-22",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-25",
+   "title": "NO MASS",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-25",
+   "title": "Half Day - NO PM EDC",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-25",
+   "title": "Holy Thursday",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-26",
+   "title": "NO SCHOOL Good Friday",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-27",
+   "title": "Holy Saturday",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-28",
+   "title": "EASTER",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-29",
+   "title": "NO SCHOOL Easter Break",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-30",
+   "title": "NO SCHOOL Easter Break",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-03-31",
+   "title": "NO SCHOOL Easter Break",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-01",
+   "title": "NO SCHOOL Easter Break",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-02",
+   "title": "NO SCHOOL Easter Break",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-02",
+   "title": "National Autism Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-05",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-05",
+   "title": "School Resumes",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-05",
+   "title": "Spirit Wear Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-08",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-08",
+   "title": "8:30 am Virtue Assembly",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-11",
+   "title": "1st Communion Parent/Child Workshop at 2:00 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-12",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-12",
+   "title": "7th Grade Parent Confirmation Mtg at 7:00 pm",
+   "kind": "event",
+   "relevant_to": []
+  },
+  {
+   "date": "2027-04-13",
+   "title": "7th Grade Parent Confirmation Mtg at 7:00 pm",
+   "kind": "event",
+   "relevant_to": []
+  },
+  {
+   "date": "2027-04-15",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-16",
+   "title": "Last day for Parents to let SMCS know if not returning",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-19",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-21",
+   "title": "ACRE Testing for Students in Grades 5 & 8",
+   "kind": "event",
+   "relevant_to": [
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-21",
+   "title": "8th Grade (Only) Interim Reports Go Home",
+   "kind": "event",
+   "relevant_to": [
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-22",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-22",
+   "title": "ACRE Testing Make Up",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-25",
+   "title": "1st Communion Parent/Child Workshop at 2:00 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-26",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-28",
+   "title": "8th Grade Vocations Mass",
+   "kind": "event",
+   "relevant_to": [
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-04-28",
+   "title": "K-7 Grades (Only) Interim Reports Go Home",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn"
+   ]
+  },
+  {
+   "date": "2027-04-29",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-02",
+   "title": "MAP Growth Testing Week",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-03",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-03",
+   "title": "Spirit Wear Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-04",
+   "title": "Communion Rehearsal in CAC at 5:00 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-05",
+   "title": "World Language Exam",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-06",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-08",
+   "title": "First Communion Mass at 11:00 am",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-09",
+   "title": "Mother’s Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-09",
+   "title": "MAP Growth Testing Week",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-10",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-10",
+   "title": "Confirmation Rehearsal at 6:00 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-11",
+   "title": "Algebra/Geometry Exam",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-11",
+   "title": "Confirmation at 6:00 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-12",
+   "title": "Algebra/Geometry Exam Makeup",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-12",
+   "title": "Battle of the Books",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-13",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-14",
+   "title": "Spring Program",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-14",
+   "title": "Half Day",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-16",
+   "title": "MAP Growth Testing Week",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-17",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-20",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-24",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-26",
+   "title": "Night at the Museum",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-27",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-28",
+   "title": "Field Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-28",
+   "title": "Half Day - NO PM EDC",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-05-31",
+   "title": "NO SCHOOL Memorial Day",
+   "kind": "no_school",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-06-03",
+   "title": "MASS",
+   "kind": "mass",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-06-03",
+   "title": "8th Grade Clap Out",
+   "kind": "event",
+   "relevant_to": [
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-06-04",
+   "title": "Half Day for PS-Grade 6",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn"
+   ]
+  },
+  {
+   "date": "2027-06-04",
+   "title": "8th Grade Graduation at 1:30 pm",
+   "kind": "event",
+   "relevant_to": [
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-06-07",
+   "title": "Early Release",
+   "kind": "early_release",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-06-07",
+   "title": "Spirit Wear Day",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-06-08",
+   "title": "Half Day",
+   "kind": "half_day",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-06-08",
+   "title": "Last day of School (with 0 inclement weather days)",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-06-10",
+   "title": "Dave & Busters Family Event (Tentative)",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  },
+  {
+   "date": "2027-06-11",
+   "title": "Last day if 3 inclement weather days were used.",
+   "kind": "event",
+   "relevant_to": [
+    "Ford",
+    "Penn",
+    "Jack"
+   ]
+  }
+ ]
+}
