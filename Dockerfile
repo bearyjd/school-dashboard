@@ -6,7 +6,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cron \
     wget \
     ca-certificates \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+# cron reads /etc/localtime, not the TZ env var: without this the schedules in
+# docker/crontab fire in UTC (digests 4-5h early) even though TZ=America/New_York.
+RUN ln -sf /usr/share/zoneinfo/America/New_York /etc/localtime \
+    && echo "America/New_York" > /etc/timezone
 
 # Install gog CLI (Google Workspace CLI)
 ARG GOG_VERSION=0.12.0
