@@ -9,7 +9,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
-from school_dashboard.state import get_name_aliases, get_roster
+from school_dashboard.state import canonical_name, get_roster
 from school_dashboard import maintenance, paths
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta
 
@@ -373,22 +373,8 @@ _MONTHS = {
     "September": 9, "October": 10, "November": 11, "December": 12,
 }
 
-# Built-in default alias, used only when the roster config (`name_aliases`,
-# lowercase keys; see school_dashboard.state.get_name_aliases) does not map the
-# name. Config entries take precedence.
-_DEFAULT_CHILD_ALIASES: dict[str, str] = {
-    "John": "Jack",
-}
-
-
-def _normalize_child(name: str) -> str:
-    configured = get_name_aliases()
-    return (
-        configured.get(name.strip().lower())
-        or configured.get(name)
-        or _DEFAULT_CHILD_ALIASES.get(name)
-        or name
-    )
+def _normalize_child(name: str | None) -> str:
+    return canonical_name(name)
 
 
 def _dict_items(section: object):

@@ -111,14 +111,22 @@ def get_roster() -> list:
     return roster
 
 
+# Built-in default alias (lowercase key). Config `name_aliases` entries override it.
+_DEFAULT_NAME_ALIASES: dict = {"john": "Jack"}
+
+
 def get_name_aliases() -> dict:
-    return _load_config().get("name_aliases", {})
+    return {**_DEFAULT_NAME_ALIASES, **_load_config().get("name_aliases", {})}
 
 
-def _canonicalize(name: str) -> str:
-    aliases = get_name_aliases()
-    lower = name.strip().lower()
-    return aliases.get(lower, name.strip().title())
+def canonical_name(name: str | None) -> str:
+    """Canonical child name: alias lookup (config over built-in), else title-cased."""
+    if not name or not name.strip():
+        return ""
+    return get_name_aliases().get(name.strip().lower(), name.strip().title())
+
+
+_canonicalize = canonical_name
 
 
 def _empty_state() -> dict:

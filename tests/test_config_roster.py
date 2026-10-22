@@ -83,7 +83,7 @@ def test_get_children_is_lenient(tmp_path, monkeypatch):
 
 def test_non_dict_name_aliases_ignored(tmp_path, monkeypatch):
     _write_config(tmp_path, monkeypatch, {"children": {}, "name_aliases": ["x"]})
-    assert state.get_name_aliases() == {}
+    assert state.get_name_aliases() == {"john": "Jack"}  # config ignored; built-in default remains
 
 
 def test_roster_malformed_json_logged(tmp_path, monkeypatch, caplog):
