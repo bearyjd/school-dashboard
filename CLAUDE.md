@@ -110,6 +110,11 @@ was removed; nothing recreates the `events` table it used to populate — see th
 `readiness.py` note in Architecture below). If calendar-PDF import is needed again,
 it must be rebuilt, not resurrected from a stale doc reference.
 
+Approved school-calendar JSON files in `config/calendars/` are instead loaded with
+`school-state calendar import <file> [--dry-run] [--json]` (`school_calendar.py`): it
+replaces that calendar's rows (`source = calendar:<calendar_id>`) in the `events` table, and
+exits 3 under maintenance mode (`--dry-run` is read-only and always allowed). The app does no PDF parsing.
+
 ## Architecture
 
 ```

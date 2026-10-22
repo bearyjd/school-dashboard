@@ -13,6 +13,7 @@ state/
 !pyproject.toml
 !docker-compose.yml
 !config/school-dashboard.example.json
+!config/calendars/*.json
 
 # School calendar PDF (may contain private family data)
 *.pdf

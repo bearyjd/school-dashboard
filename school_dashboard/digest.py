@@ -47,9 +47,29 @@ def _query_db_events(db_path: str, target_date: str) -> list[dict]:
                 "SELECT date, title, type, child FROM events WHERE date = ? ORDER BY title",
                 (target_date,),
             ).fetchall()
-            return [dict(r) for r in rows]
+            return _collapse_events([dict(r) for r in rows])
     except Exception:
         return []
+
+
+def _collapse_events(rows: list[dict]) -> list[dict]:
+    """Merge rows sharing (title, type) so per-child calendar rows read as one line.
+
+    Keeps first-seen order. Child names are joined with ", "; if any merged row has
+    a blank/NULL child ("everyone"), the merged child stays empty.
+    """
+    merged: dict[tuple, dict] = {}
+    for r in rows:
+        key = (r["title"], r["type"])
+        child = r.get("child") or ""
+        prev = merged.get(key)
+        if prev is None:
+            merged[key] = {**r, "child": child, "_all": not child}
+        elif prev["_all"] or not child:
+            merged[key] = {**prev, "child": "", "_all": True}
+        elif child not in prev["child"].split(", "):
+            merged[key] = {**prev, "child": f"{prev['child']}, {child}"}
+    return [{k: v for k, v in m.items() if k != "_all"} for m in merged.values()]
 
 
 def _call_litellm(prompt: str, litellm_url: str, api_key: str, model: str) -> str:
