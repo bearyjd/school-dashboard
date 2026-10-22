@@ -381,6 +381,13 @@ def _normalize_child(name: str) -> str:
     return _CHILD_ALIASES.get(name, name)
 
 
+def _dict_items(section: object):
+    """(key, value) pairs of a state section, skipping non-dict values (e.g. scraper error strings)."""
+    if not isinstance(section, dict):
+        return []
+    return [(k, v) for k, v in section.items() if isinstance(v, dict)]
+
+
 def _has_data_flags(state: dict) -> dict:
     """Per-child {ixl, sgy} flags: True only if the child has a non-empty entry in state."""
     def populated(section: object) -> set:
@@ -422,7 +429,7 @@ def api_dashboard():
 
         # Schoology: per-child assignment lists
         schoology: dict = {}
-        for child, data in (state.get("schoology") or {}).items():
+        for child, data in _dict_items(state.get("schoology")):
             name = _normalize_child(child)
             assignments = [
                 {
@@ -433,6 +440,7 @@ def api_dashboard():
                     "url": (SGY_BASE_URL.rstrip("/") + a["link"]) if a.get("link") else "",
                 }
                 for a in (data.get("assignments") or [])
+                if isinstance(a, dict)
             ]
             if assignments:
                 schoology.setdefault(name, [])
@@ -440,7 +448,7 @@ def api_dashboard():
 
         # IXL: per-child subjects with remaining > 0
         ixl: dict = {}
-        for child, data in (state.get("ixl") or {}).items():
+        for child, data in _dict_items(state.get("ixl")):
             name = _normalize_child(child)
             subjects = [
                 {
@@ -449,7 +457,7 @@ def api_dashboard():
                     "assigned": vals.get("assigned", 0),
                     "done": vals.get("done", 0),
                 }
-                for subj, vals in (data.get("totals") or {}).items()
+                for subj, vals in _dict_items(data.get("totals"))
                 if vals.get("remaining", 0) > 0
             ]
             if subjects:
@@ -466,7 +474,7 @@ def api_dashboard():
                 "due_raw": it.get("due") or "",
             }
             for it in (state.get("action_items") or [])
-            if it.get("source") == "email"
+            if isinstance(it, dict) and it.get("source") == "email"
         ]
 
         return jsonify({
