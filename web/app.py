@@ -9,7 +9,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
-from school_dashboard.state import get_roster
+from school_dashboard.state import canonical_name, get_roster
 from school_dashboard import maintenance, paths
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta
 
@@ -373,12 +373,8 @@ _MONTHS = {
     "September": 9, "October": 10, "November": 11, "December": 12,
 }
 
-_CHILD_ALIASES: dict[str, str] = {
-    "John": "Jack",
-}
-
-def _normalize_child(name: str) -> str:
-    return _CHILD_ALIASES.get(name, name)
+def _normalize_child(name: str | None) -> str:
+    return canonical_name(name)
 
 
 def _dict_items(section: object):
