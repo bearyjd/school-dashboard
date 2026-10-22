@@ -288,6 +288,13 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
   any submodule bump as requiring a manual read of that vendor repo's own
   CHANGELOG/diff before merging, until `.agent_native/agent_roadmap.md` item 4 is
   addressed.
+- **Schoology auto-archive (`schoology_autoarchive.py`, run by `school-state update` after the sgy merge):**
+  pending schoology items carry `last_seen`/`missed`; `missed` only increments on a *trusted* scrape (no
+  top-level `warnings`, child entry parses, not suspiciously empty). Archived (removed from state, appended to
+  `<state dir>/archive/schoology-auto-YYYY-MM.jsonl`, written first) when `missed >= MISSES_TO_ARCHIVE` (3) and
+  absent `>= MIN_DAYS_ABSENT` (3) days; an identical scrape file (sha256) never counts twice. Mass-change guard: >50% (and >=3) or all (and >=2) of a child's pending items at once archives nothing.
+  Caveat: the sgy scrape only covers a due-date window, so items with a future `due` are never counted or archived.
+  State writers (`update`, `action add/complete`, `schoology reset`) serialise on `<state file>.lock` (60 s timeout).
 - **LLM-driven digest generation:** the *data assembly and formatting* in
   `digest.py` (which events/assignments/facts go into the prompt, ntfy delivery,
   digest-carousel card structure) is ordinary deterministic code, covered by

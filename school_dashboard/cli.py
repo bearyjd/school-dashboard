@@ -2,8 +2,10 @@ import argparse
 import json
 import os
 import sys
+from contextlib import contextmanager
+from typing import Iterator, Optional
 
-from school_dashboard import maintenance, paths, school_calendar, schoology_reset, transition
+from school_dashboard import maintenance, paths, school_calendar, schoology_autoarchive, schoology_reset, statelock, transition
 from school_dashboard import state
 from school_dashboard import html
 from school_dashboard import email
@@ -14,15 +16,47 @@ from school_dashboard.gcal import fetch_gcal_events
 EXIT_MAINTENANCE = 3
 
 
+@contextmanager
+def locked_state(state_file: Optional[str]) -> Iterator[None]:
+    """Serialise a load -> modify -> save cycle; exit 1 with a clear message on lock timeout."""
+    try:
+        with statelock.state_lock(state._state_path(state_file)):
+            yield
+    except (statelock.StateLockTimeout, state.StateLoadError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except OSError as exc:
+        print(f"Error: cannot use state file {state._state_path(state_file)}: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def cmd_update(args: argparse.Namespace) -> None:
-    s = state.load(args.state_file)
+    with locked_state(args.state_file):
+        _update_locked(args)
+
+
+def _load_for_write(state_file: Optional[str]) -> dict:
+    """state.load_strict with a pointer to the backups when the existing file is unreadable."""
+    try:
+        return state.load_strict(state_file)
+    except state.StateLoadError as exc:
+        raise state.StateLoadError(
+            f"{exc}; refusing to overwrite it. Restore from {state._state_path(state_file).parent / 'backups'}"
+        ) from exc
+
+
+def _update_locked(args: argparse.Namespace) -> None:
+    s = _load_for_write(args.state_file)
 
     ixl_count = state.update_from_ixl_files(s, args.ixl_dir)
     sgy_count = state.update_from_sgy_file(s, args.sgy_file)
+    s, auto_archived = schoology_autoarchive.run_autoarchive(
+        s, args.sgy_file, state._state_path(args.state_file))
     pruned = state.prune_stale(s)
 
     p = state.save(s, args.state_file)
-    print(f"Updated: {ixl_count} IXL children, {sgy_count} SGY children, {pruned} stale items pruned", file=sys.stderr)
+    print(f"Updated: {ixl_count} IXL children, {sgy_count} SGY children, {pruned} stale items pruned, "
+          f"auto-archived {auto_archived}", file=sys.stderr)
     print(f"State saved: {p}", file=sys.stderr)
 
 
@@ -41,7 +75,12 @@ def cmd_show(args: argparse.Namespace) -> None:
 
 
 def cmd_action_add(args: argparse.Namespace) -> None:
-    s = state.load(args.state_file)
+    with locked_state(args.state_file):
+        _action_add_locked(args)
+
+
+def _action_add_locked(args: argparse.Namespace) -> None:
+    s = _load_for_write(args.state_file)
     item = state.add_action_item(
         s,
         child=args.child,
@@ -55,7 +94,12 @@ def cmd_action_add(args: argparse.Namespace) -> None:
 
 
 def cmd_action_complete(args: argparse.Namespace) -> None:
-    s = state.load(args.state_file)
+    with locked_state(args.state_file):
+        _action_complete_locked(args)
+
+
+def _action_complete_locked(args: argparse.Namespace) -> None:
+    s = _load_for_write(args.state_file)
     if state.complete_action_item(s, args.id):
         state.save(s, args.state_file)
         print(f"Completed: {args.id}")

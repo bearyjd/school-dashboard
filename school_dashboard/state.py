@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from school_dashboard import maintenance, paths
+from school_dashboard.atomic import write_atomic
 
 DEFAULT_CONFIG_PATH = Path("/etc/school-dashboard/config.json")
 
@@ -157,16 +158,39 @@ def load(path: Optional[str] = None) -> dict:
         return _empty_state()
 
 
+class StateLoadError(RuntimeError):
+    pass
+
+
+def load_strict(path: Optional[str] = None) -> dict:
+    """Like load(), but an existing state file that cannot be parsed raises StateLoadError.
+
+    A missing file still yields an empty state. Use for load -> modify -> save cycles so a
+    corrupt file is never silently replaced by an empty one.
+    """
+    p = _state_path(path)
+    if not p.exists():
+        return _empty_state()
+    try:
+        data = json.loads(p.read_text())
+    except (ValueError, OSError) as exc:
+        raise StateLoadError(f"state file {p} exists but cannot be read ({type(exc).__name__})") from exc
+    if not isinstance(data, dict):
+        raise StateLoadError(f"state file {p} exists but is not a JSON object")
+    return data
+
+
 def save(state: dict, path: Optional[str] = None) -> Path:
     p = _state_path(path)
     if maintenance.is_active():
         logger.warning("Maintenance mode active; not saving state to %s", p)
         return p
-    p.parent.mkdir(parents=True, exist_ok=True)
     state["last_updated"] = datetime.now().isoformat()
-    tmp = p.with_suffix(".tmp")
-    tmp.write_text(json.dumps(state, indent=2))
-    tmp.replace(p)
+    try:
+        mode = p.stat().st_mode & 0o777
+    except OSError:
+        mode = 0o600
+    write_atomic(p, json.dumps(state, indent=2), mode)
     return p
 
 

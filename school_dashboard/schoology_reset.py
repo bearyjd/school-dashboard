@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from school_dashboard import maintenance, paths, state
+from school_dashboard import maintenance, paths, state, statelock
 from school_dashboard.atomic import mkdir_private, write_atomic
 
 EXIT_FAILED = 1
@@ -333,13 +333,24 @@ def add_parser(subs) -> argparse.ArgumentParser:
     return p
 
 
+def _run_from_args(args: argparse.Namespace) -> dict:
+    return run_reset(args.sgy_file, args.archive_dir, args.max_age_hours, args.dry_run, args.state_file,
+                     args.allow_warnings)
+
+
 def cmd_schoology(args: argparse.Namespace) -> None:
     if getattr(args, "schoology_command", None) != "reset":
         print("usage: school-state schoology reset --sgy-file PATH [--dry-run] [--json]", file=sys.stderr)
         sys.exit(EXIT_USAGE)
     try:
-        rep = run_reset(args.sgy_file, args.archive_dir, args.max_age_hours, args.dry_run, args.state_file,
-                         args.allow_warnings)
+        if args.dry_run:
+            rep = _run_from_args(args)
+        else:
+            with statelock.state_lock(Path(args.state_file) if args.state_file else paths.state_path()):
+                rep = _run_from_args(args)
+    except (statelock.StateLockTimeout, OSError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(EXIT_FAILED)
     except ResetError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(exc.code)
