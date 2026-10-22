@@ -15,8 +15,11 @@ MODE="${1:?usage: run-digest.sh morning|afternoon|night}"
 ENVFILE="${SCHOOL_DASHBOARD_ENV:-/app/config/env}"
 [[ -f "$ENVFILE" ]] && { set -a; source "$ENVFILE"; set +a; }
 
-LOGDIR="${SCHOOL_STATE_PATH:-/app/state/school-state.json}"
-LOGDIR="${LOGDIR%/*}"
+# State dir mirrors school_dashboard/paths.py: SCHOOL_STATE_DIR, else the parent
+# of SCHOOL_STATE_PATH, else /app/state. Per-file SCHOOL_* overrides still win.
+STATE_DIR="${SCHOOL_STATE_DIR:-${SCHOOL_STATE_PATH:+$(dirname "$SCHOOL_STATE_PATH")}}"
+STATE_DIR="${STATE_DIR:-/app/state}"
+LOGDIR="$STATE_DIR"
 LOGFILE="$LOGDIR/digest.log"
 
 TS=$(date -Iseconds)
@@ -38,7 +41,7 @@ else
         -H "Title: Digest FAILED ($MODE)" \
         -H "Priority: high" \
         -H "Tags: warning" \
-        -d "school-state digest --mode $MODE exited $EXIT. Check /app/state/digest.log on the container." \
+        -d "school-state digest --mode $MODE exited $EXIT. Check $LOGFILE on the container." \
         "https://ntfy.sh/${NTFY_TOPIC}" 2>/dev/null || true
     exit $EXIT
 fi

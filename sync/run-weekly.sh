@@ -15,8 +15,15 @@ MODE="${1:?usage: run-weekly.sh friday|sunday}"
 ENVFILE="${SCHOOL_DASHBOARD_ENV:-/app/config/env}"
 [[ -f "$ENVFILE" ]] && { set -a; source "$ENVFILE"; set +a; }
 
-LOGDIR="${SCHOOL_STATE_PATH:-/app/state/school-state.json}"
-LOGDIR="${LOGDIR%/*}"
+# State dir mirrors school_dashboard/paths.py: SCHOOL_STATE_DIR, else the parent
+# of SCHOOL_STATE_PATH, else /app/state. Per-file SCHOOL_* overrides still win.
+STATE_DIR="${SCHOOL_STATE_DIR:-${SCHOOL_STATE_PATH:+$(dirname "$SCHOOL_STATE_PATH")}}"
+STATE_DIR="${STATE_DIR:-/app/state}"
+LOGDIR="$STATE_DIR"
+export SCHOOL_STATE_PATH="${SCHOOL_STATE_PATH:-$STATE_DIR/school-state.json}"
+export SCHOOL_DB_PATH="${SCHOOL_DB_PATH:-$STATE_DIR/school.db}"
+export SCHOOL_FACTS_PATH="${SCHOOL_FACTS_PATH:-$STATE_DIR/facts.json}"
+export SCHOOL_GC_PATH="${SCHOOL_GC_PATH:-$STATE_DIR/gc-schedule.json}"
 LOGFILE="$LOGDIR/digest-weekly.log"
 
 TS=$(date -Iseconds)
@@ -36,15 +43,15 @@ mode = os.environ['DIGEST_MODE']
 title = 'Week in Review' if mode == 'friday' else 'Week Ahead'
 text, cards = build_weekly_digest(
     mode,
-    os.environ.get('SCHOOL_STATE_PATH', '/app/state/school-state.json'),
-    os.environ.get('SCHOOL_DB_PATH', '/app/state/school.db'),
-    os.environ.get('SCHOOL_FACTS_PATH', '/app/state/facts.json'),
+    os.environ['SCHOOL_STATE_PATH'],
+    os.environ['SCHOOL_DB_PATH'],
+    os.environ['SCHOOL_FACTS_PATH'],
     os.environ['LITELLM_URL'],
     os.environ['LITELLM_API_KEY'],
     os.environ['LITELLM_MODEL'],
-    gc_path=os.environ.get('SCHOOL_GC_PATH', '/app/state/gc-schedule.json'),
+    gc_path=os.environ['SCHOOL_GC_PATH'],
 )
-send_ntfy(os.environ['NTFY_TOPIC'], text, title, cards=cards, db_path=os.environ.get('SCHOOL_DB_PATH', '/app/state/school.db'))
+send_ntfy(os.environ['NTFY_TOPIC'], text, title, cards=cards, db_path=os.environ['SCHOOL_DB_PATH'])
 " >> "$LOGFILE" 2>&1; then
     echo "[$TS] weekly $MODE OK" >> "$LOGFILE"
 else
@@ -54,7 +61,7 @@ else
         -H "Title: Weekly Digest FAILED ($MODE)" \
         -H "Priority: high" \
         -H "Tags: warning" \
-        -d "Weekly digest ($MODE) failed. Check /app/state/digest-weekly.log on the container." \
+        -d "Weekly digest ($MODE) failed. Check $LOGFILE on the container." \
         "https://ntfy.sh/${NTFY_TOPIC}" 2>/dev/null || true
     exit $EXIT
 fi

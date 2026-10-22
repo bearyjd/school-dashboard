@@ -14,7 +14,11 @@ set -euo pipefail
 ENVFILE="${SCHOOL_DASHBOARD_ENV:-/app/config/env}"
 [[ -f "$ENVFILE" ]] && { set -a; source "$ENVFILE"; set +a; }
 
-GC_PATH="${SCHOOL_GC_PATH:-/app/state/gc-schedule.json}"
+# State dir mirrors school_dashboard/paths.py: SCHOOL_STATE_DIR, else the parent
+# of SCHOOL_STATE_PATH, else /app/state. Per-file SCHOOL_* overrides still win.
+STATE_DIR="${SCHOOL_STATE_DIR:-${SCHOOL_STATE_PATH:+$(dirname "$SCHOOL_STATE_PATH")}}"
+STATE_DIR="${STATE_DIR:-/app/state}"
+GC_PATH="${SCHOOL_GC_PATH:-$STATE_DIR/gc-schedule.json}"
 LOGDIR="$(dirname "$GC_PATH")"
 LOGFILE="$LOGDIR/gc-scrape.log"
 TS=$(date -Iseconds)
