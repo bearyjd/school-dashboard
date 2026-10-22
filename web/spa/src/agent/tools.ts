@@ -24,7 +24,9 @@ export function parseToolCalls(text: string): { clean: string; calls: ToolCall[]
   const clean = text.replace(/\[tool_call:\s*(\w+),\s*(\{[^}]*\})\]/g, (_, name, argsStr) => {
     try {
       calls.push({ name, args: JSON.parse(argsStr) })
-    } catch {}
+    } catch {
+      // Malformed JSON args: drop this tool call, still strip it from the text.
+    }
     return ''
   }).trim()
   return { clean, calls }
