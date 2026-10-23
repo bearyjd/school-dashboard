@@ -41,10 +41,12 @@ export interface SyncStatus {
   last_error: string | null;
 }
 
+export type SyncResult = 'ok' | 'error' | 'paused' | (string & {});
+
 export interface SyncMeta {
-  ixl?: { last_run: string; last_result: string };
-  sgy?: { last_run: string; last_result: string };
-  gc?: { last_run: string; last_result: string };
+  ixl?: { last_run: string; last_result: SyncResult };
+  sgy?: { last_run: string; last_result: SyncResult };
+  gc?: { last_run: string; last_result: SyncResult };
 }
 
 export interface ChatMessage {

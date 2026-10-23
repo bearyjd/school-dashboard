@@ -14,6 +14,13 @@ set -euo pipefail
 ENVFILE="${SCHOOL_DASHBOARD_ENV:-/app/config/env}"
 [[ -f "$ENVFILE" ]] && { set -a; source "$ENVFILE"; set +a; }
 
+# Per-source toggle (mirrors source_enabled in school-sync.sh): paused => no scrape, no alert.
+gc_toggle="${SOURCE_GC_ENABLED:-}"
+gc_toggle="${gc_toggle#"${gc_toggle%%[![:space:]]*}"}"; gc_toggle="${gc_toggle%"${gc_toggle##*[![:space:]]}"}"
+case "$gc_toggle" in
+    0|[Ff][Aa][Ll][Ss][Ee]|[Nn][Oo]|[Oo][Ff][Ff]) echo "gc paused (SOURCE_GC_ENABLED off) — skipping" >&2; exit 0 ;;
+esac
+
 # State dir mirrors school_dashboard/paths.py: SCHOOL_STATE_DIR, else the parent
 # of SCHOOL_STATE_PATH, else /app/state. Per-file SCHOOL_* overrides still win.
 STATE_DIR="${SCHOOL_STATE_DIR:-${SCHOOL_STATE_PATH:+$(dirname "$SCHOOL_STATE_PATH")}}"
