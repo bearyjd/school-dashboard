@@ -11,6 +11,7 @@ from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.state import canonical_name, get_roster
 from school_dashboard import maintenance, paths
+from school_dashboard.sources import source_enabled
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta
 
 app = Flask(__name__)
@@ -599,6 +600,9 @@ def _run_sync_background(sources: str, digest: str) -> None:
         for src in source_list:
             if _sync_paused_for_maintenance():
                 return
+            if not source_enabled(src):
+                write_sync_source(src, "paused")
+                continue
             try:
                 if src == "ixl":
                     if ixl_cron and Path(ixl_cron).exists():
@@ -654,7 +658,7 @@ def _run_sync_background(sources: str, digest: str) -> None:
                 write_sync_source(src, "ok")
 
         # Update state (only if ixl or sgy were synced)
-        if any(s in source_list for s in ("ixl", "sgy")):
+        if any(s in source_list and source_enabled(s) for s in ("ixl", "sgy")):
             if _sync_paused_for_maintenance():
                 return
             _run_state_command(["school-state", "update", "--ixl-dir", ixl_dir, "--sgy-file", sgy_file], errors)

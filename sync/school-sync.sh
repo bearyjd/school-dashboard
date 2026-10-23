@@ -61,11 +61,28 @@ write_sync_meta() {
     python3 -c "import sys; from school_dashboard.sync_meta import write_sync_source; write_sync_source(sys.argv[1], sys.argv[2])" "$source" "$result" 2>/dev/null || true
 }
 
+# Helper: per-source toggle. SOURCE_<NAME>_ENABLED defaults to enabled; 0/false/no/off disables.
+source_enabled() {
+    local var="SOURCE_${1^^}_ENABLED"
+    case "${!var:-}" in
+        0|[Ff][Aa][Ll][Ss][Ee]|[Nn][Oo]|[Oo][Ff][Ff]) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+# Helper: log + record a deliberately paused source (not a failure)
+pause_source() {
+    log "INFO: $1 paused (SOURCE_${1^^}_ENABLED is off) — skipping"
+    write_sync_meta "$1" "paused"
+}
+
 # --- Step 1: IXL scrape ---
 # Honor an external cron script if explicitly configured; otherwise drive the
 # `ixl` CLI directly using ~/.ixl/accounts.env (one child per line:
 # child_name:email:password). Mirrors _run_sync_background in web/app.py.
-if [[ -n "$IXL_CRON" && -x "$IXL_CRON" ]]; then
+if ! source_enabled ixl; then
+    pause_source ixl
+elif [[ -n "$IXL_CRON" && -x "$IXL_CRON" ]]; then
     log "Running IXL scrape via $IXL_CRON..."
     if bash "$IXL_CRON"; then
         write_sync_meta "ixl" "ok"
@@ -107,7 +124,9 @@ else
 fi
 
 # --- Step 2: Schoology scrape ---
-if command -v sgy &>/dev/null; then
+if ! source_enabled sgy; then
+    pause_source sgy
+elif command -v sgy &>/dev/null; then
     log "Running Schoology scrape..."
     if sgy summary --json > "$SGY_FILE" 2>/dev/null; then
         write_sync_meta "sgy" "ok"
@@ -120,7 +139,9 @@ else
 fi
 
 # --- Step 2b: GameChanger scrape (non-fatal if not configured) ---
-if command -v gc &>/dev/null && [[ -n "${GC_TOKEN:-}${GC_EMAIL:-}" ]]; then
+if ! source_enabled gc; then
+    pause_source gc
+elif command -v gc &>/dev/null && [[ -n "${GC_TOKEN:-}${GC_EMAIL:-}" ]]; then
     # Refresh first so the scrape starts with a hot user JWT. The CLI also
     # auto-recovers from 401 mid-flight (vendor/gc 0.1.30+), but doing this
     # upfront avoids a Playwright launch in the middle of the loop.

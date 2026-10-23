@@ -46,7 +46,7 @@ export function Sync() {
           const entry = meta[src.key as keyof typeof meta]
           const age = formatAge(entry?.last_run)
           const result = entry?.last_result
-          const badgeCls = !entry ? 'badge--error' : result === 'ok' ? 'badge--ok' : 'badge--error'
+          const badgeCls = !entry ? 'badge--error' : result === 'ok' ? 'badge--ok' : result === 'paused' ? 'badge--warn' : 'badge--error'
 
           return (
             <div key={src.key} className="card">
