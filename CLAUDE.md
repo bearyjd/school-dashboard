@@ -221,7 +221,7 @@ Optional GameChanger vars: `GC_TOKEN` (bearer token from browser session — pre
 
 Optional on-demand sync: `SYNC_TOKEN` — shared secret for `POST /api/sync`. Generate with: `python3 -c "import secrets; print(secrets.token_hex(16))"`. Without it, `/api/sync` returns 501.
 
-Optional per-source toggles: `SOURCE_IXL_ENABLED`, `SOURCE_SGY_ENABLED`, `SOURCE_GC_ENABLED` (default enabled; `0/false/no/off`, case-insensitive, disables). A disabled source is skipped by `school-sync.sh` and `/api/sync` with no failure alert and recorded in `sync_meta` as `last_result: "paused"` (helpers: `school_dashboard/sources.py::source_enabled`, shell `source_enabled`).
+Optional per-source toggles: `SOURCE_IXL_ENABLED`, `SOURCE_SGY_ENABLED`, `SOURCE_GC_ENABLED` (default enabled; `0/false/no/off`, case-insensitive, disables). A disabled source is skipped by `school-sync.sh` and `/api/sync` with no failure alert and recorded in `sync_meta` as `last_result: "paused"` Cached data from a paused source stays in state and digests. (helpers: `school_dashboard/sources.py::source_enabled`, shell `source_enabled`).
 
 `SCHOOL_SYNC_META_PATH` overrides the sync metadata path (default: `/app/state/sync_meta.json`). TWA domain verification: `TWA_PACKAGE_NAME` (default: `cc.grepon.school`), `TWA_CERT_FINGERPRINT` (populate after signing APK).
 

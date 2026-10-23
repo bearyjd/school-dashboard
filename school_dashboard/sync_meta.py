@@ -35,8 +35,11 @@ def write_sync_source(source: str, result: str, path: str | None = None) -> None
         return
     with _write_lock:
         meta = read_sync_meta(p)
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        # A pause is not a scrape: keep the previous real scrape time if there is one.
+        previous_run = (meta.get(source) or {}).get("last_run")
         meta[source] = {
-            "last_run": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "last_run": previous_run if result == "paused" and previous_run else now,
             "last_result": result,
         }
         try:

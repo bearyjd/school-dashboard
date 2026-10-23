@@ -105,6 +105,9 @@ def _format_freshness(meta: dict) -> str:
         except (KeyError, ValueError, TypeError):
             age = "unknown"
         result_str = entry.get("last_result", "?")
+        if result_str == "paused":
+            lines.append(f"{source.upper()}: paused (last pulled {age})")
+            continue
         lines.append(f"{source.upper()}: last pulled {age} — {result_str}")
     return "\n".join(lines)
 
@@ -689,7 +692,8 @@ def _run_sync_background(sources: str, digest: str) -> None:
                     send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
                               cards=cards, db_path=db_path)
 
-        _sync_status["last_result"] = "ok" if not errors else "error"
+        all_paused = bool(source_list) and not any(source_enabled(s) for s in source_list)
+        _sync_status["last_result"] = "error" if errors else "ok (all paused)" if all_paused else "ok"
         if errors:
             _sync_status["last_error"] = "; ".join(errors)
     except Exception as exc:

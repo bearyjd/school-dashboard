@@ -63,8 +63,11 @@ write_sync_meta() {
 
 # Helper: per-source toggle. SOURCE_<NAME>_ENABLED defaults to enabled; 0/false/no/off disables.
 source_enabled() {
-    local var="SOURCE_${1^^}_ENABLED"
-    case "${!var:-}" in
+    local var="SOURCE_${1^^}_ENABLED" val
+    val="${!var:-}"
+    val="${val#"${val%%[![:space:]]*}"}"
+    val="${val%"${val##*[![:space:]]}"}"
+    case "$val" in
         0|[Ff][Aa][Ll][Ss][Ee]|[Nn][Oo]|[Oo][Ff][Ff]) return 1 ;;
         *) return 0 ;;
     esac

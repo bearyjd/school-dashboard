@@ -282,7 +282,45 @@ def test_run_sync_background_skips_disabled_source_and_records_paused(mock_sub, 
     app_module._run_sync_background("sgy", "none")
 
     assert read_sync_meta(meta_path)["sgy"]["last_result"] == "paused"
-    assert app_module._sync_status["last_result"] == "ok"
+    assert app_module._sync_status["last_result"] == "ok (all paused)"
     assert app_module._sync_status["last_error"] is None
     # no scraper and no state update ran
     mock_sub.assert_not_called()
+
+
+def test_paused_keeps_previous_last_run(tmp_path):
+    from school_dashboard.sync_meta import read_sync_meta, write_sync_source
+    p = str(tmp_path / "m.json")
+    write_sync_source("gc", "ok", p)
+    first = read_sync_meta(p)["gc"]["last_run"]
+    write_sync_source("gc", "paused", p)
+    entry = read_sync_meta(p)["gc"]
+    assert entry["last_result"] == "paused" and entry["last_run"] == first
+
+
+def test_format_freshness_paused():
+    from web.app import _format_freshness
+    from datetime import datetime, timezone
+    meta = {"gc": {"last_run": datetime.now(timezone.utc).isoformat(), "last_result": "paused"}}
+    assert "GC: paused (last pulled" in _format_freshness(meta)
+
+
+@patch("web.app.subprocess.run")
+def test_run_sync_background_mixed_paused_and_enabled(mock_sub, tmp_path, monkeypatch):
+    import web.app as app_module
+    from school_dashboard.sync_meta import read_sync_meta
+    meta_path = str(tmp_path / "meta.json")
+    monkeypatch.setenv("SCHOOL_SYNC_META_PATH", meta_path)
+    monkeypatch.setenv("SCHOOL_STATE_PATH", str(tmp_path / "state.json"))
+    monkeypatch.setenv("SCHOOL_DB_PATH", str(tmp_path / "db.db"))
+    monkeypatch.setenv("SGY_FILE", str(tmp_path / "sgy.json"))
+    monkeypatch.setenv("SOURCE_IXL_ENABLED", "0")
+    monkeypatch.delenv("SOURCE_SGY_ENABLED", raising=False)
+    mock_sub.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
+    assert app_module._sync_lock.acquire(blocking=False)
+    app_module._run_sync_background("ixl,sgy", "none")
+    meta = read_sync_meta(meta_path)
+    assert meta["ixl"]["last_result"] == "paused"
+    assert meta["sgy"]["last_result"] == "ok"
+    assert app_module._sync_status["last_result"] == "ok"
+    assert not any(c.args[0][0] == "ixl" for c in mock_sub.call_args_list)

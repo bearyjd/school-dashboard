@@ -6,6 +6,7 @@ import type { SyncMeta } from '../api/types'
 function freshnessLabel(meta: SyncMeta, source: keyof SyncMeta): { label: string; cls: string } {
   const entry = meta[source]
   if (!entry) return { label: 'never', cls: 'badge--error' }
+  if (entry.last_result === 'paused') return { label: 'paused', cls: 'badge--warn' }
   const ago = (Date.now() - new Date(entry.last_run + 'Z').getTime()) / 1000
   const hours = Math.floor(ago / 3600)
   const days = Math.floor(ago / 86400)

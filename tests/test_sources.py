@@ -42,17 +42,27 @@ def _shell_helper() -> str:
 
 def _shell(name: str, env: dict) -> int:
     snippet = f'{_shell_helper()}\nsource_enabled {name}'
-    return subprocess.run(["bash", "-euo", "pipefail", "-c", snippet], env=env).returncode
+    return subprocess.run(["bash", "-euo", "pipefail", "-c", snippet], env={"PATH": "/usr/bin:/bin", **env}).returncode
 
 
 def test_shell_default_enabled():
     assert _shell("ixl", {}) == 0
 
 
-@pytest.mark.parametrize("val", ["0", "false", "FALSE", "No", "off"])
+@pytest.mark.parametrize("val", ["0", "false", "FALSE", "No", "off", " off ", "\toff"])
 def test_shell_falsy_disables(val):
     assert _shell("gc", {"SOURCE_GC_ENABLED": val}) == 1
 
 
 def test_shell_truthy_enables():
     assert _shell("sgy", {"SOURCE_SGY_ENABLED": "1"}) == 0
+
+
+def test_gc_scrape_exits_zero_when_paused(tmp_path):
+    script = SCRIPT.parent / "gc-scrape.sh"
+    env = {"PATH": "/usr/bin:/bin", "SOURCE_GC_ENABLED": "off", "SCHOOL_DASHBOARD_ENV": "/nonexistent",
+           "SCHOOL_GC_PATH": str(tmp_path / "gc-schedule.json")}
+    r = subprocess.run(["bash", str(script)], env=env, capture_output=True, text=True)
+    assert r.returncode == 0
+    assert "paused" in r.stderr
+    assert not (tmp_path / "gc-schedule.json").exists()

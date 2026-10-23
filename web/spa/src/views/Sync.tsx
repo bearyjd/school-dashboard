@@ -44,8 +44,8 @@ export function Sync() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', marginBottom: 'var(--space-lg)' }}>
         {SOURCES.map(src => {
           const entry = meta[src.key as keyof typeof meta]
-          const age = formatAge(entry?.last_run)
           const result = entry?.last_result
+          const age = result === 'paused' ? 'paused' : formatAge(entry?.last_run)
           const badgeCls = !entry ? 'badge--error' : result === 'ok' ? 'badge--ok' : result === 'paused' ? 'badge--warn' : 'badge--error'
 
           return (
@@ -93,7 +93,7 @@ export function Sync() {
       {status && (
         <div className="card" style={{ marginTop: 'var(--space-lg)', fontSize: '13px', color: 'var(--color-text-muted)' }}>
           Last run: {status.last_run ?? 'never'} ·
-          Result: <span style={{ color: status.last_result === 'ok' ? 'var(--color-success)' : 'var(--color-error)' }}>{status.last_result ?? '—'}</span>
+          Result: <span style={{ color: status.last_result === 'ok' ? 'var(--color-success)' : status.last_result?.startsWith('ok (') ? 'var(--color-text-muted)' : 'var(--color-error)' }}>{status.last_result ?? '—'}</span>
           {status.last_error && <div style={{ color: 'var(--color-error)', marginTop: 4 }}>{status.last_error}</div>}
         </div>
       )}
