@@ -368,33 +368,69 @@ def update_from_sgy_file(state: dict, sgy_file: str = "/tmp/schoology-daily.json
 
 
 def _read_ps_scrape(p: Path, now: datetime) -> tuple:
-    """(data, problem): data is the usable scrape dict, else None with a reason."""
+    """(data, scrape_time, problem): data is the usable scrape dict, else None with a reason."""
     try:
         data = json.loads(p.read_text())
     except OSError:
-        return None, "missing" if not p.exists() else f"unreadable: {p}"
+        return None, None, "missing" if not p.exists() else f"unreadable: {p}"
     except ValueError:
-        return None, "malformed JSON"
+        return None, None, "malformed JSON"
     if not isinstance(data, dict):
-        return None, "not a JSON object"
+        return None, None, "not a JSON object"
     children = data.get("children")
     if not isinstance(children, list) or not children:
-        return None, "no children in scrape"
+        return None, None, "no children in scrape"
     if data.get("warnings"):
-        return None, "scraper reported warnings: " + "; ".join(str(w) for w in data["warnings"])
-    age = powerschool.scrape_age_hours(data.get("scraped_at"), p.stat().st_mtime, now)
+        return None, None, "scraper reported warnings: " + "; ".join(str(w) for w in data["warnings"])[:200]
+    stamp = powerschool.scrape_time(data.get("scraped_at"), p.stat().st_mtime)
+    if (stamp - now).total_seconds() > powerschool.MAX_FUTURE_SECONDS:
+        return None, None, f"scraped_at is in the future ({stamp.isoformat()})"
+    age = (now - stamp).total_seconds() / 3600
     if age > powerschool.MAX_SCRAPE_AGE_HOURS:
-        return None, f"stale ({age:.0f}h old)"
-    return data, ""
+        return None, None, f"stale ({age:.0f}h old)"
+    return data, stamp, ""
 
 
-def _ps_child_entry(entry: dict, now: datetime) -> dict:
-    return {
-        "updated": now.isoformat(),
-        "missing": powerschool.clean_assignments(entry.get("missing")),
-        "late": powerschool.clean_assignments(entry.get("late")),
-        "upcoming": powerschool.clean_assignments(entry.get("upcoming")),
-    }
+def _ps_child_entry(entry: dict, stamp: datetime) -> Optional[dict]:
+    """New sanitised entry, or None unless missing, late and upcoming are all lists."""
+    keys = ("missing", "late", "upcoming")
+    if not all(isinstance(entry.get(k), list) for k in keys):
+        return None
+    return {"updated": stamp.isoformat(), **{k: powerschool.clean_assignments(entry[k]) for k in keys}}
+
+
+def _ps_names(children: list) -> list:
+    """[(canonical first name, entry)] for well-formed child entries."""
+    pairs = []
+    for entry in children:
+        first = powerschool.first_name(entry.get("name")) if isinstance(entry, dict) else ""
+        if first:
+            pairs.append((_canonicalize(first), entry))
+    return pairs
+
+
+def _merge_ps_children(section: dict, children: list, stamp: datetime) -> tuple:
+    """Merge trusted child entries into section; returns (count, warnings)."""
+    pairs = _ps_names(children)
+    counts: dict = {}
+    for name, _ in pairs:
+        counts[name] = counts.get(name, 0) + 1
+    warnings: list = []
+    merged = 0
+    for name, entry in pairs:
+        if counts[name] > 1:
+            warnings.append(f"PowerSchool {name}: ambiguous ({counts[name]} children share this first name), skipped")
+            continue
+        if entry.get("warnings"):
+            warnings.append(f"PowerSchool {name}: kept previous data ({'; '.join(map(str, entry['warnings']))[:200]})")
+            continue
+        new_entry = _ps_child_entry(entry, stamp)
+        if new_entry is None:
+            warnings.append(f"PowerSchool {name}: malformed lists, kept previous data")
+            continue
+        section[name] = new_entry
+        merged += 1
+    return merged, sorted(set(warnings))
 
 
 def update_from_ps_file(
@@ -402,31 +438,24 @@ def update_from_ps_file(
 ) -> int:
     """Read `powerschool summary --json` output and merge into state["powerschool"].
 
-    An untrusted scrape (missing/stale/empty/malformed file, or top-level warnings) leaves
-    previous data untouched and records a warning in state["powerschool_meta"]; a child with
-    its own warnings is likewise kept. A trusted child entry replaces that child wholesale.
+    An untrusted scrape (missing/stale/future/empty/malformed file, or top-level warnings)
+    leaves previous data untouched and records a warning in state["powerschool_meta"]. On a
+    trusted scrape a child with warnings or malformed lists keeps its previous entry; any
+    other child entry replaces it wholesale. Children absent from trusted scrapes for
+    CHILD_EXPIRY_DAYS are dropped.
     """
     now = now or datetime.now()
     section = state.setdefault("powerschool", {})
-    p = Path(ps_file)
-    data, problem = _read_ps_scrape(p, now)
+    data, stamp, problem = _read_ps_scrape(Path(ps_file), now)
     if data is None:
         if problem != "missing" or section:
             state["powerschool_meta"] = {"warnings": [f"PowerSchool scrape not applied: {problem}"]}
             logger.warning("PowerSchool scrape not applied (%s): %s", problem, ps_file)
         return 0
 
-    warnings: list = []
-    count = 0
-    for entry in data["children"]:
-        if not isinstance(entry, dict) or not isinstance(entry.get("name"), str) or not entry["name"].split():
-            continue
-        name = _canonicalize(entry["name"].split()[0])
-        if entry.get("warnings"):
-            warnings.append(f"PowerSchool {name}: kept previous data ({'; '.join(map(str, entry['warnings']))})")
-            continue
-        section[name] = _ps_child_entry(entry, now)
-        count += 1
+    count, warnings = _merge_ps_children(section, data["children"], stamp)
+    for name in [n for n, e in section.items() if powerschool.is_expired(e.get("updated"), now)]:
+        del section[name]
     state["powerschool_meta"] = {"warnings": warnings}
     return count
 

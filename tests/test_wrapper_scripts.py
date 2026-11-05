@@ -186,7 +186,7 @@ class TestSchoolSyncPowerschoolBlock:
             fake.write_text("#!/bin/bash\n" + fake_body)
             fake.chmod(0o755)
         home = tmp_path / "home"
-        home.mkdir()
+        home.mkdir(exist_ok=True)
         prelude = (
             'log() { echo "LOG: $*"; }\n'
             'write_sync_meta() { echo "META: $1 $2"; }\n'
@@ -194,18 +194,40 @@ class TestSchoolSyncPowerschoolBlock:
             'source_enabled() { [[ "${SOURCE_POWERSCHOOL_ENABLED:-1}" != "0" ]]; }\n'
             f"PS_FILE={tmp_path}/ps.json\nSTATE_DIR={tmp_path}\n"
         )
-        env = {"PATH": f"{bindir}:/usr/bin:/bin", "HOME": str(home), **(env_extra or {})}
+        env = {"PATH": f"{bindir}:/usr/bin:/bin", "HOME": str(home),
+               "PYTHONPATH": str(Path(__file__).parent.parent), **(env_extra or {})}
         return _bash(prelude + block, env=env)
 
     def test_not_installed_skips_without_meta(self, tmp_path):
         r = self._run(tmp_path, env_extra={"PS_USERNAME": "u"})
         assert r.returncode == 0, r.stderr
-        assert "skipping" in r.stdout and "META" not in r.stdout
+        assert "skipped" in r.stdout and "not found" in r.stdout and "META" not in r.stdout
 
     def test_no_credentials_skips_without_meta(self, tmp_path):
         r = self._run(tmp_path, fake_body="echo '{}'\n")
         assert r.returncode == 0, r.stderr
-        assert "not configured" in r.stdout and "META" not in r.stdout
+        assert "skipped" in r.stdout and "PS_USERNAME" in r.stdout and "META" not in r.stdout
+
+    def test_powersched_env_file_counts_as_configured(self, tmp_path):
+        (tmp_path / "home" / ".powersched").mkdir(parents=True)
+        (tmp_path / "home" / ".powersched" / ".env").write_text("x")
+        r = self._run(tmp_path, fake_body="echo '{\"children\": []}'\n")
+        assert "META: powerschool ok" in r.stdout
+
+    def test_legacy_powerschool_dir_is_not_credentials(self, tmp_path):
+        (tmp_path / "home" / ".powerschool").mkdir(parents=True)
+        (tmp_path / "home" / ".powerschool" / ".env").write_text("x")
+        r = self._run(tmp_path, fake_body="echo '{}'\n")
+        assert "skipped" in r.stdout and "META" not in r.stdout
+
+    @pytest.mark.parametrize("body", ["echo '<html>'\n", "echo '{\"children\": [], \"warnings\": [\"x\"]}'\n"])
+    def test_invalid_output_is_meta_error_and_keeps_file(self, tmp_path, body):
+        (tmp_path / "ps.json").write_text("OLD")
+        r = self._run(tmp_path, fake_body=body, env_extra={"PS_USERNAME": "u"})
+        assert r.returncode == 0, r.stderr
+        assert "META: powerschool error" in r.stdout
+        assert (tmp_path / "ps.json").read_text() == "OLD"
+        assert [p.name for p in tmp_path.iterdir() if p.name.startswith("ps.json.")] == []
 
     def test_paused(self, tmp_path):
         r = self._run(tmp_path, fake_body="echo '{}'\n",

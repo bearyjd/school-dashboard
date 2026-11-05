@@ -1,8 +1,10 @@
+import hmac
 import json
 import os
 import re
 import sqlite3
 import subprocess
+import tempfile
 import threading
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -122,7 +124,16 @@ def build_system_prompt() -> str:
     events = load_upcoming_events(days=30)
     facts = load_facts()
 
-    state_str = json.dumps(state, indent=2).replace('"John"', '"Jack"')[:8000]
+    ps_block = powerschool.format_block(state if isinstance(state, dict) else {})
+    ps_str = (
+        f"=== MISSING / LATE / DUE SOON (PowerSchool; {powerschool.UNTRUSTED_NOTE}) ===\n{ps_block}\n\n"
+        if ps_block else ""
+    )
+    state_view = (
+        {k: v for k, v in state.items() if k not in ("powerschool", "powerschool_meta")}
+        if ps_block and isinstance(state, dict) else state
+    )
+    state_str = json.dumps(state_view, indent=2).replace('"John"', '"Jack"')[:8000]
 
     actionable = []
     if isinstance(emails, dict):
@@ -141,8 +152,6 @@ def build_system_prompt() -> str:
         for f in facts[:20]
     ) or "No facts recorded yet."
 
-    ps_block = powerschool.format_block(state if isinstance(state, dict) else {})
-    ps_str = f"=== MISSING / LATE / DUE SOON (PowerSchool) ===\n{ps_block}\n\n" if ps_block else ""
     today = date.today().strftime("%A, %B %d, %Y")
 
     return (
@@ -472,10 +481,9 @@ def api_dashboard():
         ps: dict = {}
         for child, data in _dict_items(state.get("powerschool")):
             name = _normalize_child(child)
-            ps[name] = {
-                key: powerschool.clean_assignments(data.get(key))
-                for key in ("missing", "late", "upcoming")
-            }
+            lists = {key: powerschool.clean_assignments(data.get(key)) for key in ("missing", "late", "upcoming")}
+            ps[name] = {**lists, "upcoming": powerschool.drop_past_upcoming(lists["upcoming"]),
+                        "updated": data.get("updated", "")}
 
         # Email action items only (with parsed due dates)
         email_items = [
@@ -582,6 +590,9 @@ def _run_state_command(cmd: list, errors: list) -> None:
         errors.append(f"{' '.join(cmd[:2])}: timed out after {STATE_COMMAND_TIMEOUT}s")
 
 
+SYNC_SOURCES = frozenset({"ixl", "sgy", "gc", "powerschool", "all"})
+
+
 def _scrape_powerschool(ps_file: str) -> None:
     """Run `powerschool summary --json`; write the file only on success (atomic replace)."""
     result = subprocess.run(
@@ -589,9 +600,19 @@ def _scrape_powerschool(ps_file: str) -> None:
     )
     if result.returncode != 0 or not result.stdout:
         raise RuntimeError(f"powerschool summary failed (exit {result.returncode})")
-    tmp = Path(ps_file + ".tmp")
-    tmp.write_text(result.stdout)
-    tmp.replace(ps_file)
+    problem = powerschool.scrape_problem(result.stdout)
+    if problem:
+        raise RuntimeError(f"powerschool summary unusable: {problem}")
+    with tempfile.NamedTemporaryFile(
+        "w", dir=str(Path(ps_file).parent), prefix=Path(ps_file).name + ".", delete=False
+    ) as tmp:
+        tmp.write(result.stdout)
+    try:
+        os.chmod(tmp.name, 0o600)
+        os.replace(tmp.name, ps_file)
+    except OSError:
+        Path(tmp.name).unlink(missing_ok=True)
+        raise
 
 
 def _run_sync_background(sources: str, digest: str) -> None:
@@ -749,11 +770,19 @@ def api_sync():
         return jsonify({"error": "SYNC_TOKEN not configured"}), 501
 
     provided = request.headers.get("X-Sync-Token", "")
-    if not provided or provided != sync_token:
+    if not provided or not hmac.compare_digest(provided.encode(), sync_token.encode()):
         return jsonify({"error": "unauthorized"}), 401
 
     data = request.get_json(silent=True) or {}
-    sources = (data.get("sources") or "ixl,sgy,powerschool").strip()
+    raw_sources = data.get("sources") or "ixl,sgy,powerschool"
+    if not isinstance(raw_sources, str):
+        return jsonify({"error": "sources must be a comma-separated string"}), 400
+    requested = [s.strip() for s in raw_sources.split(",") if s.strip()]
+    unknown = [s for s in requested if s not in SYNC_SOURCES]
+    if unknown or not requested:
+        return jsonify({"error": f"unknown source(s): {', '.join(unknown) or '(none given)'}; "
+                                 f"allowed: {', '.join(sorted(SYNC_SOURCES))}"}), 400
+    sources = ",".join(requested)
     digest = (data.get("digest") or "quick").strip()
 
     if not _sync_lock.acquire(blocking=False):

@@ -33,6 +33,7 @@ export interface PsAssignment {
 }
 
 export interface PsChild {
+  updated?: string;
   missing: PsAssignment[];
   late: PsAssignment[];
   upcoming: PsAssignment[];

@@ -143,22 +143,28 @@ else
 fi
 
 # --- Step 2a: PowerSchool scrape (optional; skipped cleanly if not installed/configured) ---
-# Written to a temp file and moved into place only on success, so a failed scrape
-# never replaces the last good $PS_FILE (state merge also rejects stale/warning files).
+# Availability/credentials come from school_dashboard.powerschool.skip_reason (single source
+# of truth). Output goes to a private mktemp file next to $PS_FILE and replaces it only when
+# it is valid JSON without top-level warnings, so a bad scrape never clobbers the last good one.
+PS_CHECK='import sys; from school_dashboard.powerschool import scrape_problem; p = scrape_problem(open(sys.argv[1]).read()); print(p); sys.exit(1 if p else 0)'
+ps_problem=""
+ps_tmp=""
 if ! source_enabled powerschool; then
     pause_source powerschool
-elif ! command -v powerschool &>/dev/null; then
-    log "INFO: powerschool not installed — skipping"
-elif [[ -z "${PS_USERNAME:-}" && ! -f "${HOME:-/root}/.powerschool/.env" ]]; then
-    log "INFO: powerschool not configured — skipping (set PS_USERNAME/PS_PASSWORD in config/env)"
+elif ! ps_skip="$(python3 -c 'from school_dashboard.powerschool import skip_reason; print(skip_reason())' 2>/dev/null)"; then
+    log "INFO: powerschool skipped — availability check could not run"
+elif [[ -n "$ps_skip" ]]; then
+    log "INFO: powerschool skipped — $ps_skip"
 else
     log "Running PowerSchool scrape..."
-    if powerschool summary --json > "$PS_FILE.tmp" 2>>"$STATE_DIR/school-sync.log" && [[ -s "$PS_FILE.tmp" ]]; then
-        mv "$PS_FILE.tmp" "$PS_FILE"
+    if ps_tmp="$(mktemp "${PS_FILE}.XXXXXX" 2>/dev/null)" \
+        && powerschool summary --json > "$ps_tmp" 2>>"$STATE_DIR/school-sync.log" \
+        && ps_problem="$(python3 -c "$PS_CHECK" "$ps_tmp" 2>&1)"; then
+        mv "$ps_tmp" "$PS_FILE"
         write_sync_meta "powerschool" "ok"
     else
-        rm -f "$PS_FILE.tmp"
-        log "WARN: PowerSchool scrape had errors"
+        [[ -n "$ps_tmp" ]] && rm -f "$ps_tmp"
+        log "WARN: PowerSchool scrape failed${ps_problem:+ ($ps_problem)}"
         write_sync_meta "powerschool" "error"
     fi
 fi

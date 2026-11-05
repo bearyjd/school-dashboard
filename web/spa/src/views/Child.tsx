@@ -62,7 +62,7 @@ export function Child() {
 
       {ps && (
         <div className="card" style={{ marginBottom: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-          <div style={{ fontWeight: 700 }}>PowerSchool</div>
+          <div style={{ fontWeight: 700 }}>PowerSchool{ps.updated ? ` (as of ${ps.updated.slice(0, 10)})` : ''}</div>
           {PS_SECTIONS.map(sec => (
             <div key={sec.key}>
               <div style={{ fontSize: '12px', fontWeight: 700, color: sec.color }}>

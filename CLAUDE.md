@@ -222,7 +222,7 @@ Optional GameChanger vars: `GC_TOKEN` (bearer token from browser session — pre
 
 Optional on-demand sync: `SYNC_TOKEN` — shared secret for `POST /api/sync`. Generate with: `python3 -c "import secrets; print(secrets.token_hex(16))"`. Without it, `/api/sync` returns 501.
 
-Optional PowerSchool (4th source): `PS_USERNAME`, `PS_PASSWORD`, `PS_BASE_URL` (or `~/.powerschool/.env`). The `powerschool summary --json` CLI is not yet vendored; with it missing or unconfigured the sync logs an INFO line and skips (no alert). Output file: `PS_FILE` (default `/tmp/powerschool-daily.json`), passed to `school-state update --ps-file`.
+Optional PowerSchool (4th source): `PS_USERNAME`, `PS_PASSWORD`, `PS_BASE_URL` (or `~/.powersched/.env`, which the scraper reads; the sync checks via `school_dashboard.powerschool.skip_reason`). The `powerschool summary --json` CLI is not yet vendored; with it missing or unconfigured the sync logs an INFO line and skips (no alert). Output file: `PS_FILE` (default `/tmp/powerschool-daily.json`), passed to `school-state update --ps-file`.
 
 Optional per-source toggles: `SOURCE_IXL_ENABLED`, `SOURCE_SGY_ENABLED`, `SOURCE_GC_ENABLED`, `SOURCE_POWERSCHOOL_ENABLED` (default enabled; `0/false/no/off`, case-insensitive, disables). A disabled source is skipped by `school-sync.sh` and `/api/sync` with no failure alert and recorded in `sync_meta` as `last_result: "paused"` Cached data from a paused source stays in state and digests. (helpers: `school_dashboard/sources.py::source_enabled`, shell `source_enabled`).
 
