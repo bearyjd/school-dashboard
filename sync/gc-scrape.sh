@@ -80,6 +80,14 @@ if [[ -n "${GC_TEAM_MAP:-}" ]]; then
     done
 fi
 
+# With a non-empty GC_TEAM_MAP, a team missing from it silently falls back to
+# its team name as the child label — surface that so a typo'd ID is noticed.
+warn_if_unmapped() {
+    if [[ -n "${GC_TEAM_MAP:-}" && -z "${TEAM_MAP[$1]:-}" ]]; then
+        log "WARN: team $1 ($2) not in GC_TEAM_MAP — using team name as child label"
+    fi
+}
+
 # --- Step 3: Iterate teams, fetch summaries ---
 OUTPUT_TEAMS="[]"
 
@@ -97,6 +105,7 @@ for t in teams:
 while IFS=$'\t' read -r TEAM_ID TEAM_NAME; do
     [[ -z "$TEAM_ID" ]] && continue
 
+    warn_if_unmapped "$TEAM_ID" "$TEAM_NAME"
     CHILD="${TEAM_MAP[$TEAM_ID]:-$TEAM_NAME}"
     log "Scraping: $TEAM_NAME ($TEAM_ID) → child=$CHILD"
 

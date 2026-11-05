@@ -131,3 +131,38 @@ echo "WRITE $TOTAL_EVENTS"
         result = _bash(snippet)
         assert result.returncode == 0
         assert "WRITE 0" in result.stdout
+
+
+# ── gc-scrape.sh unmapped-team warning ────────────────────────────────────────
+
+class TestGcScrapeUnmappedTeamWarning:
+    """A team ID missing from a non-empty GC_TEAM_MAP falls back to the team
+    name as the child label; that must be logged as a WARN, not silent.
+    The real function is extracted from the script so the test tracks it."""
+
+    SNIPPET = '''
+eval "$(sed -n '/^warn_if_unmapped() {/,/^}/p' sync/gc-scrape.sh)"
+log() { echo "$*"; }
+declare -A TEAM_MAP
+%(setup)s
+warn_if_unmapped t1 "Tigers"
+'''
+
+    def _run(self, setup: str) -> subprocess.CompletedProcess:
+        return _bash(self.SNIPPET % {"setup": setup})
+
+    def test_mapped_team_no_warning(self):
+        result = self._run('GC_TEAM_MAP="t1:Ford"; TEAM_MAP[t1]=Ford')
+        assert result.returncode == 0, result.stderr
+        assert "WARN" not in result.stdout
+
+    def test_unmapped_team_warns_with_id_and_name(self):
+        result = self._run('GC_TEAM_MAP="t2:Jack"; TEAM_MAP[t2]=Jack')
+        assert result.returncode == 0, result.stderr
+        assert "WARN" in result.stdout
+        assert "t1" in result.stdout and "Tigers" in result.stdout
+
+    def test_unset_map_no_warning(self):
+        result = self._run("unset GC_TEAM_MAP")
+        assert result.returncode == 0, result.stderr
+        assert "WARN" not in result.stdout
