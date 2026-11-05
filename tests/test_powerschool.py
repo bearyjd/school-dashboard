@@ -373,3 +373,26 @@ def test_skip_reason_uses_powersched_env_file(tmp_path, monkeypatch):
     (home / ".powersched" / ".env").unlink()
     monkeypatch.setenv("PS_USERNAME", "u")
     assert powerschool.skip_reason() == ""
+
+
+def _roster_config(tmp_path, monkeypatch, children):
+    cfg = tmp_path / "roster.json"
+    cfg.write_text(json.dumps({"children": {n: {"grade": "4th", "school": "S"} for n in children}}))
+    monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(cfg))
+    state._config_cache = None
+
+
+def test_unmatched_portal_name_warns_and_creates_no_orphan(tmp_path, monkeypatch):
+    _roster_config(tmp_path, monkeypatch, ["Jack"])
+    s = _fresh_state()
+    _merge(s, _write(tmp_path, _fixture()))
+    assert set(s["powerschool"]) == {"Jack"}  # John->Jack alias still matches
+    warnings = s["powerschool_meta"]["warnings"]
+    assert any("'Alex' not in roster; add name_aliases" in w for w in warnings)
+    assert not any("'Jack'" in w for w in warnings)
+
+
+def test_empty_roster_keeps_unmatched_names(tmp_path):
+    s = _fresh_state()
+    _merge(s, _write(tmp_path, _fixture()))
+    assert "Alex" in s["powerschool"]

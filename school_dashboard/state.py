@@ -415,9 +415,13 @@ def _merge_ps_children(section: dict, children: list, stamp: datetime) -> tuple:
     counts: dict = {}
     for name, _ in pairs:
         counts[name] = counts.get(name, 0) + 1
+    roster = {_canonicalize(c["name"]).casefold() for c in get_roster()}
     warnings: list = []
     merged = 0
     for name, entry in pairs:
+        if roster and name.casefold() not in roster:
+            warnings.append(f"PowerSchool child '{name}' not in roster; add name_aliases")
+            continue
         if counts[name] > 1:
             warnings.append(f"PowerSchool {name}: ambiguous ({counts[name]} children share this first name), skipped")
             continue
