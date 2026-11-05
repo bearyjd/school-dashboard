@@ -42,6 +42,7 @@ vendor/
   ixl-scrape/           git submodule (pip install -e)
   schoology-scrape/     git submodule (pip install -e)
   gc/                   git submodule (pip install -e) — GameChanger CLI
+  powerschool-scrape/   git submodule (pip install -e ".[browser]") — PowerSchool CLI (`powerschool`); creds PS_USERNAME/PS_PASSWORD/PS_BASE_URL or ~/.powersched/.env (chmod 600)
 
 docker/
   Dockerfile            python:3.12-slim + Node 20 + gog v0.12.0 + Playwright/Chromium + scrapers + SPA build
@@ -143,7 +144,7 @@ docker compose exec dashboard bash -c \
 ## Development (no Docker)
 
 ```bash
-pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc
+pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc -e vendor/powerschool-scrape
 playwright install chromium
 pytest                            # run all tests
 pytest tests/test_db.py -v        # single file
@@ -176,6 +177,7 @@ tests/test_wrapper_scripts.py 11 tests  — wrapper LOGDIR logic, bash syntax,
 git submodule update --remote vendor/ixl-scrape
 git submodule update --remote vendor/schoology-scrape
 git submodule update --remote vendor/gc
+git submodule update --remote vendor/powerschool-scrape
 git add vendor/ && git commit -m "chore: update scrapers"
 ```
 
