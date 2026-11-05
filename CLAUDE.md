@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What This Is
 
 All-in-one Docker deployment for the family school dashboard. Scrapes IXL,
-Schoology, and GameChanger; aggregates into `school-state.json`; sends
+Schoology, GameChanger, and (optionally) PowerSchool; aggregates into `school-state.json`; sends
 morning/afternoon/night/weekly digests via ntfy; and serves a Flask app + React
 SPA with a chat interface. (Calendar-PDF parsing and Gmail-based event/fact
 extraction — `calendar_import.py`/`intel.py` — existed at `v1.0.0` but have since
@@ -127,7 +127,8 @@ school_dashboard/       Core Python package
   llm.py                SSE-tolerant OpenAI-compatible chat client (`chat_completion`) shared by digest.py and web/app.py's /api/chat. Every call in this repo's test suite mocks `requests.post` at this boundary — this is the one true "requires an external LLM" seam.
   email.py              Gmail digest fetch + classification.
   gcal.py               Google Calendar event fetch (via `gog`), used by digest.py's `_gcal_events_on`.
-  state.py              Aggregate IXL + Schoology JSON into school-state.json.
+  state.py              Aggregate IXL + Schoology + PowerSchool JSON into school-state.json. `update_from_ps_file` keeps previous PowerSchool data (and records a warning in `powerschool_meta`) when the scrape file is missing/stale/empty/malformed or carries `warnings`.
+  powerschool.py        PowerSchool helpers: scrape cleaning/age check, `skip_reason()`, deterministic MISSING / LATE / DUE SOON text (`format_block`, `format_counts`) used by digests, quick check and chat.
   cli.py                school-state CLI entry point.
   html.py               Render school-state.json → dashboard HTML.
   readiness.py          Deterministic, pure-function readiness checklist (get_checklist). No LLM. Fully unit-tested (tests/test_readiness.py, 8 tests) — safe for an agent to modify/verify in isolation.
@@ -192,7 +193,7 @@ docker/
 | `/api/chat` | POST | Chat with LiteLLM (JSON: `message`, `history`) |
 | `/api/readiness` | GET | Get readiness checklist |
 | `/api/calendar` | GET | Fetch Google Calendar events |
-| `/api/sync` | POST | Trigger on-demand sync (header: `X-Sync-Token`; JSON: `sources` e.g. `"ixl,sgy"`, `digest` e.g. `"quick"/"full"/"none"`) |
+| `/api/sync` | POST | Trigger on-demand sync (header: `X-Sync-Token`; JSON: `sources` e.g. `"ixl,sgy,powerschool"` or `"all"`, `digest` e.g. `"quick"/"full"/"none"`) |
 | `/api/sync/status` | GET | Poll sync state (`{running, last_run, last_result, last_sources, last_error}`) |
 | `/api/sync/meta` | GET | Per-source sync freshness (`{ixl: {last_run, last_result}, ...}`) |
 | `/.well-known/assetlinks.json` | GET | TWA domain verification (fingerprint from `TWA_CERT_FINGERPRINT` env var) |
@@ -203,7 +204,7 @@ docker/
 |------|----------|
 | `school.db` | SQLite: `events` table (calendar + email-extracted events), `items` table (manual + scraped tasks), `digests` table (carousel history) |
 | `facts.json` | Array of `{subject, fact, source, created_at}` — long-term memory |
-| `school-state.json` | Latest IXL + Schoology aggregate |
+| `school-state.json` | Latest IXL + Schoology + PowerSchool aggregate; `powerschool` = `{child: {updated, missing[], late[], upcoming[]}}`, `powerschool_meta` = `{warnings[]}` |
 | `email-digest.json` | Latest classified Gmail digest |
 | `gc-schedule.json` | Latest GameChanger schedule: `{scraped_at, teams: [{team_id, team_name, child, schedule: [{date, time, type, opponent, location, home_away}]}]}` |
 | `sync_meta.json` | Per-source scrape timestamps: `{ixl: {last_run, last_result}, sgy: ..., gc: ...}` |
@@ -221,7 +222,9 @@ Optional GameChanger vars: `GC_TOKEN` (bearer token from browser session — pre
 
 Optional on-demand sync: `SYNC_TOKEN` — shared secret for `POST /api/sync`. Generate with: `python3 -c "import secrets; print(secrets.token_hex(16))"`. Without it, `/api/sync` returns 501.
 
-Optional per-source toggles: `SOURCE_IXL_ENABLED`, `SOURCE_SGY_ENABLED`, `SOURCE_GC_ENABLED` (default enabled; `0/false/no/off`, case-insensitive, disables). A disabled source is skipped by `school-sync.sh` and `/api/sync` with no failure alert and recorded in `sync_meta` as `last_result: "paused"` Cached data from a paused source stays in state and digests. (helpers: `school_dashboard/sources.py::source_enabled`, shell `source_enabled`).
+Optional PowerSchool (4th source): `PS_USERNAME`, `PS_PASSWORD`, `PS_BASE_URL` (or `~/.powersched/.env`, which the scraper reads; the sync checks via `school_dashboard.powerschool.skip_reason`). The `powerschool summary --json` CLI is not yet vendored; with it missing or unconfigured the sync logs an INFO line and skips (no alert). Output file: `PS_FILE` (default `/tmp/powerschool-daily.json`), passed to `school-state update --ps-file`.
+
+Optional per-source toggles: `SOURCE_IXL_ENABLED`, `SOURCE_SGY_ENABLED`, `SOURCE_GC_ENABLED`, `SOURCE_POWERSCHOOL_ENABLED` (default enabled; `0/false/no/off`, case-insensitive, disables). A disabled source is skipped by `school-sync.sh` and `/api/sync` with no failure alert and recorded in `sync_meta` as `last_result: "paused"` Cached data from a paused source stays in state and digests. (helpers: `school_dashboard/sources.py::source_enabled`, shell `source_enabled`).
 
 `SCHOOL_SYNC_META_PATH` overrides the sync metadata path (default: `/app/state/sync_meta.json`). TWA domain verification: `TWA_PACKAGE_NAME` (default: `cc.grepon.school`), `TWA_CERT_FINGERPRINT` (populate after signing APK).
 

@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchSyncMeta } from '../api'
+import { fetchSyncMeta, fetchDashboard } from '../api'
 import { useSync } from '../hooks/useSync'
 import { InlineAgent } from '../components/InlineAgent'
 
 const SOURCES = [
   { key: 'ixl', label: 'IXL', icon: '📚', description: 'Skills + diagnostic scores' },
   { key: 'sgy', label: 'Schoology', icon: '🏫', description: 'Assignments + grades' },
+  { key: 'powerschool', label: 'PowerSchool', icon: '🎓', description: 'Missing, late + due-soon work' },
   { key: 'gc', label: 'GameChanger', icon: '⚾', description: 'Team schedule + events' },
 ]
 
@@ -21,6 +22,8 @@ function formatAge(ts: string | undefined): string {
 
 export function Sync() {
   const { data: meta = {}, refetch: refetchMeta } = useQuery({ queryKey: ['syncMeta'], queryFn: fetchSyncMeta, refetchInterval: 5000 })
+  const { data: dashboard } = useQuery({ queryKey: ['dashboard'], queryFn: fetchDashboard })
+  const psWarnings = dashboard?.powerschool_warnings ?? []
   const { status, triggering, error, trigger } = useSync()
 
   const isRunning = status?.running || triggering
@@ -37,6 +40,13 @@ export function Sync() {
       {error && (
         <div className="card" style={{ background: 'rgba(255,107,107,0.1)', border: '1px solid var(--color-error)', marginBottom: 'var(--space-md)', color: 'var(--color-error)' }}>
           {error}
+        </div>
+      )}
+
+      {psWarnings.length > 0 && (
+        <div className="card" style={{ border: '1px solid var(--color-warn)', marginBottom: 'var(--space-md)', fontSize: '13px' }}>
+          <div style={{ fontWeight: 700 }}>PowerSchool warnings</div>
+          {psWarnings.map((w, i) => <div key={i}>{w}</div>)}
         </div>
       )}
 
@@ -78,13 +88,13 @@ export function Sync() {
 
       {/* Batch actions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-        <button className="btn btn--primary" disabled={isRunning} onClick={() => handleSync('ixl,sgy', 'none')}>
+        <button className="btn btn--primary" disabled={isRunning} onClick={() => handleSync('ixl,sgy,powerschool', 'none')}>
           {isRunning ? '⏳ Running…' : '📋 Check Homework'}
         </button>
-        <button className="btn btn--secondary" disabled={isRunning} onClick={() => handleSync('ixl,sgy', 'quick')}>
+        <button className="btn btn--secondary" disabled={isRunning} onClick={() => handleSync('ixl,sgy,powerschool', 'quick')}>
           Quick digest after sync
         </button>
-        <button className="btn btn--secondary" disabled={isRunning} onClick={() => handleSync('ixl,sgy,gc', 'full')}>
+        <button className="btn btn--secondary" disabled={isRunning} onClick={() => handleSync('ixl,sgy,powerschool,gc', 'full')}>
           Full sync + full digest
         </button>
       </div>

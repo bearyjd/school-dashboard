@@ -34,6 +34,7 @@ export SCHOOL_GC_PATH="${SCHOOL_GC_PATH:-$STATE_DIR/gc-schedule.json}"
 IXL_CRON="${IXL_CRON:-}"
 IXL_DIR="${IXL_DIR:-/tmp/ixl}"
 SGY_FILE="${SGY_FILE:-/tmp/schoology-daily.json}"
+PS_FILE="${PS_FILE:-/tmp/powerschool-daily.json}"
 
 log() { echo "[$(date '+%H:%M:%S')] $*" >&2; }
 # Fail closed: a step runs only if `check` exits exactly 10 (inactive). Active (0),
@@ -141,6 +142,33 @@ else
     log "WARN: sgy command not found — skipping"
 fi
 
+# --- Step 2a: PowerSchool scrape (optional; skipped cleanly if not installed/configured) ---
+# Availability/credentials come from school_dashboard.powerschool.skip_reason (single source
+# of truth). Output goes to a private mktemp file next to $PS_FILE and replaces it only when
+# it is valid JSON without top-level warnings, so a bad scrape never clobbers the last good one.
+PS_CHECK='import sys; from school_dashboard.powerschool import scrape_problem; p = scrape_problem(open(sys.argv[1]).read()); print(p); sys.exit(1 if p else 0)'
+ps_problem=""
+ps_tmp=""
+if ! source_enabled powerschool; then
+    pause_source powerschool
+elif ! ps_skip="$(python3 -c 'from school_dashboard.powerschool import skip_reason; print(skip_reason())' 2>/dev/null)"; then
+    log "INFO: powerschool skipped — availability check could not run"
+elif [[ -n "$ps_skip" ]]; then
+    log "INFO: powerschool skipped — $ps_skip"
+else
+    log "Running PowerSchool scrape..."
+    if ps_tmp="$(mktemp "${PS_FILE}.XXXXXX" 2>/dev/null)" \
+        && powerschool summary --json > "$ps_tmp" 2>>"$STATE_DIR/school-sync.log" \
+        && ps_problem="$(python3 -c "$PS_CHECK" "$ps_tmp" 2>&1)"; then
+        mv "$ps_tmp" "$PS_FILE"
+        write_sync_meta "powerschool" "ok"
+    else
+        [[ -n "$ps_tmp" ]] && rm -f "$ps_tmp"
+        log "WARN: PowerSchool scrape failed${ps_problem:+ ($ps_problem)}"
+        write_sync_meta "powerschool" "error"
+    fi
+fi
+
 # --- Step 2b: GameChanger scrape (non-fatal if not configured) ---
 if ! source_enabled gc; then
     pause_source gc
@@ -165,7 +193,7 @@ fi
 # --- Step 3: Merge into state ---
 maintenance_skip "state update" && exit 0
 log "Updating state..."
-school-state update --ixl-dir "$IXL_DIR" --sgy-file "$SGY_FILE" || {
+school-state update --ixl-dir "$IXL_DIR" --sgy-file "$SGY_FILE" --ps-file "$PS_FILE" || {
     rc=$?
     if [ "$rc" -eq 3 ]; then log "Maintenance mode active — state update skipped"; exit 0; fi
     log "ERROR: State update failed — skipping remaining steps"; exit 1

@@ -26,6 +26,7 @@ export function Home() {
     ...(dashboard?.children ?? []).map(c => c.name),
     ...Object.keys(dashboard?.ixl ?? {}),
     ...Object.keys(dashboard?.schoology ?? {}),
+    ...Object.keys(dashboard?.powerschool ?? {}),
   ]))
 
   return (
@@ -41,6 +42,9 @@ export function Home() {
           const openSgy = sgyAssignments.filter(a => !['submitted','graded','complete','completed','turned in'].includes((a.status ?? '').toLowerCase()))
           const hasIxl = dashboard?.has_data?.[child]?.ixl ?? child in (dashboard?.ixl ?? {})
           const hasSgy = dashboard?.has_data?.[child]?.sgy ?? child in (dashboard?.schoology ?? {})
+          const ps = dashboard?.powerschool?.[child]
+          const psMissing = ps?.missing.length ?? 0
+          const psLate = ps?.late.length ?? 0
           const ixlBadge = freshnessLabel(meta, 'ixl')
           const sgyBadge = freshnessLabel(meta, 'sgy')
 
@@ -51,6 +55,11 @@ export function Home() {
                 <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>{child}</h2>
                 <span style={{ color: 'var(--color-text-muted)', fontSize: '18px' }}>›</span>
               </div>
+              {psMissing + psLate > 0 && (
+                <div className="badge badge--error" style={{ alignSelf: 'flex-start' }}>
+                  {psMissing} missing · {psLate} late
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
                 <div className="card" style={{ flex: 1, minWidth: 120, background: 'var(--color-surface2)', padding: '10px 12px' }}>
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>

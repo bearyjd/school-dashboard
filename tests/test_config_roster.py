@@ -160,15 +160,15 @@ def test_dashboard_includes_roster_and_has_data(dash_client):
     body = c.get("/api/dashboard").get_json()
     assert [r["name"] for r in body["children"]] == ["Ford", "Penn", "Jack"]
     assert body["children"][0] == {"id": "ford", "name": "Ford", "grade": "3rd", "school": "St Mark"}
-    assert body["has_data"]["Ford"] == {"ixl": True, "sgy": False}
-    assert body["has_data"]["Penn"] == {"ixl": False, "sgy": True}
+    assert body["has_data"]["Ford"] == {"ixl": True, "sgy": False, "ps": False}
+    assert body["has_data"]["Penn"] == {"ixl": False, "sgy": True, "ps": False}
     assert body["ixl"] == {} and body["schoology"] == {}  # existing keys unchanged
 
 
 def test_dashboard_never_scraped_child(dash_client):
     c = dash_client({"ixl": {}, "schoology": {}}, CONFIG)
     body = c.get("/api/dashboard").get_json()
-    assert body["has_data"]["Jack"] == {"ixl": False, "sgy": False}
+    assert body["has_data"]["Jack"] == {"ixl": False, "sgy": False, "ps": False}
 
 
 def test_dashboard_has_data_uses_alias_normalization(dash_client):
@@ -181,7 +181,7 @@ def test_dashboard_has_data_requires_non_empty_dict(dash_client):
     c = dash_client({"ixl": {"Ford": {}, "Penn": {}}, "schoology": {"Jack": {}}}, CONFIG)
     body = c.get("/api/dashboard").get_json()
     for name in ("Ford", "Penn", "Jack"):
-        assert body["has_data"][name] == {"ixl": False, "sgy": False}
+        assert body["has_data"][name] == {"ixl": False, "sgy": False, "ps": False}
 
 
 def test_dashboard_empty_roster(dash_client):

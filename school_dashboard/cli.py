@@ -52,10 +52,12 @@ def _update_locked(args: argparse.Namespace) -> None:
     sgy_count = state.update_from_sgy_file(s, args.sgy_file)
     s, auto_archived = schoology_autoarchive.run_autoarchive(
         s, args.sgy_file, state._state_path(args.state_file))
+    ps_count = state.update_from_ps_file(s, args.ps_file)
     pruned = state.prune_stale(s)
 
     p = state.save(s, args.state_file)
-    print(f"Updated: {ixl_count} IXL children, {sgy_count} SGY children, {pruned} stale items pruned, "
+    print(f"Updated: {ixl_count} IXL children, {sgy_count} SGY children, {ps_count} PS children, "
+          f"{pruned} stale items pruned, "
           f"auto-archived {auto_archived}", file=sys.stderr)
     print(f"State saved: {p}", file=sys.stderr)
 
@@ -238,6 +240,7 @@ def main() -> None:
     p_update = subs.add_parser("update", help="Merge latest scraper output into state")
     p_update.add_argument("--ixl-dir", default="/tmp/ixl", help="IXL output directory")
     p_update.add_argument("--sgy-file", default="/tmp/schoology-daily.json", help="SGY summary JSON file")
+    p_update.add_argument("--ps-file", default="/tmp/powerschool-daily.json", help="PowerSchool summary JSON file")
     p_update.set_defaults(func=cmd_update, writes=True)
 
     p_html = subs.add_parser("html", help="Regenerate static dashboard")

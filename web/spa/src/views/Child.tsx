@@ -1,13 +1,24 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchItems, updateItem, deleteItem } from '../api'
+import { fetchItems, fetchDashboard, updateItem, deleteItem } from '../api'
 import { ItemSheet } from '../components/ItemSheet'
 import { InlineAgent } from '../components/InlineAgent'
-import type { Item } from '../api/types'
+import type { Item, PsAssignment } from '../api/types'
 
 const FILTER_TYPES = ['All', 'IXL', 'SGY', 'Manual']
 const DONE_STATUSES = ['All', 'Open', 'Done']
+
+const PS_SECTIONS = [
+  { key: 'missing', label: 'Missing', color: 'var(--color-error)' },
+  { key: 'late', label: 'Late', color: 'var(--color-warn)' },
+  { key: 'upcoming', label: 'Due soon', color: 'var(--color-text-muted)' },
+] as const
+
+function psLine(a: PsAssignment): string {
+  const head = [a.course, a.title].filter(Boolean).join(' - ') || 'Untitled'
+  return a.due ? `${head} (due ${a.due})` : head
+}
 
 export function Child() {
   const { name } = useParams<{ name: string }>()
@@ -16,6 +27,9 @@ export function Child() {
   const [typeFilter, setTypeFilter] = useState('All')
   const [doneFilter, setDoneFilter] = useState('Open')
   const [editing, setEditing] = useState<Item | null>(null)
+
+  const { data: dashboard } = useQuery({ queryKey: ['dashboard'], queryFn: fetchDashboard })
+  const ps = name ? dashboard?.powerschool?.[name] : undefined
 
   const { data, isLoading } = useQuery({
     queryKey: ['items', name, doneFilter === 'All'],
@@ -45,6 +59,22 @@ export function Child() {
         <button className="btn btn--ghost" onClick={() => navigate('/home')}>‹</button>
         <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{name}</h2>
       </div>
+
+      {ps && (
+        <div className="card" style={{ marginBottom: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+          <div style={{ fontWeight: 700 }}>PowerSchool{ps.updated ? ` (as of ${ps.updated.slice(0, 10)})` : ''}</div>
+          {PS_SECTIONS.map(sec => (
+            <div key={sec.key}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: sec.color }}>
+                {sec.label} ({ps[sec.key].length})
+              </div>
+              {ps[sec.key].length === 0
+                ? <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>None</div>
+                : ps[sec.key].map((a, i) => <div key={i} style={{ fontSize: '13px' }}>{psLine(a)}</div>)}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Filter chips */}
       <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)', flexWrap: 'wrap' }}>

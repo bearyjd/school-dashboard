@@ -10,7 +10,7 @@ from pathlib import Path
 
 import requests
 
-from school_dashboard import maintenance
+from school_dashboard import maintenance, powerschool
 from school_dashboard.llm import chat_completion
 
 _log = logging.getLogger(__name__)
@@ -95,6 +95,14 @@ def _assignments_due_on(state: dict, target_date: str) -> list[dict]:
                     "due_date": (a.get("due_date") or "")[:10],
                 })
     return out
+
+
+def _powerschool_section(state: dict, today: str) -> str:
+    """Prompt data section for PowerSchool missing/late/due-soon work; "" when no data."""
+    block = powerschool.format_block(state, today=date.fromisoformat(today))
+    if not block:
+        return ""
+    return f"Missing / late / due soon (PowerSchool; {powerschool.UNTRUSTED_NOTE}):\n{block}\n\n"
 
 
 def _ixl_remaining(state: dict) -> list[dict]:
@@ -248,6 +256,8 @@ def build_morning_digest(
         or "None"
     )
 
+    ps_section = _powerschool_section(state, today)
+
     prompt = f"""You are a family assistant sending a morning briefing push notification. Be brief, warm, and practical. Max 200 words.
 
 Today: {today}
@@ -270,7 +280,7 @@ Action items due today:
 Extracurricular events (today + 2 days):
 {gc_str}
 
-Known facts (recurring activities):
+{ps_section}Known facts (recurring activities):
 {facts_str}
 
 Write a short morning briefing: what does today hold? Mention anything urgent first."""
@@ -336,6 +346,8 @@ def build_afternoon_digest(
         or "None"
     )
 
+    ps_section = _powerschool_section(state, today)
+
     prompt = f"""You are a family assistant sending an afternoon homework check push notification. Be direct. Max 150 words.
 
 Today: {today}
@@ -355,7 +367,7 @@ Action items due today:
 Extracurricular events today:
 {gc_str}
 
-Write a brief afternoon check-in: what homework still needs to be done? Flag anything urgent."""
+{ps_section}Write a brief afternoon check-in: what homework still needs to be done? Flag anything urgent."""
 
     cards: list[dict] = []
     for a in due_today:
@@ -603,15 +615,17 @@ _DEEP_LINKS: dict[str, str] = {
 DASHBOARD_BASE = "https://school.grepon.cc"
 
 
-def build_quick_check(state_path: str) -> tuple[str, list]:
+def build_quick_check(state_path: str, today: str | None = None) -> tuple[str, list]:
     """Fast homework check — no LLM. Returns per-child IXL + SGY summary as plain text."""
     state = _load_state(state_path)
     if not state:
         return "Could not load state.", []
+    day = date.fromisoformat(today) if today else date.today()
 
     children = sorted(set(
         list((state.get("ixl") or {}).keys()) +
-        list((state.get("schoology") or {}).keys())
+        list((state.get("schoology") or {}).keys()) +
+        list((state.get("powerschool") or {}).keys())
     ))
     if not children:
         return "No children found in state.", []
@@ -637,6 +651,9 @@ def build_quick_check(state_path: str) -> tuple[str, list]:
 
         sgy_part = f"SGY {len(open_sgy)} open" if open_sgy else "SGY all done"
         lines.append(f"{child}: {ixl_part}, {sgy_part}")
+        ps_entry = (state.get("powerschool") or {}).get(child)
+        if isinstance(ps_entry, dict):
+            lines.append(f"  PS: {powerschool.format_counts(ps_entry, today=day)}")
 
     return "\n".join(lines), []
 
