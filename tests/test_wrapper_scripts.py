@@ -166,3 +166,61 @@ warn_if_unmapped t1 "Tigers"
         result = self._run("unset GC_TEAM_MAP")
         assert result.returncode == 0, result.stderr
         assert "WARN" not in result.stdout
+
+
+# ── school-sync.sh PowerSchool block ─────────────────────────────────────────
+
+class TestSchoolSyncPowerschoolBlock:
+    """Run the extracted Step 2a block with stubbed helpers and a fake `powerschool`."""
+
+    @staticmethod
+    def _run(tmp_path, fake_body=None, env_extra=None):
+        import re
+        from pathlib import Path
+        src = (Path(__file__).parent.parent / "sync" / "school-sync.sh").read_text()
+        block = re.search(r"# --- Step 2a:.*?(?=# --- Step 2b)", src, re.S).group(0)
+        bindir = tmp_path / "bin"
+        bindir.mkdir()
+        if fake_body is not None:
+            fake = bindir / "powerschool"
+            fake.write_text("#!/bin/bash\n" + fake_body)
+            fake.chmod(0o755)
+        home = tmp_path / "home"
+        home.mkdir()
+        prelude = (
+            'log() { echo "LOG: $*"; }\n'
+            'write_sync_meta() { echo "META: $1 $2"; }\n'
+            'pause_source() { echo "PAUSED: $1"; }\n'
+            'source_enabled() { [[ "${SOURCE_POWERSCHOOL_ENABLED:-1}" != "0" ]]; }\n'
+            f"PS_FILE={tmp_path}/ps.json\nSTATE_DIR={tmp_path}\n"
+        )
+        env = {"PATH": f"{bindir}:/usr/bin:/bin", "HOME": str(home), **(env_extra or {})}
+        return _bash(prelude + block, env=env)
+
+    def test_not_installed_skips_without_meta(self, tmp_path):
+        r = self._run(tmp_path, env_extra={"PS_USERNAME": "u"})
+        assert r.returncode == 0, r.stderr
+        assert "skipping" in r.stdout and "META" not in r.stdout
+
+    def test_no_credentials_skips_without_meta(self, tmp_path):
+        r = self._run(tmp_path, fake_body="echo '{}'\n")
+        assert r.returncode == 0, r.stderr
+        assert "not configured" in r.stdout and "META" not in r.stdout
+
+    def test_paused(self, tmp_path):
+        r = self._run(tmp_path, fake_body="echo '{}'\n",
+                      env_extra={"PS_USERNAME": "u", "SOURCE_POWERSCHOOL_ENABLED": "0"})
+        assert "PAUSED: powerschool" in r.stdout
+
+    def test_success_writes_file_and_meta_ok(self, tmp_path):
+        r = self._run(tmp_path, fake_body="echo '{\"children\": []}'\n", env_extra={"PS_USERNAME": "u"})
+        assert "META: powerschool ok" in r.stdout
+        assert (tmp_path / "ps.json").exists()
+
+    def test_failure_is_nonfatal_and_keeps_previous_file(self, tmp_path):
+        (tmp_path / "ps.json").write_text("OLD")
+        r = self._run(tmp_path, fake_body="exit 1\n", env_extra={"PS_USERNAME": "u"})
+        assert r.returncode == 0, r.stderr
+        assert "META: powerschool error" in r.stdout
+        assert (tmp_path / "ps.json").read_text() == "OLD"
+        assert not (tmp_path / "ps.json.tmp").exists()

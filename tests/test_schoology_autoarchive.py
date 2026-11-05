@@ -206,7 +206,7 @@ def test_maintenance_active_is_noop(state_env, tmp_path):
 
 
 def _args(state_file, sgy, tmp_path):
-    return argparse.Namespace(state_file=str(state_file), ixl_dir=str(tmp_path / "noixl"), sgy_file=str(sgy))
+    return argparse.Namespace(state_file=str(state_file), ixl_dir=str(tmp_path / "noixl"), sgy_file=str(sgy), ps_file=str(tmp_path / "nops.json"))
 
 
 def _shift_last_seen(state_file, days):
@@ -519,7 +519,7 @@ def test_archive_dedupe_key_includes_last_seen(tmp_path):
 
 
 def _args_cli(sf, sgy, tmp_path):
-    return argparse.Namespace(state_file=str(sf), ixl_dir=str(tmp_path / "noixl"), sgy_file=str(sgy))
+    return argparse.Namespace(state_file=str(sf), ixl_dir=str(tmp_path / "noixl"), sgy_file=str(sgy), ps_file=str(tmp_path / "nops.json"))
 
 
 def test_corrupt_state_file_is_never_overwritten(state_env, tmp_path, capsys):

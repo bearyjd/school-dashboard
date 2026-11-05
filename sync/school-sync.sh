@@ -34,6 +34,7 @@ export SCHOOL_GC_PATH="${SCHOOL_GC_PATH:-$STATE_DIR/gc-schedule.json}"
 IXL_CRON="${IXL_CRON:-}"
 IXL_DIR="${IXL_DIR:-/tmp/ixl}"
 SGY_FILE="${SGY_FILE:-/tmp/schoology-daily.json}"
+PS_FILE="${PS_FILE:-/tmp/powerschool-daily.json}"
 
 log() { echo "[$(date '+%H:%M:%S')] $*" >&2; }
 # Fail closed: a step runs only if `check` exits exactly 10 (inactive). Active (0),
@@ -141,6 +142,27 @@ else
     log "WARN: sgy command not found — skipping"
 fi
 
+# --- Step 2a: PowerSchool scrape (optional; skipped cleanly if not installed/configured) ---
+# Written to a temp file and moved into place only on success, so a failed scrape
+# never replaces the last good $PS_FILE (state merge also rejects stale/warning files).
+if ! source_enabled powerschool; then
+    pause_source powerschool
+elif ! command -v powerschool &>/dev/null; then
+    log "INFO: powerschool not installed — skipping"
+elif [[ -z "${PS_USERNAME:-}" && ! -f "${HOME:-/root}/.powerschool/.env" ]]; then
+    log "INFO: powerschool not configured — skipping (set PS_USERNAME/PS_PASSWORD in config/env)"
+else
+    log "Running PowerSchool scrape..."
+    if powerschool summary --json > "$PS_FILE.tmp" 2>>"$STATE_DIR/school-sync.log" && [[ -s "$PS_FILE.tmp" ]]; then
+        mv "$PS_FILE.tmp" "$PS_FILE"
+        write_sync_meta "powerschool" "ok"
+    else
+        rm -f "$PS_FILE.tmp"
+        log "WARN: PowerSchool scrape had errors"
+        write_sync_meta "powerschool" "error"
+    fi
+fi
+
 # --- Step 2b: GameChanger scrape (non-fatal if not configured) ---
 if ! source_enabled gc; then
     pause_source gc
@@ -165,7 +187,7 @@ fi
 # --- Step 3: Merge into state ---
 maintenance_skip "state update" && exit 0
 log "Updating state..."
-school-state update --ixl-dir "$IXL_DIR" --sgy-file "$SGY_FILE" || {
+school-state update --ixl-dir "$IXL_DIR" --sgy-file "$SGY_FILE" --ps-file "$PS_FILE" || {
     rc=$?
     if [ "$rc" -eq 3 ]; then log "Maintenance mode active — state update skipped"; exit 0; fi
     log "ERROR: State update failed — skipping remaining steps"; exit 1

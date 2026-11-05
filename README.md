@@ -1,6 +1,6 @@
 # school-dashboard
 
-All-in-one Docker deployment for family school situational awareness. Scrapes IXL and Schoology, sends a morning digest via ntfy.sh, and serves a Flask web app with a streaming chat interface. (Calendar-PDF parsing and Gmail-based event/fact extraction — `calendar_import.py`/`intel.py` — existed at `v1.0.0` but have since been removed from the codebase; see `CLAUDE.md`'s Architecture section for details, including a known bug this causes in the readiness checklist's tests/quizzes line item.)
+All-in-one Docker deployment for family school situational awareness. Scrapes IXL, Schoology, GameChanger and (optionally) PowerSchool, sends a morning digest via ntfy.sh, and serves a Flask web app with a streaming chat interface. (Calendar-PDF parsing and Gmail-based event/fact extraction — `calendar_import.py`/`intel.py` — existed at `v1.0.0` but have since been removed from the codebase; see `CLAUDE.md`'s Architecture section for details, including a known bug this causes in the readiness checklist's tests/quizzes line item.)
 
 **External dependency:** LiteLLM proxy at `LITELLM_URL`. Not included — point to your own instance.
 
@@ -22,7 +22,8 @@ school_dashboard/       Core Python package
   db.py                 SQLite: `items`, `digests`, `events` tables (inline migrations in `init_db`).
   digest.py             Build morning digest via LiteLLM. Send to ntfy.sh.
   email.py              Gmail digest fetch + classification via gog CLI.
-  state.py              Aggregate IXL + Schoology JSON into school-state.json.
+  state.py              Aggregate IXL + Schoology + PowerSchool JSON into school-state.json.
+  powerschool.py        PowerSchool missing/late/due-soon helpers (digest + quick-check text).
   cli.py                school-state CLI entry point.
   html.py               Render school-state.json → dashboard HTML.
 
@@ -80,6 +81,7 @@ Copy `.env.example` to `config/env` and fill in all values:
 | `GOG_ACCOUNT` | Yes | Gmail account for gog OAuth |
 | `NTFY_TOPIC` | Yes | ntfy.sh topic slug for push notifications |
 | `SCHOOL_EMAIL_ACCOUNT` | Yes | Gmail account for school email intel |
+| `PS_USERNAME` / `PS_PASSWORD` / `PS_BASE_URL` | No | PowerSchool login for the optional `powerschool` scraper (missing / late / due-soon work). Source is skipped cleanly when the CLI or credentials are absent. Pause with `SOURCE_POWERSCHOOL_ENABLED=0`. |
 | `SYNC_TOKEN` | No | Shared secret for `POST /api/sync`. Generate: `python3 -c "import secrets; print(secrets.token_hex(16))"` |
 | `GC_EMAIL` / `GC_PASSWORD` | No | GameChanger credentials. Required for headless self-healing — `gc token-refresh` uses Playwright + auto-OTP via gog Gmail to recover when the token expires. |
 | `GC_TOKEN` | No | Optional bearer token from browser DevTools. Only useful for first-run bootstrap; subsequent refreshes write a fresh token to `~/.gc/.env` automatically. |
@@ -102,10 +104,10 @@ All gitignored, stored in `state/`:
 |------|----------|
 | `school.db` | SQLite: `events` table (calendar + email-extracted events), `items` table (manual + scraped tasks), `digests` table (carousel history) |
 | `facts.json` | Long-term memory: `{subject, fact, source, created_at}` |
-| `school-state.json` | Latest IXL + Schoology aggregate |
+| `school-state.json` | Latest IXL + Schoology + PowerSchool aggregate (`powerschool`: per-child missing/late/upcoming) |
 | `email-digest.json` | Latest classified Gmail digest |
 | `gc-schedule.json` | Latest GameChanger schedule: `{scraped_at, teams: [{team_id, team_name, schedule: [...]}]}` |
-| `sync_meta.json` | Per-source scrape timestamps: `{ixl: {last_run, last_result}, sgy: ..., gc: ...}` |
+| `sync_meta.json` | Per-source scrape timestamps: `{ixl: {last_run, last_result}, sgy: ..., gc: ..., powerschool: ...}` |
 | `calendar.pdf` | Source PDF (drop in manually each school year) |
 
 ## API Endpoints
@@ -122,7 +124,7 @@ All gitignored, stored in `state/`:
 | `/api/chat` | POST | Chat with LiteLLM (JSON: `message`, `history`) |
 | `/api/readiness` | GET | Get readiness checklist |
 | `/api/calendar` | GET | Fetch Google Calendar events |
-| `/api/sync` | POST | Trigger on-demand sync (header: `X-Sync-Token`; JSON: `sources` e.g. `"ixl,sgy"`) |
+| `/api/sync` | POST | Trigger on-demand sync (header: `X-Sync-Token`; JSON: `sources` e.g. `"ixl,sgy,powerschool"`, or `"all"`) |
 | `/api/sync/status` | GET | Poll sync state (`{running, last_run, last_result, last_sources, last_error}`) |
 | `/api/sync/meta` | GET | Per-source sync freshness (`{ixl: {last_run, last_result}, ...}`) |
 | `/api/agent/inline` | POST | Inline AI agent for item and sync-source context (JSON: `context_type`, `context_id`, `message`) |

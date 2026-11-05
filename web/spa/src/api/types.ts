@@ -24,12 +24,28 @@ export interface RosterChild {
   school: string;
 }
 
+export interface PsAssignment {
+  course: string | null;
+  title: string | null;
+  due: string | null;
+  category: string | null;
+  score: string | null;
+}
+
+export interface PsChild {
+  missing: PsAssignment[];
+  late: PsAssignment[];
+  upcoming: PsAssignment[];
+}
+
 export interface Dashboard {
   schoology: Record<string, Array<{ title: string; course: string; due_date: string; status: string; url: string }>>;
   ixl: Record<string, IxlSubject[]>;
+  powerschool?: Record<string, PsChild>;
+  powerschool_warnings?: string[];
   email_items: Array<{ id: string; child: string; summary: string; due_iso: string | null; due_raw: string }>;
   children: RosterChild[];
-  has_data: Record<string, { ixl: boolean; sgy: boolean }>;
+  has_data: Record<string, { ixl: boolean; sgy: boolean; ps?: boolean }>;
   last_updated: string;
 }
 
@@ -47,6 +63,7 @@ export interface SyncMeta {
   ixl?: { last_run: string; last_result: SyncResult };
   sgy?: { last_run: string; last_result: SyncResult };
   gc?: { last_run: string; last_result: SyncResult };
+  powerschool?: { last_run: string; last_result: SyncResult };
 }
 
 export interface ChatMessage {

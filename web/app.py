@@ -10,7 +10,7 @@ from flask import Flask, jsonify, render_template, request, Response, send_from_
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.state import canonical_name, get_roster
-from school_dashboard import maintenance, paths
+from school_dashboard import maintenance, paths, powerschool
 from school_dashboard.sources import source_enabled
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta
 
@@ -86,7 +86,7 @@ def _format_freshness(meta: dict) -> str:
     """Format per-source sync freshness for LLM system prompt."""
     now = datetime.now(timezone.utc)
     lines = []
-    for source in ("ixl", "sgy", "gc"):
+    for source in ("ixl", "sgy", "gc", "powerschool"):
         entry = meta.get(source)
         if not entry:
             lines.append(f"{source.upper()}: never pulled")
@@ -141,6 +141,8 @@ def build_system_prompt() -> str:
         for f in facts[:20]
     ) or "No facts recorded yet."
 
+    ps_block = powerschool.format_block(state if isinstance(state, dict) else {})
+    ps_str = f"=== MISSING / LATE / DUE SOON (PowerSchool) ===\n{ps_block}\n\n" if ps_block else ""
     today = date.today().strftime("%A, %B %d, %Y")
 
     return (
@@ -152,6 +154,7 @@ def build_system_prompt() -> str:
         f"=== UPCOMING SCHOOL EVENTS (next 30 days) ===\n{events_str}\n\n"
         f"=== KNOWN FACTS ===\n{facts_str}\n\n"
         f"=== SCHOOL STATE (grades, IXL, assignments) ===\n{state_str}\n\n"
+        f"{ps_str}"
         f"=== ACTIONABLE EMAILS ===\n{emails_str}\n"
     )
 
@@ -389,7 +392,7 @@ def _dict_items(section: object):
 
 
 def _has_data_flags(state: dict) -> dict:
-    """Per-child {ixl, sgy} flags: True only if the child has a non-empty entry in state."""
+    """Per-child {ixl, sgy, ps} flags: True only if the child has a non-empty entry in state."""
     def populated(section: object) -> set:
         if not isinstance(section, dict):
             return set()
@@ -397,8 +400,10 @@ def _has_data_flags(state: dict) -> dict:
 
     ixl_keys = populated(state.get("ixl"))
     sgy_keys = populated(state.get("schoology"))
-    names = [r["name"] for r in get_roster()] + sorted((ixl_keys | sgy_keys) - {r["name"] for r in get_roster()})
-    return {n: {"ixl": n in ixl_keys, "sgy": n in sgy_keys} for n in names}
+    ps_keys = populated(state.get("powerschool"))
+    roster_names = {r["name"] for r in get_roster()}
+    names = [r["name"] for r in get_roster()] + sorted((ixl_keys | sgy_keys | ps_keys) - roster_names)
+    return {n: {"ixl": n in ixl_keys, "sgy": n in sgy_keys, "ps": n in ps_keys} for n in names}
 
 
 def _parse_due_iso(s: str | None) -> str | None:
@@ -463,6 +468,15 @@ def api_dashboard():
             if subjects:
                 ixl[name] = subjects
 
+        # PowerSchool: per-child missing / late / upcoming lists
+        ps: dict = {}
+        for child, data in _dict_items(state.get("powerschool")):
+            name = _normalize_child(child)
+            ps[name] = {
+                key: powerschool.clean_assignments(data.get(key))
+                for key in ("missing", "late", "upcoming")
+            }
+
         # Email action items only (with parsed due dates)
         email_items = [
             {
@@ -480,6 +494,8 @@ def api_dashboard():
         return jsonify({
             "schoology": schoology,
             "ixl": ixl,
+            "powerschool": ps,
+            "powerschool_warnings": list((state.get("powerschool_meta") or {}).get("warnings") or []),
             "children": get_roster(),
             "has_data": _has_data_flags(state),
             "email_items": email_items,
@@ -566,6 +582,18 @@ def _run_state_command(cmd: list, errors: list) -> None:
         errors.append(f"{' '.join(cmd[:2])}: timed out after {STATE_COMMAND_TIMEOUT}s")
 
 
+def _scrape_powerschool(ps_file: str) -> None:
+    """Run `powerschool summary --json`; write the file only on success (atomic replace)."""
+    result = subprocess.run(
+        ["powerschool", "summary", "--json"], capture_output=True, text=True, timeout=120,
+    )
+    if result.returncode != 0 or not result.stdout:
+        raise RuntimeError(f"powerschool summary failed (exit {result.returncode})")
+    tmp = Path(ps_file + ".tmp")
+    tmp.write_text(result.stdout)
+    tmp.replace(ps_file)
+
+
 def _run_sync_background(sources: str, digest: str) -> None:
     """Run scrapers in a background thread, update state, optionally send digest."""
     global _sync_status
@@ -587,6 +615,7 @@ def _run_sync_background(sources: str, digest: str) -> None:
 
     ixl_dir = os.environ.get("IXL_DIR", "/tmp/ixl")
     sgy_file = os.environ.get("SGY_FILE", "/tmp/schoology-daily.json")
+    ps_file = os.environ.get("PS_FILE", "/tmp/powerschool-daily.json")
     ixl_cron = os.environ.get("IXL_CRON", "")
     state_path = str(paths.state_path())
     db_path = str(paths.db_path())
@@ -595,7 +624,7 @@ def _run_sync_background(sources: str, digest: str) -> None:
 
     source_list = [s.strip() for s in sources.split(",")]
     if "all" in source_list:
-        source_list = ["ixl", "sgy", "gc"]
+        source_list = ["ixl", "sgy", "gc", "powerschool"]
 
     errors = []
 
@@ -650,6 +679,12 @@ def _run_sync_background(sources: str, digest: str) -> None:
                     )
                     if result.stdout:
                         Path(sgy_file).write_text(result.stdout)
+                elif src == "powerschool":
+                    reason = powerschool.skip_reason()
+                    if reason:
+                        app.logger.info("powerschool sync skipped: %s", reason)
+                        continue
+                    _scrape_powerschool(ps_file)
                 elif src == "gc":
                     gc_script = "/app/sync/gc-scrape.sh"
                     if Path(gc_script).exists():
@@ -660,11 +695,12 @@ def _run_sync_background(sources: str, digest: str) -> None:
             else:
                 write_sync_source(src, "ok")
 
-        # Update state (only if ixl or sgy were synced)
-        if any(s in source_list and source_enabled(s) for s in ("ixl", "sgy")):
+        # Update state (only if ixl, sgy or powerschool were synced)
+        if any(s in source_list and source_enabled(s) for s in ("ixl", "sgy", "powerschool")):
             if _sync_paused_for_maintenance():
                 return
-            _run_state_command(["school-state", "update", "--ixl-dir", ixl_dir, "--sgy-file", sgy_file], errors)
+            _run_state_command(["school-state", "update", "--ixl-dir", ixl_dir, "--sgy-file", sgy_file,
+                                "--ps-file", ps_file], errors)
             if _sync_paused_for_maintenance():
                 return
             _run_state_command(["school-state", "html"], errors)
@@ -717,7 +753,7 @@ def api_sync():
         return jsonify({"error": "unauthorized"}), 401
 
     data = request.get_json(silent=True) or {}
-    sources = (data.get("sources") or "ixl,sgy").strip()
+    sources = (data.get("sources") or "ixl,sgy,powerschool").strip()
     digest = (data.get("digest") or "quick").strip()
 
     if not _sync_lock.acquire(blocking=False):

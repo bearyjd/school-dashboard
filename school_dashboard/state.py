@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from school_dashboard import maintenance, paths
+from school_dashboard import maintenance, paths, powerschool
 from school_dashboard.atomic import write_atomic
 
 DEFAULT_CONFIG_PATH = Path("/etc/school-dashboard/config.json")
@@ -136,6 +136,7 @@ def _empty_state() -> dict:
         "children": get_children(),
         "ixl": {},
         "schoology": {},
+        "powerschool": {},
         "action_items": [],
         "calendar_events_created": [],
         "email_last_scan": None,
@@ -366,6 +367,70 @@ def update_from_sgy_file(state: dict, sgy_file: str = "/tmp/schoology-daily.json
     return count
 
 
+def _read_ps_scrape(p: Path, now: datetime) -> tuple:
+    """(data, problem): data is the usable scrape dict, else None with a reason."""
+    try:
+        data = json.loads(p.read_text())
+    except OSError:
+        return None, "missing" if not p.exists() else f"unreadable: {p}"
+    except ValueError:
+        return None, "malformed JSON"
+    if not isinstance(data, dict):
+        return None, "not a JSON object"
+    children = data.get("children")
+    if not isinstance(children, list) or not children:
+        return None, "no children in scrape"
+    if data.get("warnings"):
+        return None, "scraper reported warnings: " + "; ".join(str(w) for w in data["warnings"])
+    age = powerschool.scrape_age_hours(data.get("scraped_at"), p.stat().st_mtime, now)
+    if age > powerschool.MAX_SCRAPE_AGE_HOURS:
+        return None, f"stale ({age:.0f}h old)"
+    return data, ""
+
+
+def _ps_child_entry(entry: dict, now: datetime) -> dict:
+    return {
+        "updated": now.isoformat(),
+        "missing": powerschool.clean_assignments(entry.get("missing")),
+        "late": powerschool.clean_assignments(entry.get("late")),
+        "upcoming": powerschool.clean_assignments(entry.get("upcoming")),
+    }
+
+
+def update_from_ps_file(
+    state: dict, ps_file: str = "/tmp/powerschool-daily.json", now: Optional[datetime] = None
+) -> int:
+    """Read `powerschool summary --json` output and merge into state["powerschool"].
+
+    An untrusted scrape (missing/stale/empty/malformed file, or top-level warnings) leaves
+    previous data untouched and records a warning in state["powerschool_meta"]; a child with
+    its own warnings is likewise kept. A trusted child entry replaces that child wholesale.
+    """
+    now = now or datetime.now()
+    section = state.setdefault("powerschool", {})
+    p = Path(ps_file)
+    data, problem = _read_ps_scrape(p, now)
+    if data is None:
+        if problem != "missing" or section:
+            state["powerschool_meta"] = {"warnings": [f"PowerSchool scrape not applied: {problem}"]}
+            logger.warning("PowerSchool scrape not applied (%s): %s", problem, ps_file)
+        return 0
+
+    warnings: list = []
+    count = 0
+    for entry in data["children"]:
+        if not isinstance(entry, dict) or not isinstance(entry.get("name"), str) or not entry["name"].split():
+            continue
+        name = _canonicalize(entry["name"].split()[0])
+        if entry.get("warnings"):
+            warnings.append(f"PowerSchool {name}: kept previous data ({'; '.join(map(str, entry['warnings']))})")
+            continue
+        section[name] = _ps_child_entry(entry, now)
+        count += 1
+    state["powerschool_meta"] = {"warnings": warnings}
+    return count
+
+
 def pending_action_items(state: dict, child: Optional[str] = None) -> list:
     items = [i for i in state["action_items"] if i["status"] == "pending"]
     if child:
@@ -404,6 +469,10 @@ def summary_text(state: dict) -> str:
                     lines.append(f"    {g['course']}: {g['grade']}{flag}")
         else:
             lines.append("  SGY: no data")
+
+        ps = state.get("powerschool", {}).get(name)
+        if ps:
+            lines.append("  PS: " + powerschool.format_counts(ps))
 
         lines.append("")
 

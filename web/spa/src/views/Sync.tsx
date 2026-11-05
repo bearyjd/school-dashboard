@@ -6,6 +6,7 @@ import { InlineAgent } from '../components/InlineAgent'
 const SOURCES = [
   { key: 'ixl', label: 'IXL', icon: '📚', description: 'Skills + diagnostic scores' },
   { key: 'sgy', label: 'Schoology', icon: '🏫', description: 'Assignments + grades' },
+  { key: 'powerschool', label: 'PowerSchool', icon: '🎓', description: 'Missing, late + due-soon work' },
   { key: 'gc', label: 'GameChanger', icon: '⚾', description: 'Team schedule + events' },
 ]
 
@@ -78,13 +79,13 @@ export function Sync() {
 
       {/* Batch actions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-        <button className="btn btn--primary" disabled={isRunning} onClick={() => handleSync('ixl,sgy', 'none')}>
+        <button className="btn btn--primary" disabled={isRunning} onClick={() => handleSync('ixl,sgy,powerschool', 'none')}>
           {isRunning ? '⏳ Running…' : '📋 Check Homework'}
         </button>
-        <button className="btn btn--secondary" disabled={isRunning} onClick={() => handleSync('ixl,sgy', 'quick')}>
+        <button className="btn btn--secondary" disabled={isRunning} onClick={() => handleSync('ixl,sgy,powerschool', 'quick')}>
           Quick digest after sync
         </button>
-        <button className="btn btn--secondary" disabled={isRunning} onClick={() => handleSync('ixl,sgy,gc', 'full')}>
+        <button className="btn btn--secondary" disabled={isRunning} onClick={() => handleSync('ixl,sgy,powerschool,gc', 'full')}>
           Full sync + full digest
         </button>
       </div>
