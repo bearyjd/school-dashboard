@@ -218,7 +218,8 @@ elif command -v gc &>/dev/null && [[ -n "${GC_TOKEN:-}${GC_EMAIL:-}" ]]; then
     # auto-recovers from 401 mid-flight (vendor/gc 0.1.30+), but doing this
     # upfront avoids a Playwright launch in the middle of the loop.
     log "Refreshing GC token..."
-    gc token-refresh 2>&1 | sed 's/^/  /' >&2 || log "WARN: gc token-refresh exited non-zero (continuing — auto-retry on 401 is the safety net)"
+    # Lock held only around the refresh (shared with the host keep-alive timer).
+    bash /app/sync/gc-refresh.sh
 
     log "Running GameChanger scrape..."
     if bash /app/sync/gc-scrape.sh; then
