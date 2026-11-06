@@ -14,11 +14,24 @@ CONTAINER=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --container) CONTAINER="${2:?--container needs a name}"; shift 2 ;;
+        --container)
+            CONTAINER="${2:?--container needs a name}"; shift 2
+            if [[ "$CONTAINER" == -* ]]; then echo "invalid container name" >&2; exit 2; fi ;;
         -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
+
+if ! [[ "$MAX_AGE_HOURS" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    echo "MAX_AGE_HOURS must be a number" >&2; exit 2
+fi
+if [[ -n "${SYNC_TOKEN:-}" && "$BASE_URL" == http://* ]]; then
+    host="${BASE_URL#http://}"; host="${host%%[/:]*}"
+    case "$host" in
+        localhost|127.0.0.1|\[::1\]) ;;
+        *) echo "refusing to send SYNC_TOKEN over plain http to a non-local host; use https" >&2; exit 2 ;;
+    esac
+fi
 
 NAMES=()
 RESULTS=()
@@ -33,9 +46,16 @@ record() {  # name, PASS|FAIL, detail
 TMPDIR_SMOKE="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_SMOKE"' EXIT
 
+# The token goes to curl via a 0600 header file, never on the command line (visible in ps).
+HEADER_FILE=""
+if [[ -n "${SYNC_TOKEN:-}" ]]; then
+    HEADER_FILE="$TMPDIR_SMOKE/.hdr"
+    (umask 077; printf 'X-Sync-Token: %s\n' "$SYNC_TOKEN" > "$HEADER_FILE")
+fi
+
 fetch() {  # path -> body file; echoes HTTP status (000 on connection failure)
     local path="$1" args=(-s -o "$TMPDIR_SMOKE/${1//\//_}" -w '%{http_code}' --max-time 20)
-    if [[ -n "${SYNC_TOKEN:-}" ]]; then args+=(-H "X-Sync-Token: ${SYNC_TOKEN}"); fi
+    if [[ -n "$HEADER_FILE" ]]; then args+=(-H "@$HEADER_FILE"); fi
     curl "${args[@]}" "${BASE_URL%/}${path}" 2>/dev/null || true
 }
 
@@ -80,9 +100,8 @@ fi
 
 meta="$(body_of /api/sync/meta)"
 if is_json "$meta"; then
-    while IFS=$'\t' read -r source verdict detail; do
-        record "sync_meta $source" "$verdict" "$detail"
-    done < <(python3 - "$meta" "$MAX_AGE_HOURS" <<'PY'
+    rows=""
+    if ! rows="$(python3 - "$meta" "$MAX_AGE_HOURS" <<'PY'
 import json, sys
 from datetime import datetime, timezone
 meta = json.load(open(sys.argv[1]))
@@ -112,18 +131,28 @@ for source, entry in sorted(meta.items()):
     else:
         print(f"{source}\tPASS\tok, {age:.1f}h old")
 PY
-)
+)"; then
+        record "sync_meta evaluation" FAIL "checker crashed"
+        rows=""
+    fi
+    n_rows=0
+    while IFS=$'\t' read -r source verdict detail; do
+        [[ -n "$source" ]] || continue
+        record "sync_meta $source" "$verdict" "$detail"
+        n_rows=$((n_rows + 1))
+    done <<< "$rows"
+    if [[ "$n_rows" -eq 0 ]]; then record "sync_meta rows evaluated" FAIL "0 rows"; fi
 else
     record "sync_meta freshness" FAIL "no sync/meta JSON"
 fi
 
 if [[ -n "$CONTAINER" ]]; then
     rc=0
-    docker exec "$CONTAINER" school-state transition maintenance check >/dev/null 2>&1 || rc=$?
+    docker exec -- "$CONTAINER" school-state transition maintenance check >/dev/null 2>&1 || rc=$?
     if [[ "$rc" -eq 10 ]]; then record "maintenance mode off" PASS "exit 10 (inactive)"
     else record "maintenance mode off" FAIL "check exit $rc (expected 10)"; fi
 
-    if docker exec "$CONTAINER" sh -c 'command -v powerschool' >/dev/null 2>&1; then
+    if docker exec -- "$CONTAINER" sh -c 'command -v powerschool' >/dev/null 2>&1; then
         record "powerschool CLI in container" PASS "found"
     else
         record "powerschool CLI in container" FAIL "not found"

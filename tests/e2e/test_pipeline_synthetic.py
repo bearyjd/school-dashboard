@@ -16,22 +16,26 @@ from school_dashboard.sync_meta import write_sync_source
 from web.app import app as flask_app
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "powerschool-summary.json"
-TODAY = date.today()
 
 
-def _fresh_ps_scrape() -> dict:
+def _fresh_ps_scrape(today: date) -> dict:
     """Fixture with a current scraped_at and dates relative to today (so nothing goes stale)."""
     data = json.loads(FIXTURE.read_text())
     data["scraped_at"] = datetime.now().isoformat(timespec="seconds")
     for child in data["children"]:
         for key, offset in (("missing", -4), ("late", -2), ("upcoming", 2)):
             for item in child[key]:
-                item["due"] = (TODAY + timedelta(days=offset)).isoformat()
+                item["due"] = (today + timedelta(days=offset)).isoformat()
     return data
 
 
+@pytest.fixture(scope="module")
+def today() -> date:
+    return date.today()
+
+
 @pytest.fixture
-def pipeline(state_env, tmp_path, monkeypatch):
+def pipeline(state_env, tmp_path, monkeypatch, today):
     cfg = tmp_path / "roster.json"
     cfg.write_text(json.dumps({"children": {
         "Alex": {"grade": "7th", "school": "Test Middle"},
@@ -47,10 +51,10 @@ def pipeline(state_env, tmp_path, monkeypatch):
     (inputs / "sgy.json").write_text(json.dumps({"per_child": [{
         "child": {"name": "Alex Tester"},
         "assignments": [{"title": "Synthetic Worksheet", "course": "Art",
-                         "due_date": TODAY.isoformat(), "status": "open"}],
+                         "due_date": today.isoformat(), "status": "open"}],
         "grades": [], "announcements": []}]}))
     ps = inputs / "ps.json"
-    ps.write_text(json.dumps(_fresh_ps_scrape()))
+    ps.write_text(json.dumps(_fresh_ps_scrape(today)))
     yield {"dir": state_env, "inputs": inputs, "ps": ps}
     state._config_cache = None
 
@@ -63,13 +67,13 @@ def _run_update(p) -> Path:
     return p["dir"] / "school-state.json"
 
 
-def test_pipeline_end_to_end(pipeline):
+def test_pipeline_end_to_end(pipeline, today):
     state_file = _run_update(pipeline)
     s = json.loads(state_file.read_text())
     assert {k: len(v["missing"]) for k, v in s["powerschool"].items()} == {"Alex": 1, "Jack": 0, "Jo": 0}
     assert s["powerschool_meta"]["warnings"] == []
 
-    text, _ = digest.build_quick_check(str(state_file), today=TODAY.isoformat())
+    text, _ = digest.build_quick_check(str(state_file), today=today.isoformat())
     assert "Alex: IXL 3 remaining (Math)" in text
     assert "PS: missing 1" in text and "late 1" in text
 
@@ -88,7 +92,7 @@ def test_pipeline_end_to_end(pipeline):
     assert meta.status_code == 200 and meta.get_json()["ps"]["last_result"] == "ok"
 
 
-def test_morning_digest_prompt_carries_powerschool_block(pipeline, tmp_path):
+def test_morning_digest_prompt_carries_powerschool_block(pipeline, tmp_path, today):
     state_file = _run_update(pipeline)
     resp = MagicMock(ok=True, status_code=200, headers={"content-type": "application/json"})
     resp.text = json.dumps({"choices": [{"message": {"content": "Good morning"}}]})
@@ -96,7 +100,7 @@ def test_morning_digest_prompt_carries_powerschool_block(pipeline, tmp_path):
     with patch("school_dashboard.llm.requests.post", return_value=resp) as post:
         text, _cards = digest.build_morning_digest(
             str(state_file), str(tmp_path / "school.db"), str(tmp_path / "facts.json"), [],
-            "http://llm.invalid", "k", "m", today=TODAY.isoformat())
+            "http://llm.invalid", "k", "m", today=today.isoformat())
     assert text == "Good morning"
     prompt = post.call_args.kwargs["json"]["messages"][0]["content"]
     assert "Missing / late / due soon (PowerSchool" in prompt
@@ -108,9 +112,9 @@ def test_morning_digest_prompt_carries_powerschool_block(pipeline, tmp_path):
     assert ntfy.call_args.args[0] == "https://ntfy.sh/topic-x"
 
 
-def test_bad_scrape_keeps_previous_missing_items(pipeline):
+def test_bad_scrape_keeps_previous_missing_items(pipeline, today):
     state_file = _run_update(pipeline)
-    bad = _fresh_ps_scrape()
+    bad = _fresh_ps_scrape(today)
     bad["warnings"] = ["login failed"]
     for child in bad["children"]:
         child["missing"] = []
@@ -124,5 +128,5 @@ def test_bad_scrape_keeps_previous_missing_items(pipeline):
     body = flask_app.test_client().get("/api/dashboard").get_json()
     assert len(body["powerschool"]["Alex"]["missing"]) == 1
     assert any("not applied" in w for w in body["powerschool_warnings"])
-    text, _ = digest.build_quick_check(str(state_file), today=TODAY.isoformat())
+    text, _ = digest.build_quick_check(str(state_file), today=today.isoformat())
     assert "missing 1" in text

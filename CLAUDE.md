@@ -43,7 +43,7 @@ npm --prefix web/spa run dev   # → http://localhost:5173/app/
 npm --prefix web/spa run build # tsc -b && vite build — the only automated SPA check today (no unit tests in web/spa yet)
 ```
 
-**⚠️ Always run `pytest tests/`, never bare `pytest`, from the repo root.**
+**Run `pytest tests/` from the repo root (the documented command).** `pyproject.toml` now sets `testpaths = ["tests"]`, so bare `pytest` is also safe; the note below explains the original trap, which is fixed.
 Verified 2026-07-07: bare `pytest` fails collection with
 `ImportPathMismatchError` / `ModuleNotFoundError: No module named 'tests.test_summary'`
 because `vendor/ixl-scrape`, `vendor/schoology-scrape`, `vendor/gc`, and `vendor/powerschool-scrape` are each
@@ -341,5 +341,5 @@ git add vendor/ && git commit -m "chore: update scrapers"
 ## End-to-end tests
 
 - `tests/e2e/test_pipeline_synthetic.py` runs in plain `pytest tests/` (synthetic scraper files -> `school-state update` -> state -> quick check / Flask API / morning-digest prompt, LLM and ntfy mocked).
-- `tests/e2e/live/` is opt-in (`@pytest.mark.live`, excluded by `addopts`): `LIVE_E2E=1 pytest -m live tests/e2e/live -q`. Needs the real `powerschool` / `gc` CLIs with credentials; skips otherwise. Optional `LIVE_ROSTER_JSON=path` supplies a roster. Writes only to tmp dirs; messages never print names or titles.
+- `tests/e2e/live/` is opt-in (`@pytest.mark.live`, excluded by `addopts`): `LIVE_E2E=1 pytest -m live tests/e2e/live -q`. `LIVE_E2E=1` means credentials are required: a CLI failure FAILS (only a missing CLI or its explicit "not configured" message skips). Failure output is redacted by `tests/e2e/live/conftest.py` (proven by `tests/test_live_redaction.py`). Optional `LIVE_ROSTER_JSON=path` supplies a roster. Writes only to tmp dirs; messages never print names or titles.
 - `scripts/smoke-live.sh` is the post-deploy smoke check: `BASE_URL=http://host:5000 [SYNC_TOKEN=..] [MAX_AGE_HOURS=30] scripts/smoke-live.sh [--container NAME]`. Exit 1 on any FAIL.

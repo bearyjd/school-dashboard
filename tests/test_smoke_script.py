@@ -1,5 +1,6 @@
 """scripts/smoke-live.sh against a stub HTTP server: PASS and FAIL paths."""
 import json
+import os
 import subprocess
 import threading
 from datetime import datetime, timedelta, timezone
@@ -27,13 +28,18 @@ def _routes(**overrides) -> dict:
     return routes
 
 
+SEEN_HEADERS: list = []
+
+
 @pytest.fixture
 def stub_server():
     servers = []
+    SEEN_HEADERS.clear()
 
     def start(routes: dict) -> str:
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
+                SEEN_HEADERS.append(dict(self.headers))
                 if self.path not in routes:
                     self.send_response(404)
                     self.end_headers()
@@ -60,8 +66,8 @@ def stub_server():
 
 
 def _run(base_url: str, **env):
-    import os
-    full_env = {**os.environ, "BASE_URL": base_url, **env}
+    clean = {k: v for k, v in os.environ.items() if k not in ("SYNC_TOKEN", "MAX_AGE_HOURS", "BASE_URL")}
+    full_env = {**clean, "BASE_URL": base_url, **env}
     return subprocess.run(["bash", str(SCRIPT)], capture_output=True, text=True, env=full_env, timeout=60)
 
 
@@ -72,6 +78,31 @@ def test_pass_path(stub_server):
     assert "FAIL" not in proc.stdout
     assert "Secret Kid" not in proc.stdout + proc.stderr
     assert "tok-do-not-print" not in proc.stdout + proc.stderr
+    assert all(h.get("X-Sync-Token") == "tok-do-not-print" for h in SEEN_HEADERS) and SEEN_HEADERS
+
+
+def test_no_token_header_without_sync_token(stub_server):
+    assert _run(stub_server(_routes())).returncode == 0
+    assert SEEN_HEADERS and not any("X-Sync-Token" in h for h in SEEN_HEADERS)
+
+
+def test_refuses_token_over_plain_http_to_remote_host():
+    proc = _run("http://example.invalid:5000", SYNC_TOKEN="tok")
+    assert proc.returncode == 2 and "tok" not in proc.stdout + proc.stderr.replace("SYNC_TOKEN", "")
+
+
+def test_non_numeric_max_age_is_usage_error(stub_server):
+    assert _run(stub_server(_routes()), MAX_AGE_HOURS="abc").returncode == 2
+
+
+def test_empty_sync_meta_fails(stub_server):
+    proc = _run(stub_server(_routes(**{"/api/sync/meta": {}})))
+    assert proc.returncode == 1 and "SMOKE: FAIL" in proc.stdout
+
+
+def test_bad_container_name_rejected():
+    proc = subprocess.run(["bash", str(SCRIPT), "--container", "-evil"], capture_output=True, text=True, timeout=30)
+    assert proc.returncode == 2
 
 
 @pytest.mark.parametrize("overrides,expected", [
