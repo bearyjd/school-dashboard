@@ -33,7 +33,7 @@ docker compose up -d
 ## Development (no Docker)
 
 ```bash
-pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc
+pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc -e vendor/powerschool-scrape
 playwright install chromium
 pytest tests/                     # run all tests — SCOPE TO tests/, see warning below
 pytest tests/test_readiness.py -v # single file
@@ -46,7 +46,7 @@ npm --prefix web/spa run build # tsc -b && vite build — the only automated SPA
 **⚠️ Always run `pytest tests/`, never bare `pytest`, from the repo root.**
 Verified 2026-07-07: bare `pytest` fails collection with
 `ImportPathMismatchError` / `ModuleNotFoundError: No module named 'tests.test_summary'`
-because `vendor/ixl-scrape`, `vendor/schoology-scrape`, and `vendor/gc` are each
+because `vendor/ixl-scrape`, `vendor/schoology-scrape`, `vendor/gc`, and `vendor/powerschool-scrape` are each
 separate git repos with their own `tests/conftest.py` / `tests/test_*.py`, and
 pytest's default rootdir-based collection picks all of them up and collides on the
 identical top-level module name `tests`. This repo's `pyproject.toml` does not yet
@@ -159,6 +159,7 @@ vendor/
   ixl-scrape/           git submodule (pip install -e)
   schoology-scrape/     git submodule (pip install -e)
   gc/                   git submodule (pip install -e) — GameChanger CLI
+  powerschool-scrape/   git submodule (pip install -e ".[browser]") — PowerSchool CLI (`powerschool`); creds PS_USERNAME/PS_PASSWORD/PS_BASE_URL or ~/.powersched/.env (chmod 600)
 
 docker/
   Dockerfile            python:3.12-slim + gog v0.12.0 binary + Playwright/Chromium + pip scrapers
@@ -284,7 +285,7 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
   status`/`/api/sync/meta` handlers and in the SPA. If asked to change staleness
   behavior, search `web/app.py` and `web/spa/` for where `last_run` timestamps get
   compared to `datetime.now()`, not `sync_meta.py`.
-- **Vendor pinning:** `vendor/{ixl-scrape,schoology-scrape,gc}` are git submodules
+- **Vendor pinning:** `vendor/{ixl-scrape,schoology-scrape,gc,powerschool-scrape}` are git submodules
   pinned to a specific commit each (see `.gitmodules` for URLs). `git submodule
   update --remote vendor/<name>` moves the pin to that submodule's current default-
   branch HEAD — this is a manual, unreviewed judgment call with **no automated
@@ -333,5 +334,6 @@ secrets/` both return nothing. Keep it that way:
 git submodule update --remote vendor/ixl-scrape
 git submodule update --remote vendor/schoology-scrape
 git submodule update --remote vendor/gc
+git submodule update --remote vendor/powerschool-scrape
 git add vendor/ && git commit -m "chore: update scrapers"
 ```

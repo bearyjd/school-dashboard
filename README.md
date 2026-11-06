@@ -42,6 +42,7 @@ vendor/
   ixl-scrape/           git submodule (pip install -e)
   schoology-scrape/     git submodule (pip install -e)
   gc/                   git submodule (pip install -e) — GameChanger CLI
+  powerschool-scrape/   git submodule (pip install -e ".[browser]") — PowerSchool CLI (`powerschool`); creds PS_USERNAME/PS_PASSWORD/PS_BASE_URL or ~/.powersched/.env (chmod 600)
 
 docker/
   Dockerfile            python:3.12-slim + Node 20 + gog v0.12.0 + Playwright/Chromium + scrapers + SPA build
@@ -81,7 +82,7 @@ Copy `.env.example` to `config/env` and fill in all values:
 | `GOG_ACCOUNT` | Yes | Gmail account for gog OAuth |
 | `NTFY_TOPIC` | Yes | ntfy.sh topic slug for push notifications |
 | `SCHOOL_EMAIL_ACCOUNT` | Yes | Gmail account for school email intel |
-| `PS_USERNAME` / `PS_PASSWORD` / `PS_BASE_URL` | No | PowerSchool login for the optional `powerschool` scraper (or `~/.powersched/.env`) (missing / late / due-soon work). Source is skipped cleanly when the CLI or credentials are absent. Pause with `SOURCE_POWERSCHOOL_ENABLED=0`. |
+| `PS_USERNAME` / `PS_PASSWORD` / `PS_BASE_URL` | No | PowerSchool login for the optional `powerschool` scraper (or `~/.powersched/.env`, `KEY=VALUE`, chmod 600; create `/root/.powersched` on the host first or Docker creates it root-owned and empty). `PS_BASE_URL` is required when PowerSchool is used (missing / late / due-soon work). Source is skipped cleanly when the CLI or credentials are absent. Pause with `SOURCE_POWERSCHOOL_ENABLED=0`. |
 | `SYNC_TOKEN` | No | Shared secret for `POST /api/sync`. Generate: `python3 -c "import secrets; print(secrets.token_hex(16))"` |
 | `GC_EMAIL` / `GC_PASSWORD` | No | GameChanger credentials. Required for headless self-healing — `gc token-refresh` uses Playwright + auto-OTP via gog Gmail to recover when the token expires. |
 | `GC_TOKEN` | No | Optional bearer token from browser DevTools. Only useful for first-run bootstrap; subsequent refreshes write a fresh token to `~/.gc/.env` automatically. |
@@ -143,7 +144,7 @@ docker compose exec dashboard bash -c \
 ## Development (no Docker)
 
 ```bash
-pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc
+pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc -e vendor/powerschool-scrape
 playwright install chromium
 pytest                            # run all tests
 pytest tests/test_db.py -v        # single file
@@ -176,6 +177,7 @@ tests/test_wrapper_scripts.py 11 tests  — wrapper LOGDIR logic, bash syntax,
 git submodule update --remote vendor/ixl-scrape
 git submodule update --remote vendor/schoology-scrape
 git submodule update --remote vendor/gc
+git submodule update --remote vendor/powerschool-scrape
 git add vendor/ && git commit -m "chore: update scrapers"
 ```
 
