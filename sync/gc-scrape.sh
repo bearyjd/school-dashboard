@@ -58,6 +58,7 @@ fail() {
 # scrape exceeds. Everything lives in files under $WORK and is read by python.
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/gc-scrape.XXXXXX")"
 trap 'rm -rf "$WORK" "$GC_PATH.tmp.$$"' EXIT
+trap 'exit 143' TERM INT
 
 log "Starting gc scrape"
 
@@ -74,7 +75,9 @@ for t in teams:
     tid = t.get('id', '')
     name = t.get('name', tid)
     if tid:
-        print(tid + '\\t' + name)
+        # tabs/newlines would corrupt the TSV handoff to the bash loop
+        clean = lambda v: str(v).translate({9: ' ', 10: ' ', 13: ' '})
+        print(clean(tid) + '\\t' + clean(name))
 " "$WORK/teams.json" > "$WORK/team-lines.tsv" 2>>"$LOGFILE" || : > "$WORK/team-lines.tsv"
 TEAM_COUNT=$(wc -l < "$WORK/team-lines.tsv" | tr -d ' ')
 
@@ -128,13 +131,16 @@ work, ts, out = sys.argv[1], sys.argv[2], sys.argv[3]
 teams = []
 with open(work + '/manifest.tsv') as m:
     for line in m:
-        n, tid, name, child = line.rstrip('\\n').split('\\t')
         try:
+            n, tid, name, child = line.rstrip('\\n').split('\\t')
             with open(f'{work}/team-{n}.json') as f:
                 summary = json.load(f)
-            schedule = summary.get('schedule', [])
+            schedule = summary.get('schedule') or []
+            if not isinstance(schedule, list):
+                print(f'WARN: non-list schedule for team {tid} — treating as empty', file=sys.stderr)
+                schedule = []
         except (OSError, ValueError, AttributeError) as e:
-            print(f'WARN: Failed to parse summary for team {tid} ({e}) — skipping', file=sys.stderr)
+            print(f'WARN: Failed to parse manifest/summary line {line[:40]!r} ({e}) — skipping', file=sys.stderr)
             continue
         teams.append({'team_id': tid, 'team_name': name, 'child': child, 'schedule': schedule})
 with open(out, 'w') as f:
