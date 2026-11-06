@@ -312,6 +312,10 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
   wording). If a bug report is about digest *tone* rather than *content/formatting*,
   flag it for human review of the prompt string rather than iterating blindly.
 
+## Staleness Watchdog (`watchdog.py`)
+
+`school-state watchdog [--dry-run] [--json]` (cron 8:30 + 16:30 daily via `sync/run-watchdog.sh`, maintenance-gated like run-digest.sh) pushes an ntfy alert when a source is overdue. Pure functions `expected_sync`/`check_source`/`plan_alerts` take an injected `now`; `run()` is the I/O shell. `sync_meta` now records `last_ok` (moves only on `ok`; legacy entries fall back to `last_run` when `last_result == "ok"`). Rules: `never_ok` (no success on record), `failing` (last result error and last_ok > 24h), `stale` (last_ok < latest scheduled sync - 90 min, judged only once the run is 90 min past due; schedule const `SYNC_SCHEDULE`, weekdays only, zone from `TZ`). Disabled sources (`SOURCE_*_ENABLED=0`), unconfigured gc/powerschool are skipped; `school-state.json` mtime is checked as pseudo-source `state` — only a backstop, since manual actions also rewrite that file. `never_ok` waits until one scheduled sync + grace has passed since the source's `first_seen`. `state/watchdog.json` = `{alerts: {source: {issue, first_alerted, last_alerted}}, first_seen: {source: iso}}`; one dedupe key per source (failing/stale label flips do not re-alert; re-alert after 24h; single recovered push). Exit 0 healthy/skipped, 1 problems, 2 internal error (failed push via `requests.post` + `raise_for_status`, or unset `NTFY_TOPIC` logged as ERROR; alert state left unwritten so it retries). Silence: `SOURCE_<NAME>_ENABLED=0` or `WATCHDOG_ENABLED=0`. Keep `SYNC_SCHEDULE` in step with `docker/crontab`.
+
 ## Credential Handling (`secrets/`)
 
 This repo has a `secrets/` directory (client OAuth secret, `env`, IXL account
