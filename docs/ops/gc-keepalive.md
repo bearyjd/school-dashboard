@@ -15,9 +15,9 @@
 ## How it works
 
 - Host timer `gc-token-refresh.timer` runs every 30 min and executes
-  `docker exec school-dashboard-1 gc token-refresh` under `flock -w 900 /root/.gc/refresh.lock`.
+  `docker exec school-dashboard-1 gc token-refresh` under `flock -o -w 900 /root/.gc/refresh.lock`.
 - `sync/school-sync.sh` refreshes via `sync/gc-refresh.sh`, which takes the same lock
-  (`flock -w ${GC_REFRESH_LOCK_WAIT:-600}`; override path with `GC_REFRESH_LOCK`).
+  (`flock -o -w ${GC_REFRESH_LOCK_WAIT:-600}`; `-o` stops gc's child processes inheriting the lock; override path with `GC_REFRESH_LOCK`).
   `/root/.gc` is bind-mounted into the container, so the lock works across host and container.
 - The lock is held only around the refresh, not the scrape. Lock timeout or missing
   `flock` logs a WARN and the sync continues (the CLI also retries on 401).
@@ -29,8 +29,8 @@
 ```ini
 [Service]
 ExecStart=
-ExecStart=/usr/bin/flock -w 900 /root/.gc/refresh.lock /usr/bin/docker exec school-dashboard-1 gc token-refresh
-TimeoutStartSec=900
+ExecStart=/usr/bin/flock -o -w 900 /root/.gc/refresh.lock /usr/bin/docker exec school-dashboard-1 gc token-refresh
+TimeoutStartSec=1500
 ```
 
 `/etc/systemd/system/gc-token-refresh.timer.d/override.conf`:
@@ -51,7 +51,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart gc-token-refresh.timer
 
 # rollback
-sudo rm -r /etc/systemd/system/gc-token-refresh.service.d /etc/systemd/system/gc-token-refresh.timer.d
+sudo rm /etc/systemd/system/gc-token-refresh.service.d/override.conf /etc/systemd/system/gc-token-refresh.timer.d/override.conf
 sudo systemctl daemon-reload && sudo systemctl restart gc-token-refresh.timer
 ```
 
@@ -69,5 +69,6 @@ docker exec school-dashboard-1 school-state watchdog --dry-run
 - Saved session expired or invalid: `gc` falls back to a full login, which needs the emailed
   OTP read through `gog` (Gmail). That requires `GOG_KEYRING_PASSWORD` in the container
   environment. Do NOT `source config/env` into a shell to run `gog`; it mangles the password.
-- Lock held for the full wait (another refresh stuck): the timer unit fails after 900 s,
+- Lock held for the full wait (another refresh stuck): the flock gives up after 900 s
+  (`TimeoutStartSec=1500` leaves room for that wait plus a ~10 min refresh);
   `school-sync.sh` logs a WARN after 600 s and continues.

@@ -10,12 +10,14 @@ set -uo pipefail
 
 LOCK="${GC_REFRESH_LOCK:-/root/.gc/refresh.lock}"
 WAIT="${GC_REFRESH_LOCK_WAIT:-600}"
-LOCK_BUSY=75
+# flock -E code for "lock wait timed out"; 97 is not an exit code gc uses.
+LOCK_BUSY=97
 
 log() { echo "[$(date '+%H:%M:%S')] $*" >&2; }
 
 if command -v flock &>/dev/null; then
-    flock -w "$WAIT" -E "$LOCK_BUSY" "$LOCK" gc token-refresh 2>&1 | sed 's/^/  /' >&2
+    # -o: close the lock fd before exec so gc's children (Chromium) can't keep it held.
+    flock -o -w "$WAIT" -E "$LOCK_BUSY" "$LOCK" gc token-refresh 2>&1 | sed 's/^/  /' >&2
     rc=${PIPESTATUS[0]}
     if [[ $rc -eq $LOCK_BUSY ]]; then
         log "WARN: gc token-refresh lock ($LOCK) busy after ${WAIT}s — skipping refresh (continuing)"
