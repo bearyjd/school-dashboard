@@ -10,6 +10,10 @@ SCHOOL_DASHBOARD_ENV=/app/config/env
 # Afternoon data refresh at 2:30pm weekdays
 30 14 * * 1-5 root bash /app/sync/school-sync.sh >> /app/state/school-sync.log 2>&1
 
+# Staleness watchdog — 8:30am and 4:30pm daily (after the 6:00 / 14:30 syncs plus runtime)
+30 8 * * * root bash /app/sync/run-watchdog.sh
+30 16 * * * root bash /app/sync/run-watchdog.sh
+
 # Morning digest — 7:00am daily (7 days/week)
 0 7 * * * root bash /app/sync/run-digest.sh morning
 # Afternoon homework check — 3:30pm weekdays only

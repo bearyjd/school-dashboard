@@ -314,6 +314,16 @@ def prune_stale(state: dict) -> int:
     return pruned
 
 
+def ixl_payload_ok(data: object) -> bool:
+    """True for a real `ixl assigned --json` payload; False for empty/error-shaped output."""
+    return (
+        isinstance(data, dict)
+        and data.get("status") != "error"
+        and not data.get("errors")
+        and ("totals" in data or "remaining" in data)
+    )
+
+
 def update_from_ixl_files(state: dict, ixl_dir: str = "/tmp/ixl") -> int:
     """Read all {name}-assigned.json files from ixl output dir and merge into state."""
     ixl_path = Path(ixl_dir)
@@ -325,10 +335,13 @@ def update_from_ixl_files(state: dict, ixl_dir: str = "/tmp/ixl") -> int:
         child_name = _canonicalize(f.stem.replace("-assigned", ""))
         try:
             data = json.loads(f.read_text())
-            update_ixl(state, child_name, data)
-            count += 1
         except (json.JSONDecodeError, OSError):
             continue
+        if not ixl_payload_ok(data):
+            logger.warning("Skipping %s: empty or error-shaped IXL payload", f.name)
+            continue
+        update_ixl(state, child_name, data)
+        count += 1
     return count
 
 

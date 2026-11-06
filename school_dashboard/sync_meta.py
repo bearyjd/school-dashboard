@@ -27,6 +27,21 @@ def read_sync_meta(path: str | None = None) -> dict[str, Any]:
         return {}
 
 
+def last_ok_time(entry: dict[str, Any] | None) -> str | None:
+    """ISO time of the last successful scrape, or None when unknown.
+
+    Files written before `last_ok` existed fall back to `last_run` when the
+    recorded result was 'ok'.
+    """
+    if not isinstance(entry, dict):
+        return None
+    if entry.get("last_ok"):
+        return entry["last_ok"]
+    if entry.get("last_result") == "ok":
+        return entry.get("last_run")
+    return None
+
+
 def write_sync_source(source: str, result: str, path: str | None = None) -> None:
     """Write/update a single source entry in sync_meta.json."""
     p = _resolve_path(path)
@@ -37,11 +52,17 @@ def write_sync_source(source: str, result: str, path: str | None = None) -> None
         meta = read_sync_meta(p)
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         # A pause is not a scrape: keep the previous real scrape time if there is one.
-        previous_run = (meta.get(source) or {}).get("last_run")
-        meta[source] = {
+        previous = meta.get(source) or {}
+        previous_run = previous.get("last_run")
+        entry = {
             "last_run": previous_run if result == "paused" and previous_run else now,
             "last_result": result,
         }
+        # last_ok moves only on success; other results keep the previous one.
+        last_ok = now if result == "ok" else last_ok_time(previous)
+        if last_ok:
+            entry["last_ok"] = last_ok
+        meta[source] = entry
         try:
             write_atomic(Path(p), json.dumps(meta, indent=2))
         except OSError as exc:

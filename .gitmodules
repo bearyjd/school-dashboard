@@ -7,3 +7,6 @@
 [submodule "vendor/gc"]
 	path = vendor/gc
 	url = https://github.com/bearyjd/gc
+[submodule "vendor/powerschool-scrape"]
+	path = vendor/powerschool-scrape
+	url = https://github.com/bearyjd/powerschool-scrape

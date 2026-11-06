@@ -231,6 +231,29 @@ def cmd_digest(args: argparse.Namespace) -> None:
     print(f"Digest sent [{args.mode}]: {len(cards)} cards, {text[:80]}...", file=sys.stderr)
 
 
+def cmd_watchdog(args: argparse.Namespace) -> None:
+    """Exit 0 healthy/skipped, 1 problems found, 2 internal error."""
+    from school_dashboard import watchdog
+    try:
+        result = watchdog.run(dry_run=args.dry_run)
+    except Exception as exc:
+        print(f"Error: watchdog failed: {exc}", file=sys.stderr)
+        sys.exit(2)
+    if args.json:
+        print(json.dumps(result, indent=2))
+    elif result.get("skipped"):
+        print(f"watchdog skipped: {result['skipped']}")
+    else:
+        for p in result["problems"]:
+            print(f"PROBLEM {p['source']}: {p['issue']} (age_hours={p['age_hours']})")
+        if result["healthy"]:
+            print("all monitored sources healthy")
+    if result.get("error"):
+        print(f"Error: {result['error']}", file=sys.stderr)
+        sys.exit(2)
+    sys.exit(result["exit_code"])
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="school-state", description="School situational awareness state manager")
     parser.add_argument("--state-file", type=str, default=None, help="State file path (default: $SCHOOL_STATE_PATH or /app/state/school-state.json)")
@@ -293,6 +316,11 @@ def main() -> None:
         help="Which digest to send",
     )
     p_digest.set_defaults(func=cmd_digest, writes=True)
+
+    p_watchdog = subs.add_parser("watchdog", help="Alert via ntfy when a data source is stale or failing")
+    p_watchdog.add_argument("--dry-run", action="store_true", help="Report only: no push, no state write")
+    p_watchdog.add_argument("--json", action="store_true", help="Machine-readable output")
+    p_watchdog.set_defaults(func=cmd_watchdog)
 
     transition.add_parser(subs)
     school_calendar.add_parser(subs)
