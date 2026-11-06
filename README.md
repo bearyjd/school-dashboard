@@ -42,6 +42,7 @@ vendor/
   ixl-scrape/           git submodule (pip install -e)
   schoology-scrape/     git submodule (pip install -e)
   gc/                   git submodule (pip install -e) — GameChanger CLI
+  powerschool-scrape/   git submodule (pip install -e ".[browser]") — PowerSchool CLI (`powerschool`); creds PS_USERNAME/PS_PASSWORD/PS_BASE_URL or ~/.powersched/.env (chmod 600)
 
 docker/
   Dockerfile            python:3.12-slim + Node 20 + gog v0.12.0 + Playwright/Chromium + scrapers + SPA build
@@ -63,6 +64,12 @@ docker/
 | **On demand** | `/api/chat` — query 30-day events + facts + full state via LiteLLM |
 | **On demand** | `/api/digest/<id>` — retrieve carousel history + toggle card done state |
 
+## Staleness Watchdog
+
+`school-state watchdog` (cron: 8:30am and 4:30pm daily, via `sync/run-watchdog.sh`) reads `sync_meta.json` and pushes an ntfy alert ("School: data is stale") when an enabled source (ixl, sgy, gc, powerschool) has no successful sync since the last scheduled one (weekdays 6:00 / 14:30 ET, 90 min grace; no alerts for weekends), when a source has been failing for over 24h, or when it has never synced. `school-state.json` freshness is checked too, but only as a backstop: manual actions also rewrite that file, so a fresh mtime does not prove the scrapers ran. A source seen for the first time (new deploy, or re-enabled) is not reported as "never synced" until one scheduled sync plus grace has passed. The same unresolved source re-alerts at most every 24h (a stale-to-failing label change does not re-alert); one "recovered" push follows when it clears. A failed push (HTTP error, timeout) is not recorded, so the next run retries, and the command exits 2. State lives in `state/watchdog.json`. The schedule constant `SYNC_SCHEDULE` must stay in step with `docker/crontab`. `--dry-run --json` reports without sending. Exit codes: 0 healthy, 1 problems, 2 internal error.
+
+Silence it: `SOURCE_<NAME>_ENABLED=0` for one source (also pauses its scrape), or `WATCHDOG_ENABLED=0` for the whole watchdog. It skips during maintenance mode and logs an ERROR and exits 2 when `NTFY_TOPIC` is unset. Sources that are not configured (no GC credentials, PowerSchool absent) are not monitored.
+
 ## Configuration
 
 Copy `.env.example` to `config/env` and fill in all values:
@@ -81,7 +88,7 @@ Copy `.env.example` to `config/env` and fill in all values:
 | `GOG_ACCOUNT` | Yes | Gmail account for gog OAuth |
 | `NTFY_TOPIC` | Yes | ntfy.sh topic slug for push notifications |
 | `SCHOOL_EMAIL_ACCOUNT` | Yes | Gmail account for school email intel |
-| `PS_USERNAME` / `PS_PASSWORD` / `PS_BASE_URL` | No | PowerSchool login for the optional `powerschool` scraper (or `~/.powersched/.env`) (missing / late / due-soon work). Source is skipped cleanly when the CLI or credentials are absent. Pause with `SOURCE_POWERSCHOOL_ENABLED=0`. |
+| `PS_USERNAME` / `PS_PASSWORD` / `PS_BASE_URL` | No | PowerSchool login for the optional `powerschool` scraper (or `~/.powersched/.env`, `KEY=VALUE`, chmod 600; create `/root/.powersched` on the host first or Docker creates it root-owned and empty). `PS_BASE_URL` is required when PowerSchool is used (missing / late / due-soon work). Source is skipped cleanly when the CLI or credentials are absent. Pause with `SOURCE_POWERSCHOOL_ENABLED=0`. |
 | `SYNC_TOKEN` | No | Shared secret for `POST /api/sync`. Generate: `python3 -c "import secrets; print(secrets.token_hex(16))"` |
 | `GC_EMAIL` / `GC_PASSWORD` | No | GameChanger credentials. Required for headless self-healing — `gc token-refresh` uses Playwright + auto-OTP via gog Gmail to recover when the token expires. |
 | `GC_TOKEN` | No | Optional bearer token from browser DevTools. Only useful for first-run bootstrap; subsequent refreshes write a fresh token to `~/.gc/.env` automatically. |
@@ -143,7 +150,7 @@ docker compose exec dashboard bash -c \
 ## Development (no Docker)
 
 ```bash
-pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc
+pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc -e vendor/powerschool-scrape
 playwright install chromium
 pytest                            # run all tests
 pytest tests/test_db.py -v        # single file
@@ -176,9 +183,14 @@ tests/test_wrapper_scripts.py 11 tests  — wrapper LOGDIR logic, bash syntax,
 git submodule update --remote vendor/ixl-scrape
 git submodule update --remote vendor/schoology-scrape
 git submodule update --remote vendor/gc
+git submodule update --remote vendor/powerschool-scrape
 git add vendor/ && git commit -m "chore: update scrapers"
 ```
 
 ## License
 
 Private family tool. Not licensed for redistribution.
+
+## Testing
+
+`pytest tests/` runs everything CI-safe, including a synthetic end-to-end pipeline test. Opt-in live contract tests: `LIVE_E2E=1 pytest -m live tests/e2e/live -q`. Post-deploy smoke check: `scripts/smoke-live.sh` (see `CLAUDE.md`).

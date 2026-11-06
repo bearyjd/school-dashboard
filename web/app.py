@@ -2,6 +2,7 @@ import hmac
 import json
 import os
 import re
+import signal
 import sqlite3
 import subprocess
 import tempfile
@@ -11,7 +12,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
-from school_dashboard.state import canonical_name, get_roster
+from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
 from school_dashboard import maintenance, paths, powerschool
 from school_dashboard.sources import source_enabled
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta
@@ -615,6 +616,30 @@ def _scrape_powerschool(ps_file: str) -> None:
         raise
 
 
+def _run_gc_scrape(script: str) -> None:
+    """Run gc-scrape.sh; raise on missing script, non-zero exit or timeout.
+
+    The script runs in its own process group so a timeout can SIGTERM the whole
+    group (the script's TERM trap then removes its work dir) before SIGKILL.
+    """
+    if not Path(script).exists():
+        raise FileNotFoundError(f"gc scrape script not found: {script}")
+    timeout = float(os.environ.get("GC_SCRAPE_TIMEOUT", "300"))
+    proc = subprocess.Popen(["bash", script], start_new_session=True)
+    try:
+        rc = proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGTERM)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait()
+        raise
+    if rc != 0:
+        raise subprocess.CalledProcessError(rc, script)
+
+
 def _run_sync_background(sources: str, digest: str) -> None:
     """Run scrapers in a background thread, update state, optionally send digest."""
     global _sync_status
@@ -663,6 +688,34 @@ def _run_sync_background(sources: str, digest: str) -> None:
                     else:
                         Path(ixl_dir).mkdir(parents=True, exist_ok=True)
                         files_written = 0
+                        failed = 0
+
+                        def _scrape_ixl_child(name: str, child_env: dict) -> bool:
+                            """Write <name>-assigned.json only for a clean, non-error scrape;
+                            otherwise remove the old file so stale data is not refreshed."""
+                            target = Path(ixl_dir) / f"{name}-assigned.json"
+                            timeout = float(os.environ.get("IXL_SCRAPE_TIMEOUT", "120"))
+                            ok, detail = False, ""
+                            try:
+                                r = subprocess.run(
+                                    ["ixl", "assigned", "--json"],
+                                    capture_output=True, text=True, timeout=timeout, env=child_env,
+                                )
+                                detail = f"exit {r.returncode}"
+                                ok = r.returncode == 0 and ixl_payload_ok(json.loads(r.stdout))
+                                if ok:
+                                    target.write_text(r.stdout)
+                            except subprocess.TimeoutExpired:
+                                detail = "timed out"
+                            except (OSError, ValueError) as exc:
+                                detail = type(exc).__name__
+                                ok = False
+                            if ok:
+                                return True
+                            target.unlink(missing_ok=True)
+                            app.logger.warning("IXL scrape failed for %s (%s)", name, detail)
+                            return False
+
                         accounts_env = Path.home() / ".ixl" / "accounts.env"
                         if accounts_env.exists():
                             for line in accounts_env.read_text().splitlines():
@@ -672,27 +725,22 @@ def _run_sync_background(sources: str, digest: str) -> None:
                                 parts = line.split(":", 2)
                                 if len(parts) < 3:
                                     continue
-                                child_name = parts[0].strip().lower()
                                 child_env = {**os.environ, "IXL_EMAIL": parts[1].strip(), "IXL_PASSWORD": parts[2].strip()}
-                                r = subprocess.run(
-                                    ["ixl", "assigned", "--json"],
-                                    capture_output=True, text=True, timeout=120, env=child_env,
-                                )
-                                if r.stdout:
-                                    (Path(ixl_dir) / f"{child_name}-assigned.json").write_text(r.stdout)
+                                if _scrape_ixl_child(parts[0].strip().lower(), child_env):
                                     files_written += 1
+                                else:
+                                    failed += 1
                         else:
-                            r = subprocess.run(
-                                ["ixl", "assigned", "--json"],
-                                capture_output=True, text=True, timeout=120,
-                            )
-                            if r.stdout:
-                                ixl_email = os.environ.get("IXL_EMAIL", "student@school")
-                                child_name = ixl_email.split("@")[0].split(".")[0].lower()
-                                (Path(ixl_dir) / f"{child_name}-assigned.json").write_text(r.stdout)
+                            ixl_email = os.environ.get("IXL_EMAIL", "student@school")
+                            child_name = ixl_email.split("@")[0].split(".")[0].lower()
+                            if _scrape_ixl_child(child_name, dict(os.environ)):
                                 files_written += 1
+                            else:
+                                failed += 1
                         if files_written == 0:
                             raise RuntimeError("ixl assigned produced no output")
+                        if failed:
+                            raise RuntimeError(f"ixl assigned failed for {failed} child(ren)")
                 elif src == "sgy":
                     result = subprocess.run(
                         ["sgy", "summary", "--json"],
@@ -707,9 +755,7 @@ def _run_sync_background(sources: str, digest: str) -> None:
                         continue
                     _scrape_powerschool(ps_file)
                 elif src == "gc":
-                    gc_script = "/app/sync/gc-scrape.sh"
-                    if Path(gc_script).exists():
-                        subprocess.run(["bash", gc_script], timeout=60, check=False)
+                    _run_gc_scrape(os.environ.get("GC_SCRAPE_SCRIPT", "/app/sync/gc-scrape.sh"))
             except Exception as exc:
                 errors.append(f"{src}: {exc}")
                 write_sync_source(src, "error")

@@ -29,11 +29,13 @@ COPY pyproject.toml ./
 COPY vendor/ixl-scrape/ ./vendor/ixl-scrape/
 COPY vendor/schoology-scrape/ ./vendor/schoology-scrape/
 COPY vendor/gc/ ./vendor/gc/
+COPY vendor/powerschool-scrape/ ./vendor/powerschool-scrape/
 
 RUN pip install --no-cache-dir -e ".[server]" \
     -e "vendor/ixl-scrape[browser]" \
     -e vendor/schoology-scrape \
-    -e vendor/gc
+    -e vendor/gc \
+    -e "vendor/powerschool-scrape[browser]"
 
 # Install Playwright + Chromium (for IXL login)
 RUN playwright install chromium --with-deps

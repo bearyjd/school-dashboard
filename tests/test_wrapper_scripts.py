@@ -70,6 +70,7 @@ class TestScriptSyntax:
     @pytest.mark.parametrize("script", [
         "sync/run-digest.sh",
         "sync/run-weekly.sh",
+        "sync/run-watchdog.sh",
         "sync/gc-scrape.sh",
         "sync/school-sync.sh",
     ])
