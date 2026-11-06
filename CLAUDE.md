@@ -267,6 +267,10 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
 
 ## Sync, Staleness & Vendor Model
 
+- **GC token keep-alive:** GC tokens last 1h; a host systemd timer keeps the saved browser session
+  fresh, and `sync/gc-refresh.sh` (called by `school-sync.sh`) takes the same `/root/.gc/refresh.lock`.
+  Install, verify and failure modes: `docs/ops/gc-keepalive.md`.
+
 - **Scraper invocation:** `sync/school-sync.sh` shells out to the `ixl`, `sgy`, and
   `gc` CLIs (installed from `vendor/*` via `pip install -e`), each writing its own
   JSON file (`$IXL_DIR/*.json`, `$SGY_FILE`, `gc-schedule.json`). `school-state
