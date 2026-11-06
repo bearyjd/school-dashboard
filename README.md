@@ -64,6 +64,12 @@ docker/
 | **On demand** | `/api/chat` — query 30-day events + facts + full state via LiteLLM |
 | **On demand** | `/api/digest/<id>` — retrieve carousel history + toggle card done state |
 
+## Staleness Watchdog
+
+`school-state watchdog` (cron: 8:30am and 4:30pm daily, via `sync/run-watchdog.sh`) reads `sync_meta.json` and pushes an ntfy alert ("School: data is stale") when an enabled source (ixl, sgy, gc, powerschool) has no successful sync since the last scheduled one (weekdays 6:00 / 14:30 ET, 90 min grace; no alerts for weekends), when a source has been failing for over 24h, or when it has never synced. `school-state.json` freshness is checked too. The same unresolved issue re-alerts at most every 24h; one "recovered" push follows when it clears. State lives in `state/watchdog.json`. `--dry-run --json` reports without sending. Exit codes: 0 healthy, 1 problems, 2 internal error.
+
+Silence it: `SOURCE_<NAME>_ENABLED=0` for one source (also pauses its scrape), or `WATCHDOG_ENABLED=0` for the whole watchdog. It skips during maintenance mode and does nothing when `NTFY_TOPIC` is unset. Sources that are not configured (no GC credentials, PowerSchool absent) are not monitored.
+
 ## Configuration
 
 Copy `.env.example` to `config/env` and fill in all values:
