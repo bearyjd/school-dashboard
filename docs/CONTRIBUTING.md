@@ -11,7 +11,7 @@
 ```bash
 git clone --recurse-submodules <repo>
 cd school-dashboard
-pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape
+pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/powerschool-scrape
 playwright install chromium
 cp .env.example config/env   # fill in secrets
 ```

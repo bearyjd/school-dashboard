@@ -33,7 +33,7 @@ docker compose up -d
 ## Development (no Docker)
 
 ```bash
-pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc
+pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc -e vendor/powerschool-scrape
 playwright install chromium
 pytest tests/                     # run all tests — SCOPE TO tests/, see warning below
 pytest tests/test_readiness.py -v # single file
@@ -43,10 +43,10 @@ npm --prefix web/spa run dev   # → http://localhost:5173/app/
 npm --prefix web/spa run build # tsc -b && vite build — the only automated SPA check today (no unit tests in web/spa yet)
 ```
 
-**⚠️ Always run `pytest tests/`, never bare `pytest`, from the repo root.**
+**Run `pytest tests/` from the repo root (the documented command).** `pyproject.toml` now sets `testpaths = ["tests"]`, so bare `pytest` is also safe; the note below explains the original trap, which is fixed.
 Verified 2026-07-07: bare `pytest` fails collection with
 `ImportPathMismatchError` / `ModuleNotFoundError: No module named 'tests.test_summary'`
-because `vendor/ixl-scrape`, `vendor/schoology-scrape`, and `vendor/gc` are each
+because `vendor/ixl-scrape`, `vendor/schoology-scrape`, `vendor/gc`, and `vendor/powerschool-scrape` are each
 separate git repos with their own `tests/conftest.py` / `tests/test_*.py`, and
 pytest's default rootdir-based collection picks all of them up and collides on the
 identical top-level module name `tests`. This repo's `pyproject.toml` does not yet
@@ -159,6 +159,7 @@ vendor/
   ixl-scrape/           git submodule (pip install -e)
   schoology-scrape/     git submodule (pip install -e)
   gc/                   git submodule (pip install -e) — GameChanger CLI
+  powerschool-scrape/   git submodule (pip install -e ".[browser]") — PowerSchool CLI (`powerschool`); creds PS_USERNAME/PS_PASSWORD/PS_BASE_URL or ~/.powersched/.env (chmod 600)
 
 docker/
   Dockerfile            python:3.12-slim + gog v0.12.0 binary + Playwright/Chromium + pip scrapers
@@ -266,6 +267,10 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
 
 ## Sync, Staleness & Vendor Model
 
+- **GC token keep-alive:** GC tokens last 1h; a host systemd timer keeps the saved browser session
+  fresh, and `sync/gc-refresh.sh` (called by `school-sync.sh`) takes the same `/root/.gc/refresh.lock`.
+  Install, verify and failure modes: `docs/ops/gc-keepalive.md`.
+
 - **Scraper invocation:** `sync/school-sync.sh` shells out to the `ixl`, `sgy`, and
   `gc` CLIs (installed from `vendor/*` via `pip install -e`), each writing its own
   JSON file (`$IXL_DIR/*.json`, `$SGY_FILE`, `gc-schedule.json`). `school-state
@@ -284,7 +289,7 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
   status`/`/api/sync/meta` handlers and in the SPA. If asked to change staleness
   behavior, search `web/app.py` and `web/spa/` for where `last_run` timestamps get
   compared to `datetime.now()`, not `sync_meta.py`.
-- **Vendor pinning:** `vendor/{ixl-scrape,schoology-scrape,gc}` are git submodules
+- **Vendor pinning:** `vendor/{ixl-scrape,schoology-scrape,gc,powerschool-scrape}` are git submodules
   pinned to a specific commit each (see `.gitmodules` for URLs). `git submodule
   update --remote vendor/<name>` moves the pin to that submodule's current default-
   branch HEAD — this is a manual, unreviewed judgment call with **no automated
@@ -311,6 +316,10 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
   wording). If a bug report is about digest *tone* rather than *content/formatting*,
   flag it for human review of the prompt string rather than iterating blindly.
 
+## Staleness Watchdog (`watchdog.py`)
+
+`school-state watchdog [--dry-run] [--json]` (cron 8:30 + 16:30 daily via `sync/run-watchdog.sh`, maintenance-gated like run-digest.sh) pushes an ntfy alert when a source is overdue. Pure functions `expected_sync`/`check_source`/`plan_alerts` take an injected `now`; `run()` is the I/O shell. `sync_meta` now records `last_ok` (moves only on `ok`; legacy entries fall back to `last_run` when `last_result == "ok"`). Rules: `never_ok` (no success on record), `failing` (last result error and last_ok > 24h), `stale` (last_ok < latest scheduled sync - 90 min, judged only once the run is 90 min past due; schedule const `SYNC_SCHEDULE`, weekdays only, zone from `TZ`). Disabled sources (`SOURCE_*_ENABLED=0`), unconfigured gc/powerschool are skipped; `school-state.json` mtime is checked as pseudo-source `state` — only a backstop, since manual actions also rewrite that file. `never_ok` waits until one scheduled sync + grace has passed since the source's `first_seen`. `state/watchdog.json` = `{alerts: {source: {issue, first_alerted, last_alerted}}, first_seen: {source: iso}}`; one dedupe key per source (failing/stale label flips do not re-alert; re-alert after 24h; single recovered push). Exit 0 healthy/skipped, 1 problems, 2 internal error (failed push via `requests.post` + `raise_for_status`, or unset `NTFY_TOPIC` logged as ERROR; alert state left unwritten so it retries). Silence: `SOURCE_<NAME>_ENABLED=0` or `WATCHDOG_ENABLED=0`. Keep `SYNC_SCHEDULE` in step with `docker/crontab`.
+
 ## Credential Handling (`secrets/`)
 
 This repo has a `secrets/` directory (client OAuth secret, `env`, IXL account
@@ -333,5 +342,12 @@ secrets/` both return nothing. Keep it that way:
 git submodule update --remote vendor/ixl-scrape
 git submodule update --remote vendor/schoology-scrape
 git submodule update --remote vendor/gc
+git submodule update --remote vendor/powerschool-scrape
 git add vendor/ && git commit -m "chore: update scrapers"
 ```
+
+## End-to-end tests
+
+- `tests/e2e/test_pipeline_synthetic.py` runs in plain `pytest tests/` (synthetic scraper files -> `school-state update` -> state -> quick check / Flask API / morning-digest prompt, LLM and ntfy mocked).
+- `tests/e2e/live/` is opt-in (`@pytest.mark.live`, excluded by `addopts`): `LIVE_E2E=1 pytest -m live tests/e2e/live -q`. `LIVE_E2E=1` means credentials are required: a CLI failure FAILS (only a missing CLI or its explicit "not configured" message skips). Failure output is redacted by `tests/e2e/live/conftest.py` (proven by `tests/test_live_redaction.py`). Optional `LIVE_ROSTER_JSON=path` supplies a roster. Writes only to tmp dirs; messages never print names or titles.
+- `scripts/smoke-live.sh` is the post-deploy smoke check: `BASE_URL=http://host:5000 [SYNC_TOKEN=..] [MAX_AGE_HOURS=30] scripts/smoke-live.sh [--container NAME]`. Exit 1 on any FAIL.
