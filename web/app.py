@@ -694,19 +694,26 @@ def _run_sync_background(sources: str, digest: str) -> None:
                             """Write <name>-assigned.json only for a clean, non-error scrape;
                             otherwise remove the old file so stale data is not refreshed."""
                             target = Path(ixl_dir) / f"{name}-assigned.json"
-                            r = subprocess.run(
-                                ["ixl", "assigned", "--json"],
-                                capture_output=True, text=True, timeout=120, env=child_env,
-                            )
+                            timeout = float(os.environ.get("IXL_SCRAPE_TIMEOUT", "120"))
+                            ok, detail = False, ""
                             try:
+                                r = subprocess.run(
+                                    ["ixl", "assigned", "--json"],
+                                    capture_output=True, text=True, timeout=timeout, env=child_env,
+                                )
+                                detail = f"exit {r.returncode}"
                                 ok = r.returncode == 0 and ixl_payload_ok(json.loads(r.stdout))
-                            except ValueError:
+                                if ok:
+                                    target.write_text(r.stdout)
+                            except subprocess.TimeoutExpired:
+                                detail = "timed out"
+                            except (OSError, ValueError) as exc:
+                                detail = type(exc).__name__
                                 ok = False
                             if ok:
-                                target.write_text(r.stdout)
                                 return True
                             target.unlink(missing_ok=True)
-                            app.logger.warning("IXL scrape failed for %s (exit %s)", name, r.returncode)
+                            app.logger.warning("IXL scrape failed for %s (%s)", name, detail)
                             return False
 
                         accounts_env = Path.home() / ".ixl" / "accounts.env"

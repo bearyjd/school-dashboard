@@ -116,3 +116,31 @@ def test_exit_zero_but_error_payload_is_treated_as_failure(tmp_path):
     assert r.returncode == 0, r.stderr
     assert list(ixl_dir.iterdir()) == []
     assert _ixl_meta(state) == "error"
+
+
+def _slow_ixl(env, slow_for="ford"):
+    ixl = Path(env["PATH"].split(":")[0]) / "ixl"
+    ixl.write_text(f"""#!/bin/sh
+case "$IXL_EMAIL" in {slow_for}user@school) sleep 5;; esac
+echo '{json.dumps(OK_PAYLOAD)}'
+""")
+
+
+def test_timeout_removes_old_file_and_continues(tmp_path):
+    env, state, ixl_dir = _setup(tmp_path, failing=(), accounts=("ford", "jack"))
+    _slow_ixl(env)
+    env["IXL_SCRAPE_TIMEOUT"] = "1"
+    (ixl_dir / "ford-assigned.json").write_text(json.dumps(OK_PAYLOAD))
+    r = _run(env)
+    assert r.returncode == 0, r.stderr
+    assert not (ixl_dir / "ford-assigned.json").exists()
+    assert (ixl_dir / "jack-assigned.json").exists()
+    assert "timed out" in r.stderr
+    assert _ixl_meta(state) == "error"
+
+
+def test_stale_temp_files_are_swept(tmp_path):
+    env, state, ixl_dir = _setup(tmp_path, failing=())
+    (ixl_dir / ".jack-assigned.ABC123").write_text("junk")
+    _run(env)
+    assert not (ixl_dir / ".jack-assigned.ABC123").exists()

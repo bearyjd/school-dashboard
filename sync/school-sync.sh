@@ -97,6 +97,7 @@ elif [[ -n "$IXL_CRON" && -x "$IXL_CRON" ]]; then
 elif command -v ixl &>/dev/null; then
     log "Running IXL scrape (per-child via ~/.ixl/accounts.env)..."
     mkdir -p "$IXL_DIR"
+    rm -f "$IXL_DIR"/.*-assigned.??????  # sweep temp files left by a killed earlier run
     ixl_files=0
     ixl_failed=0
     accounts_env="${HOME:-/root}/.ixl/accounts.env"
@@ -118,14 +119,20 @@ if d.get("status") == "error" or errs or ("totals" not in d and "remaining" not 
     ixl_scrape_child() {
         local label="$1" slug="$2" email="$3" password="$4" tmp rc=0 vrc=0 diag=""
         tmp="$(mktemp "$IXL_DIR/.${slug}-assigned.XXXXXX")" || { log "WARN: IXL scrape failed for $label (no temp file)"; return 1; }
+        local -a tcmd=()
+        command -v timeout &>/dev/null && tcmd=(timeout "${IXL_SCRAPE_TIMEOUT:-120}")
         IXL_EMAIL="$email" IXL_PASSWORD="$password" \
-            ixl assigned --json > "$tmp" 2>>"$STATE_DIR/school-sync.log" </dev/null || rc=$?
+            "${tcmd[@]}" ixl assigned --json > "$tmp" 2>>"$STATE_DIR/school-sync.log" </dev/null || rc=$?
         diag="$(python3 -c "$IXL_CHECK" "$tmp" 2>/dev/null)" || vrc=$?
         if (( rc == 0 && vrc == 0 )); then
-            mv -f "$tmp" "$IXL_DIR/${slug}-assigned.json"
-            return 0
+            mv -f "$tmp" "$IXL_DIR/${slug}-assigned.json" && return 0
+            rc=1; diag="could not move scrape into place"
         fi
         rm -f "$tmp" "$IXL_DIR/${slug}-assigned.json"
+        if (( rc == 124 )); then
+            log "WARN: IXL scrape failed for $label (timed out after ${IXL_SCRAPE_TIMEOUT:-120}s)"
+            return 1
+        fi
         log "WARN: IXL scrape failed for $label (exit $rc)${diag:+: $diag}"
         return 1
     }
