@@ -2,6 +2,7 @@ import hmac
 import json
 import os
 import re
+import signal
 import sqlite3
 import subprocess
 import tempfile
@@ -615,6 +616,30 @@ def _scrape_powerschool(ps_file: str) -> None:
         raise
 
 
+def _run_gc_scrape(script: str) -> None:
+    """Run gc-scrape.sh; raise on missing script, non-zero exit or timeout.
+
+    The script runs in its own process group so a timeout can SIGTERM the whole
+    group (the script's TERM trap then removes its work dir) before SIGKILL.
+    """
+    if not Path(script).exists():
+        raise FileNotFoundError(f"gc scrape script not found: {script}")
+    timeout = float(os.environ.get("GC_SCRAPE_TIMEOUT", "300"))
+    proc = subprocess.Popen(["bash", script], start_new_session=True)
+    try:
+        rc = proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGTERM)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait()
+        raise
+    if rc != 0:
+        raise subprocess.CalledProcessError(rc, script)
+
+
 def _run_sync_background(sources: str, digest: str) -> None:
     """Run scrapers in a background thread, update state, optionally send digest."""
     global _sync_status
@@ -707,9 +732,7 @@ def _run_sync_background(sources: str, digest: str) -> None:
                         continue
                     _scrape_powerschool(ps_file)
                 elif src == "gc":
-                    gc_script = "/app/sync/gc-scrape.sh"
-                    if Path(gc_script).exists():
-                        subprocess.run(["bash", gc_script], timeout=60, check=False)
+                    _run_gc_scrape(os.environ.get("GC_SCRAPE_SCRIPT", "/app/sync/gc-scrape.sh"))
             except Exception as exc:
                 errors.append(f"{src}: {exc}")
                 write_sync_source(src, "error")
