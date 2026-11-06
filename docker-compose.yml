@@ -19,6 +19,8 @@ services:
       - /root/.sgy:/root/.sgy
       # GC token + Playwright browser context
       - /root/.gc:/root/.gc
+      # PowerSchool credentials (.env, chmod 600) + session cache
+      - /root/.powersched:/root/.powersched
     env_file:
       - config/env
     environment:

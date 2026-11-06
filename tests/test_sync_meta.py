@@ -63,3 +63,44 @@ def test_read_uses_env_var_path(tmp_path, monkeypatch):
     write_sync_source("ixl", "ok")  # no explicit path — uses env var
     meta = read_sync_meta()  # no explicit path — uses env var
     assert meta["ixl"]["last_result"] == "ok"
+
+
+def test_last_ok_set_only_on_ok(tmp_path):
+    p = str(tmp_path / "meta.json")
+    write_sync_source("ixl", "ok", path=p)
+    first_ok = read_sync_meta(p)["ixl"]["last_ok"]
+    write_sync_source("ixl", "error", path=p)
+    entry = read_sync_meta(p)["ixl"]
+    assert entry["last_result"] == "error"
+    assert entry["last_ok"] == first_ok
+
+
+def test_last_ok_absent_when_never_ok(tmp_path):
+    p = str(tmp_path / "meta.json")
+    write_sync_source("gc", "error", path=p)
+    assert "last_ok" not in read_sync_meta(p)["gc"]
+
+
+def test_pause_keeps_last_ok(tmp_path):
+    p = str(tmp_path / "meta.json")
+    write_sync_source("gc", "ok", path=p)
+    ok = read_sync_meta(p)["gc"]["last_ok"]
+    write_sync_source("gc", "paused", path=p)
+    assert read_sync_meta(p)["gc"]["last_ok"] == ok
+
+
+def test_last_ok_time_legacy_fallback():
+    from school_dashboard.sync_meta import last_ok_time
+    ts = "2026-01-01T00:00:00+00:00"
+    assert last_ok_time({"last_run": ts, "last_result": "ok"}) == ts
+    assert last_ok_time({"last_run": ts, "last_result": "error"}) is None
+    assert last_ok_time(None) is None
+
+
+def test_error_over_legacy_ok_entry_keeps_its_run_as_last_ok(tmp_path):
+    import json
+    p = tmp_path / "meta.json"
+    ts = "2026-01-01T00:00:00+00:00"
+    p.write_text(json.dumps({"ixl": {"last_run": ts, "last_result": "ok"}}))
+    write_sync_source("ixl", "error", path=str(p))
+    assert read_sync_meta(str(p))["ixl"]["last_ok"] == ts

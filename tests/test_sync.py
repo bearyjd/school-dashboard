@@ -120,6 +120,7 @@ def test_run_sync_background_writes_meta_on_success(mock_sub, tmp_path, monkeypa
     monkeypatch.setenv("IXL_DIR", str(tmp_path / "ixl"))
     monkeypatch.setenv("SGY_FILE", str(tmp_path / "sgy.json"))
     monkeypatch.setenv("IXL_CRON", "")
+    monkeypatch.setenv("HOME", str(tmp_path))  # no ~/.ixl/accounts.env: single-account path
 
     # IXL assigned returns valid JSON; subsequent calls (school-state update etc.) return empty stdout
     ixl_json = '{"totals": {"Math": {"assigned": 2, "done": 1, "remaining": 1}}, "remaining": []}'
@@ -136,6 +137,43 @@ def test_run_sync_background_writes_meta_on_success(mock_sub, tmp_path, monkeypa
 
     meta = read_sync_meta(meta_path)
     assert meta.get("ixl", {}).get("last_result") == "ok"
+
+
+@patch("web.app.subprocess.run")
+def test_run_sync_background_ixl_child_failure_marks_error(mock_sub, tmp_path, monkeypatch):
+    """A failed child -> ixl 'error', its stale file removed, other child's file kept."""
+    import json as _json
+
+    import web.app as app_module
+    from school_dashboard.sync_meta import read_sync_meta
+
+    meta_path = str(tmp_path / "meta.json")
+    ixl_dir = tmp_path / "ixl"
+    ixl_dir.mkdir()
+    (ixl_dir / "ford-assigned.json").write_text('{"totals": {"old": 1}, "remaining": []}')
+    (tmp_path / ".ixl").mkdir()
+    (tmp_path / ".ixl" / "accounts.env").write_text("jack:j@s:pw1\nford:f@s:pw2\n")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("SCHOOL_SYNC_META_PATH", meta_path)
+    monkeypatch.setenv("SCHOOL_STATE_PATH", str(tmp_path / "state.json"))
+    monkeypatch.setenv("SCHOOL_DB_PATH", str(tmp_path / "db.db"))
+    monkeypatch.setenv("IXL_DIR", str(ixl_dir))
+    monkeypatch.setenv("IXL_CRON", "")
+    ok = _json.dumps({"totals": {"Math": {}}, "remaining": []})
+    err = _json.dumps({"status": "error", "errors": [{"code": "auth.login_failed", "stage": "login"}]})
+    mock_sub.side_effect = [
+        MagicMock(returncode=0, stdout=ok, stderr=""),
+        MagicMock(returncode=1, stdout=err, stderr=""),
+        MagicMock(returncode=0, stdout="", stderr=""),
+        MagicMock(returncode=0, stdout="", stderr=""),
+    ]
+    assert app_module._sync_lock.acquire(blocking=False)
+
+    app_module._run_sync_background("ixl", "none")
+
+    assert read_sync_meta(meta_path)["ixl"]["last_result"] == "error"
+    assert (ixl_dir / "jack-assigned.json").exists()
+    assert not (ixl_dir / "ford-assigned.json").exists()
 
 
 @patch("web.app.subprocess.run")
@@ -324,3 +362,39 @@ def test_run_sync_background_mixed_paused_and_enabled(mock_sub, tmp_path, monkey
     assert meta["sgy"]["last_result"] == "ok"
     assert app_module._sync_status["last_result"] == "ok"
     assert not any(c.args[0][0] == "ixl" for c in mock_sub.call_args_list)
+
+
+def test_ixl_child_timeout_removes_file_and_continues(tmp_path, monkeypatch):
+    """TimeoutExpired for one child: its old file is removed, later children still run, ixl=error."""
+    import json as _json
+
+    import web.app as app_module
+    from school_dashboard.sync_meta import read_sync_meta
+
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    ok = _json.dumps({"totals": {"Math": {}}, "remaining": []})
+    stub = bindir / "ixl"
+    stub.write_text(f"#!/bin/sh\ncase \"$IXL_EMAIL\" in f@s) sleep 5;; esac\necho '{ok}'\n")
+    stub.chmod(0o755)
+    ixl_dir = tmp_path / "ixl"
+    ixl_dir.mkdir()
+    (ixl_dir / "ford-assigned.json").write_text(ok)
+    (tmp_path / ".ixl").mkdir()
+    (tmp_path / ".ixl" / "accounts.env").write_text("ford:f@s:pw\njack:j@s:pw\n")
+    monkeypatch.setenv("PATH", f"{bindir}:{os.environ['PATH']}")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("IXL_SCRAPE_TIMEOUT", "1")
+    meta_path = str(tmp_path / "meta.json")
+    monkeypatch.setenv("SCHOOL_SYNC_META_PATH", meta_path)
+    monkeypatch.setenv("SCHOOL_STATE_PATH", str(tmp_path / "state.json"))
+    monkeypatch.setenv("SCHOOL_DB_PATH", str(tmp_path / "db.db"))
+    monkeypatch.setenv("IXL_DIR", str(ixl_dir))
+    monkeypatch.setenv("IXL_CRON", "")
+    assert app_module._sync_lock.acquire(blocking=False)
+
+    app_module._run_sync_background("ixl", "none")
+
+    assert read_sync_meta(meta_path)["ixl"]["last_result"] == "error"
+    assert not (ixl_dir / "ford-assigned.json").exists()
+    assert (ixl_dir / "jack-assigned.json").exists()
