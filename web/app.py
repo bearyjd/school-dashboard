@@ -12,7 +12,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
-from school_dashboard.state import canonical_name, get_roster
+from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
 from school_dashboard import maintenance, paths, powerschool
 from school_dashboard.sources import source_enabled
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta
@@ -688,6 +688,27 @@ def _run_sync_background(sources: str, digest: str) -> None:
                     else:
                         Path(ixl_dir).mkdir(parents=True, exist_ok=True)
                         files_written = 0
+                        failed = 0
+
+                        def _scrape_ixl_child(name: str, child_env: dict) -> bool:
+                            """Write <name>-assigned.json only for a clean, non-error scrape;
+                            otherwise remove the old file so stale data is not refreshed."""
+                            target = Path(ixl_dir) / f"{name}-assigned.json"
+                            r = subprocess.run(
+                                ["ixl", "assigned", "--json"],
+                                capture_output=True, text=True, timeout=120, env=child_env,
+                            )
+                            try:
+                                ok = r.returncode == 0 and ixl_payload_ok(json.loads(r.stdout))
+                            except ValueError:
+                                ok = False
+                            if ok:
+                                target.write_text(r.stdout)
+                                return True
+                            target.unlink(missing_ok=True)
+                            app.logger.warning("IXL scrape failed for %s (exit %s)", name, r.returncode)
+                            return False
+
                         accounts_env = Path.home() / ".ixl" / "accounts.env"
                         if accounts_env.exists():
                             for line in accounts_env.read_text().splitlines():
@@ -697,27 +718,22 @@ def _run_sync_background(sources: str, digest: str) -> None:
                                 parts = line.split(":", 2)
                                 if len(parts) < 3:
                                     continue
-                                child_name = parts[0].strip().lower()
                                 child_env = {**os.environ, "IXL_EMAIL": parts[1].strip(), "IXL_PASSWORD": parts[2].strip()}
-                                r = subprocess.run(
-                                    ["ixl", "assigned", "--json"],
-                                    capture_output=True, text=True, timeout=120, env=child_env,
-                                )
-                                if r.stdout:
-                                    (Path(ixl_dir) / f"{child_name}-assigned.json").write_text(r.stdout)
+                                if _scrape_ixl_child(parts[0].strip().lower(), child_env):
                                     files_written += 1
+                                else:
+                                    failed += 1
                         else:
-                            r = subprocess.run(
-                                ["ixl", "assigned", "--json"],
-                                capture_output=True, text=True, timeout=120,
-                            )
-                            if r.stdout:
-                                ixl_email = os.environ.get("IXL_EMAIL", "student@school")
-                                child_name = ixl_email.split("@")[0].split(".")[0].lower()
-                                (Path(ixl_dir) / f"{child_name}-assigned.json").write_text(r.stdout)
+                            ixl_email = os.environ.get("IXL_EMAIL", "student@school")
+                            child_name = ixl_email.split("@")[0].split(".")[0].lower()
+                            if _scrape_ixl_child(child_name, dict(os.environ)):
                                 files_written += 1
+                            else:
+                                failed += 1
                         if files_written == 0:
                             raise RuntimeError("ixl assigned produced no output")
+                        if failed:
+                            raise RuntimeError(f"ixl assigned failed for {failed} child(ren)")
                 elif src == "sgy":
                     result = subprocess.run(
                         ["sgy", "summary", "--json"],

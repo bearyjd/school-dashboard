@@ -98,27 +98,61 @@ elif command -v ixl &>/dev/null; then
     log "Running IXL scrape (per-child via ~/.ixl/accounts.env)..."
     mkdir -p "$IXL_DIR"
     ixl_files=0
+    ixl_failed=0
     accounts_env="${HOME:-/root}/.ixl/accounts.env"
+    # Scrape one child into a private temp file; replace <slug>-assigned.json only on a
+    # clean exit AND a non-error payload. On failure the previous file is REMOVED so the
+    # merge skips the child (its old state entry keeps its true, old `updated`).
+    # Only the error `code`/`stage` are logged, never message text (could echo credentials).
+    IXL_CHECK='import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    print("invalid-json"); sys.exit(1)
+if not isinstance(d, dict):
+    print("invalid-json"); sys.exit(1)
+errs = [e for e in (d.get("errors") or []) if isinstance(e, dict)]
+if d.get("status") == "error" or errs or ("totals" not in d and "remaining" not in d):
+    print(" ".join("code=%s stage=%s" % (e.get("code"), e.get("stage")) for e in errs) or "unexpected-payload")
+    sys.exit(1)'
+    ixl_scrape_child() {
+        local label="$1" slug="$2" email="$3" password="$4" tmp rc=0 vrc=0 diag=""
+        tmp="$(mktemp "$IXL_DIR/.${slug}-assigned.XXXXXX")" || { log "WARN: IXL scrape failed for $label (no temp file)"; return 1; }
+        IXL_EMAIL="$email" IXL_PASSWORD="$password" \
+            ixl assigned --json > "$tmp" 2>>"$STATE_DIR/school-sync.log" </dev/null || rc=$?
+        diag="$(python3 -c "$IXL_CHECK" "$tmp" 2>/dev/null)" || vrc=$?
+        if (( rc == 0 && vrc == 0 )); then
+            mv -f "$tmp" "$IXL_DIR/${slug}-assigned.json"
+            return 0
+        fi
+        rm -f "$tmp" "$IXL_DIR/${slug}-assigned.json"
+        log "WARN: IXL scrape failed for $label (exit $rc)${diag:+: $diag}"
+        return 1
+    }
     if [[ -f "$accounts_env" ]]; then
         while IFS=: read -r child_name child_email child_password || [[ -n "$child_name" ]]; do
             child_name="${child_name// /}"
             [[ -z "$child_name" || "$child_name" == \#* ]] && continue
             slug="${child_name,,}"
-            if IXL_EMAIL="$child_email" IXL_PASSWORD="$child_password" \
-                ixl assigned --json > "$IXL_DIR/${slug}-assigned.json" 2>>"$STATE_DIR/school-sync.log"; then
+            if ixl_scrape_child "$child_name" "$slug" "$child_email" "$child_password"; then
                 ixl_files=$((ixl_files + 1))
             else
-                log "WARN: IXL scrape failed for $child_name"
+                ixl_failed=$((ixl_failed + 1))
             fi
         done < "$accounts_env"
     elif [[ -n "${IXL_EMAIL:-}" && -n "${IXL_PASSWORD:-}" ]]; then
         slug="$(echo "${IXL_EMAIL%@*}" | tr 'A-Z' 'a-z' | cut -d. -f1)"
-        if ixl assigned --json > "$IXL_DIR/${slug:-student}-assigned.json" 2>>"$STATE_DIR/school-sync.log"; then
+        if ixl_scrape_child "${slug:-student}" "${slug:-student}" "$IXL_EMAIL" "$IXL_PASSWORD"; then
             ixl_files=1
+        else
+            ixl_failed=1
         fi
     fi
-    if (( ixl_files > 0 )); then
+    if (( ixl_files > 0 && ixl_failed == 0 )); then
         write_sync_meta "ixl" "ok"
+    elif (( ixl_files > 0 )); then
+        log "WARN: IXL scrape failed for $ixl_failed child(ren); $ixl_files succeeded"
+        write_sync_meta "ixl" "error"
     else
         log "WARN: IXL produced no per-child files"
         write_sync_meta "ixl" "error"
