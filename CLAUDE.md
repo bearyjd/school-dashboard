@@ -337,3 +337,9 @@ git submodule update --remote vendor/gc
 git submodule update --remote vendor/powerschool-scrape
 git add vendor/ && git commit -m "chore: update scrapers"
 ```
+
+## End-to-end tests
+
+- `tests/e2e/test_pipeline_synthetic.py` runs in plain `pytest tests/` (synthetic scraper files -> `school-state update` -> state -> quick check / Flask API / morning-digest prompt, LLM and ntfy mocked).
+- `tests/e2e/live/` is opt-in (`@pytest.mark.live`, excluded by `addopts`): `LIVE_E2E=1 pytest -m live tests/e2e/live -q`. Needs the real `powerschool` / `gc` CLIs with credentials; skips otherwise. Optional `LIVE_ROSTER_JSON=path` supplies a roster. Writes only to tmp dirs; messages never print names or titles.
+- `scripts/smoke-live.sh` is the post-deploy smoke check: `BASE_URL=http://host:5000 [SYNC_TOKEN=..] [MAX_AGE_HOURS=30] scripts/smoke-live.sh [--container NAME]`. Exit 1 on any FAIL.

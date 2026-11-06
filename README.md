@@ -184,3 +184,7 @@ git add vendor/ && git commit -m "chore: update scrapers"
 ## License
 
 Private family tool. Not licensed for redistribution.
+
+## Testing
+
+`pytest tests/` runs everything CI-safe, including a synthetic end-to-end pipeline test. Opt-in live contract tests: `LIVE_E2E=1 pytest -m live tests/e2e/live -q`. Post-deploy smoke check: `scripts/smoke-live.sh` (see `CLAUDE.md`).
