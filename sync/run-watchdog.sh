@@ -37,6 +37,8 @@ case "$rc" in
                 -H "Tags: warning" \
                 -d "school-state watchdog exited $rc. Check $LOGFILE on the container." \
                 "https://ntfy.sh/${NTFY_TOPIC}" 2>/dev/null || true
+        else
+            echo "[$TS] NTFY_TOPIC unset; cannot send the failure push" >> "$LOGFILE"
         fi
         exit "$rc"
         ;;

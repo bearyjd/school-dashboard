@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 from zoneinfo import ZoneInfo
 
+import requests
+
 from school_dashboard import maintenance, paths
 from school_dashboard.atomic import write_atomic
 from school_dashboard.sources import source_enabled
@@ -89,25 +91,38 @@ def _stale(source: str, ok: datetime, now: datetime, tz: tzinfo,
     return None
 
 
+def _never_ok(source: str, first_seen: Optional[datetime], now: datetime, tz: tzinfo,
+              grace: timedelta) -> Optional[Problem]:
+    """Alert only after a scheduled sync has had its chance (plus grace) since first_seen."""
+    if first_seen is None:
+        return None
+    if expected_sync(now - grace, tz) > first_seen:
+        return Problem(source, "never_ok", None)
+    return None
+
+
 def check_source(source: str, entry: Optional[dict], now: datetime, tz: tzinfo,
-                 grace: timedelta = GRACE) -> Optional[Problem]:
+                 grace: timedelta = GRACE,
+                 first_seen: Optional[datetime] = None) -> Optional[Problem]:
     ok = _parse(last_ok_time(entry))
     if ok is None:
-        return Problem(source, "never_ok", None)
+        return _never_ok(source, first_seen, now, tz, grace)
     if isinstance(entry, dict) and entry.get("last_result") == "error" and now - ok > FAILING_AFTER:
         return Problem(source, "failing", _hours(now - ok))
     return _stale(source, ok, now, tz, grace)
 
 
 def check_mtime(name: str, mtime: Optional[datetime], now: datetime, tz: tzinfo,
-                grace: timedelta = GRACE) -> Optional[Problem]:
+                grace: timedelta = GRACE,
+                first_seen: Optional[datetime] = None) -> Optional[Problem]:
     if mtime is None:
-        return Problem(name, "never_ok", None)
+        return _never_ok(name, first_seen, now, tz, grace)
     return _stale(name, mtime, now, tz, grace)
 
 
-def evaluate(meta: dict, sources, now: datetime, tz: tzinfo) -> list[Problem]:
-    found = (check_source(s, meta.get(s), now, tz) for s in sources)
+def evaluate(meta: dict, sources, now: datetime, tz: tzinfo,
+             first_seen: dict[str, datetime]) -> list[Problem]:
+    found = (check_source(s, meta.get(s), now, tz, first_seen=first_seen.get(s)) for s in sources)
     return [p for p in found if p]
 
 
@@ -134,31 +149,37 @@ def plan_alerts(problems: list[Problem], state: dict, now: datetime):
         prev = state.get(p.source)
         prev = prev if isinstance(prev, dict) else {}
         last = _parse(prev.get("last_alerted"))
-        same = prev.get("issue") == p.issue and last is not None
-        if same and now - last < REALERT_AFTER:
-            new_state[p.source] = dict(prev)
+        # One key per source: the issue label (failing/stale/never_ok) may change
+        # without a new alert; only 24h of silence or a recovery re-arms it.
+        if last is not None and now - last < REALERT_AFTER:
+            new_state[p.source] = {**prev, "issue": p.issue}
             continue
         alerts.append(p)
-        first = prev.get("first_alerted") if same and prev.get("first_alerted") else stamp
+        first = prev.get("first_alerted") if last is not None and prev.get("first_alerted") else stamp
         new_state[p.source] = {"issue": p.issue, "first_alerted": first, "last_alerted": stamp}
     active = {p.source for p in problems}
     recovered = sorted(k for k, v in state.items() if k not in active and isinstance(v, dict))
     return alerts, recovered, new_state
 
 
+_NAMES = {"sgy": "Schoology", "ixl": "IXL", "gc": "GameChanger",
+          "powerschool": "PowerSchool", STATE_KEY: "school data"}
+ALERT_FOOTER = "Dashboard may be showing old info."
+
+
 def _label(source: str) -> str:
-    return "school-state.json" if source == STATE_KEY else source
+    return _NAMES.get(source, source)
 
 
 def _describe(p: Problem) -> str:
     if p.age_hours is None:
         return f"{_label(p.source)}: no successful sync on record"
     kind = "failing, last success" if p.issue == "failing" else "last success"
-    return f"{_label(p.source)}: {kind} {p.age_hours:g}h ago"
+    return f"{_label(p.source)}: {kind} {p.age_hours:.1f} hours ago"
 
 
 def format_alert(problems: list[Problem]) -> str:
-    return "\n".join(_describe(p) for p in problems)
+    return "\n".join([*(_describe(p) for p in problems), ALERT_FOOTER])
 
 
 def format_recovered(sources: list[str]) -> str:
@@ -198,35 +219,68 @@ def _state_mtime() -> Optional[datetime]:
 
 
 def _default_send(topic: str, message: str, title: str) -> None:
-    from school_dashboard.digest import send_ntfy
-    send_ntfy(topic, message, title=title)
+    """POST to ntfy; raises on any HTTP error or timeout so state is never advanced."""
+    from school_dashboard.digest import DASHBOARD_BASE
+    resp = requests.post(
+        f"https://ntfy.sh/{topic}",
+        data=message.encode("utf-8"),
+        headers={"Title": title, "Priority": "default", "Tags": "school", "Click": DASHBOARD_BASE},
+        timeout=15,
+    )
+    resp.raise_for_status()
 
 
 def _problem_dict(p: Problem) -> dict:
     return {"source": p.source, "issue": p.issue, "age_hours": p.age_hours}
 
 
+def _update_first_seen(stored: Any, watched: list[str], now: datetime) -> dict[str, datetime]:
+    """First time each watched source was seen; sources no longer watched are dropped."""
+    stored = stored if isinstance(stored, dict) else {}
+    out = {}
+    for name in watched:
+        out[name] = _parse(stored.get(name)) or now
+    return out
+
+
+def _skip(reason: str, exit_code: int = 0, error: Optional[str] = None) -> dict:
+    result = {"exit_code": exit_code, "skipped": reason, "healthy": exit_code == 0, "problems": []}
+    if error:
+        result["error"] = error
+    return result
+
+
 def run(now: Optional[datetime] = None, dry_run: bool = False,
         send: Optional[SendFn] = None) -> dict:
-    """Evaluate, de-duplicate, notify. Returns a result dict with `exit_code`."""
+    """Evaluate, de-duplicate, notify. Returns a result dict with `exit_code`.
+
+    Exit codes: 0 healthy/skipped, 1 problems found, 2 internal error (including
+    any failure to deliver, which leaves the alert state untouched for a retry).
+    """
     if os.environ.get("WATCHDOG_ENABLED", "").strip().lower() in _FALSY:
-        return {"exit_code": 0, "skipped": "disabled", "healthy": True, "problems": []}
+        return _skip("disabled")
     if maintenance.is_active():
-        return {"exit_code": 0, "skipped": "maintenance", "healthy": True, "problems": []}
+        return _skip("maintenance")
     topic = os.environ.get("NTFY_TOPIC", "")
     if not topic and not dry_run:
-        logger.warning("NTFY_TOPIC unset; watchdog has nowhere to send alerts")
-        return {"exit_code": 0, "skipped": "no_ntfy_topic", "healthy": True, "problems": []}
+        msg = "NTFY_TOPIC is not set; watchdog cannot send alerts"
+        logger.error(msg)
+        return _skip("no_ntfy_topic", exit_code=2, error=msg)
 
     tz = get_tz()
     now = now or datetime.now(tz)
-    problems = evaluate(read_sync_meta(), monitored_sources(), now, tz)
-    state_problem = check_mtime(STATE_KEY, _state_mtime(), now, tz)
+    state_file = paths.state_dir() / WATCHDOG_FILE
+    stored = load_state(state_file)
+    watched = [*monitored_sources(), STATE_KEY]
+    first_seen = _update_first_seen(stored.get("first_seen"), watched, now)
+
+    problems = evaluate(read_sync_meta(), watched[:-1], now, tz, first_seen)
+    state_problem = check_mtime(STATE_KEY, _state_mtime(), now, tz, first_seen=first_seen[STATE_KEY])
     if state_problem:
         problems.append(state_problem)
 
-    state_file = paths.state_dir() / WATCHDOG_FILE
-    alerts, recovered, new_state = plan_alerts(problems, load_state(state_file), now)
+    old_alerts = stored.get("alerts") if isinstance(stored.get("alerts"), dict) else {}
+    alerts, recovered, new_alerts = plan_alerts(problems, old_alerts, now)
     result = {
         "exit_code": 1 if problems else 0,
         "healthy": not problems,
@@ -237,14 +291,21 @@ def run(now: Optional[datetime] = None, dry_run: bool = False,
     if dry_run:
         return result
 
+    seen_out = {k: v.astimezone(timezone.utc).isoformat(timespec="seconds") for k, v in first_seen.items()}
     send = send or _default_send
     try:
         if alerts:
             send(topic, format_alert(alerts), ALERT_TITLE)
         if recovered:
             send(topic, format_recovered(recovered), RECOVERED_TITLE)
+        new_state = {"alerts": new_alerts, "first_seen": seen_out}
+    except Exception as exc:  # delivery failed: keep alert state so the next run retries
+        logger.error("watchdog notification failed: %s", exc)
+        result.update(exit_code=2, error=str(exc))
+        new_state = {**stored, "first_seen": seen_out}  # the never-ok clock must keep running
+    try:
         save_state(state_file, new_state)
-    except Exception as exc:  # delivery/write failed: leave state so the next run retries
-        logger.error("watchdog notify/persist failed: %s", exc)
-        result["error"] = str(exc)
+    except OSError as exc:
+        logger.error("watchdog state write failed: %s", exc)
+        result.update(exit_code=2, error=str(exc))
     return result
