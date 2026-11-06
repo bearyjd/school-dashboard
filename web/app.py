@@ -707,9 +707,11 @@ def _run_sync_background(sources: str, digest: str) -> None:
                         continue
                     _scrape_powerschool(ps_file)
                 elif src == "gc":
-                    gc_script = "/app/sync/gc-scrape.sh"
+                    gc_script = os.environ.get("GC_SCRAPE_SCRIPT", "/app/sync/gc-scrape.sh")
                     if Path(gc_script).exists():
-                        subprocess.run(["bash", gc_script], timeout=60, check=False)
+                        # A non-zero exit (failed scrape, "Refusing to overwrite") must
+                        # surface as an error; maintenance-skip and paused exit 0.
+                        subprocess.run(["bash", gc_script], timeout=300, check=True)
             except Exception as exc:
                 errors.append(f"{src}: {exc}")
                 write_sync_source(src, "error")

@@ -53,17 +53,30 @@ fail() {
     exit 1
 }
 
+# Variable-size data (team list, per-team summaries) NEVER goes through argv:
+# Linux caps one argv string at 128 KiB (MAX_ARG_STRLEN), which a real 11-team
+# scrape exceeds. Everything lives in files under $WORK and is read by python.
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/gc-scrape.XXXXXX")"
+trap 'rm -rf "$WORK" "$GC_PATH.tmp.$$"' EXIT
+
 log "Starting gc scrape"
 
 # --- Step 1: Fetch team list ---
 log "Fetching team list..."
-TEAMS_JSON=$(gc teams --json 2>>"$LOGFILE") || fail "gc teams failed (check auth: GC_TOKEN or GC_EMAIL/GC_PASSWORD)"
+gc teams --json > "$WORK/teams.json" 2>>"$LOGFILE" || fail "gc teams failed (check auth: GC_TOKEN or GC_EMAIL/GC_PASSWORD)"
 
-TEAM_COUNT=$(python3 -c "
+# "id<TAB>name" lines
+python3 -c "
 import json, sys
-teams = json.loads(sys.argv[1])
-print(len(teams))
-" "$TEAMS_JSON" 2>>"$LOGFILE" || echo "0")
+with open(sys.argv[1]) as f:
+    teams = json.load(f)
+for t in teams:
+    tid = t.get('id', '')
+    name = t.get('name', tid)
+    if tid:
+        print(tid + '\\t' + name)
+" "$WORK/teams.json" > "$WORK/team-lines.tsv" 2>>"$LOGFILE" || : > "$WORK/team-lines.tsv"
+TEAM_COUNT=$(wc -l < "$WORK/team-lines.tsv" | tr -d ' ')
 
 log "Found $TEAM_COUNT team(s)"
 [[ "$TEAM_COUNT" -eq 0 ]] && fail "No teams found — check GC_TOKEN or GC_EMAIL/GC_PASSWORD in config/env"
@@ -88,20 +101,10 @@ warn_if_unmapped() {
     fi
 }
 
-# --- Step 3: Iterate teams, fetch summaries ---
-OUTPUT_TEAMS="[]"
-
-# Extract "id<TAB>name" lines from teams JSON
-TEAM_LINES=$(python3 -c "
-import json, sys
-teams = json.loads(sys.argv[1])
-for t in teams:
-    tid = t.get('id', '')
-    name = t.get('name', tid)
-    if tid:
-        print(tid + '\t' + name)
-" "$TEAMS_JSON" 2>>"$LOGFILE")
-
+# --- Step 3: Iterate teams, save each summary to a file ---
+# manifest.tsv: n<TAB>team_id<TAB>team_name<TAB>child  (team-<n>.json holds the summary)
+: > "$WORK/manifest.tsv"
+N=0
 while IFS=$'\t' read -r TEAM_ID TEAM_NAME; do
     [[ -z "$TEAM_ID" ]] && continue
 
@@ -109,52 +112,48 @@ while IFS=$'\t' read -r TEAM_ID TEAM_NAME; do
     CHILD="${TEAM_MAP[$TEAM_ID]:-$TEAM_NAME}"
     log "Scraping: $TEAM_NAME ($TEAM_ID) → child=$CHILD"
 
-    SUMMARY_JSON=$(gc summary --json --team "$TEAM_ID" 2>>"$LOGFILE") || {
+    N=$((N + 1))
+    gc summary --json --team "$TEAM_ID" > "$WORK/team-$N.json" 2>>"$LOGFILE" || {
         log "WARN: gc summary failed for team $TEAM_ID — skipping"
         continue
     }
+    printf '%s\t%s\t%s\t%s\n' "$N" "$TEAM_ID" "$TEAM_NAME" "$CHILD" >> "$WORK/manifest.tsv"
+done < "$WORK/team-lines.tsv"
 
-    OUTPUT_TEAMS=$(python3 -c "
+# --- Step 4: Build output from the files (single python call, no argv data) ---
+mkdir -p "$LOGDIR"
+COUNTS=$(python3 -c "
 import json, sys
-existing = json.loads(sys.argv[1])
-summary  = json.loads(sys.argv[2])
-existing.append({
-    'team_id':   sys.argv[3],
-    'team_name': sys.argv[4],
-    'child':     sys.argv[5],
-    'schedule':  summary.get('schedule', []),
-})
-print(json.dumps(existing))
-" "$OUTPUT_TEAMS" "$SUMMARY_JSON" "$TEAM_ID" "$TEAM_NAME" "$CHILD" 2>>"$LOGFILE") || {
-        log "WARN: Failed to parse summary for team $TEAM_ID — skipping"
-        continue
-    }
-done <<< "$TEAM_LINES"
+work, ts, out = sys.argv[1], sys.argv[2], sys.argv[3]
+teams = []
+with open(work + '/manifest.tsv') as m:
+    for line in m:
+        n, tid, name, child = line.rstrip('\\n').split('\\t')
+        try:
+            with open(f'{work}/team-{n}.json') as f:
+                summary = json.load(f)
+            schedule = summary.get('schedule', [])
+        except (OSError, ValueError, AttributeError) as e:
+            print(f'WARN: Failed to parse summary for team {tid} ({e}) — skipping', file=sys.stderr)
+            continue
+        teams.append({'team_id': tid, 'team_name': name, 'child': child, 'schedule': schedule})
+with open(out, 'w') as f:
+    print(json.dumps({'scraped_at': ts, 'teams': teams}, indent=2), file=f)
+print(len(teams), sum(len(t['schedule']) for t in teams))
+" "$WORK" "$TS" "$GC_PATH.tmp.$$" 2>>"$LOGFILE") || fail "Failed to write $GC_PATH"
+read -r WRITTEN TOTAL_EVENTS <<< "$COUNTS"
 
-# --- Step 4: Sanity-check before write ---
 # Every team returning an empty schedule means the gc CLI 401'd silently
 # (it returns exit 0 with empty data on auth failure). Treat that as a
-# hard failure so cron's last_result reflects reality instead of
+# hard failure so the sync status reflects reality instead of
 # overwriting a good gc-schedule.json with empty data.
-TOTAL_EVENTS=$(python3 -c "
-import json, sys
-teams = json.loads(sys.argv[1])
-print(sum(len(t.get('schedule', [])) for t in teams))
-" "$OUTPUT_TEAMS" 2>>"$LOGFILE" || echo "0")
-
-if [[ "$TEAM_COUNT" -gt 0 && "$TOTAL_EVENTS" -eq 0 ]]; then
+if [[ "$TEAM_COUNT" -gt 0 && "${TOTAL_EVENTS:-0}" -eq 0 ]]; then
     fail "All $TEAM_COUNT team(s) returned empty schedules — likely auth failure (gc returns 200 with empty data on 401). Refusing to overwrite $GC_PATH."
 fi
 
-# --- Step 5: Write output ---
-mkdir -p "$LOGDIR"
-python3 -c "
-import json, sys
-print(json.dumps({'scraped_at': sys.argv[1], 'teams': json.loads(sys.argv[2])}, indent=2))
-" "$TS" "$OUTPUT_TEAMS" > "$GC_PATH.tmp.$$" || { rm -f "$GC_PATH.tmp.$$"; fail "Failed to write $GC_PATH"; }
+# --- Step 5: Publish ---
 # Re-check right before publishing: maintenance may have started during the scrape.
-if maintenance_skip "gc-schedule write"; then rm -f "$GC_PATH.tmp.$$"; exit 0; fi
-mv -f "$GC_PATH.tmp.$$" "$GC_PATH" || { rm -f "$GC_PATH.tmp.$$"; fail "Failed to write $GC_PATH"; }
+if maintenance_skip "gc-schedule write"; then exit 0; fi
+mv -f "$GC_PATH.tmp.$$" "$GC_PATH" || fail "Failed to write $GC_PATH"
 
-WRITTEN=$(python3 -c "import json; d=json.load(open('$GC_PATH')); print(len(d['teams']))" 2>/dev/null || echo "?")
 log "Done — $WRITTEN team(s), $TOTAL_EVENTS event(s) written to $GC_PATH"
