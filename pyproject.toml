@@ -28,3 +28,6 @@ school_dashboard = ["templates/*.html"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-m \"not live\""
+markers = ["live: opt-in tests against real accounts (set LIVE_E2E=1; run with -m live)"]
