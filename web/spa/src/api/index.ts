@@ -2,11 +2,21 @@ import type { Overview, Item, Dashboard, SyncStatus, SyncMeta, ChatMessage, Dige
 
 const BASE = '';  // same origin — Flask serves both SPA and API
 
+/** A non-2xx API reply; `status` lets callers tell e.g. maintenance (503) from other failures. */
+export class ApiError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(BASE + path, init);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error((err as { error?: string }).error || res.statusText);
+    throw new ApiError((err as { error?: string }).error || res.statusText, res.status);
   }
   return res.json() as Promise<T>;
 }

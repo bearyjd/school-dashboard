@@ -1,0 +1,21 @@
+.frame { display: flex; flex-direction: column; gap: 14px; min-width: 0; max-width: 1100px; width: 100%; margin: 0 auto; }
+.frame .page-title { margin-bottom: 0; }
+.frame__banners { display: flex; flex-direction: column; gap: 8px; }
+.frame__error { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+
+.btn {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 8px 14px; font-weight: 700; font-family: inherit; cursor: pointer; min-height: 40px;
+}
+.btn:hover { border-color: var(--tonight); }
+
+.kid-filter { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 100px;
+  padding: 6px 14px; min-height: 40px; font-weight: 700; font-size: 13px; font-family: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.pill[aria-pressed='true'] { background: var(--selected); border-color: var(--tonight); }
+.pill[aria-pressed='true']::before { content: '✓'; font-size: 12px; }
+
+.as-of { font-size: 11px; color: var(--missing-text); font-weight: 700; white-space: nowrap; }

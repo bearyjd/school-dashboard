@@ -1,0 +1,24 @@
+.list__filters { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.list__select { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.list__select select {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 8px 10px; min-height: 40px; font: inherit;
+}
+.list__link { color: var(--tonight-text); font-weight: 700; }
+.list__empty { color: var(--muted); }
+
+.table-scroll { overflow-x: auto; max-width: 100%; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+.list__table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 13px; }
+.list__table th, .list__table td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.list__table tbody tr:last-child td { border-bottom: 0; }
+.list__table th { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.sort-btn { background: none; border: 0; color: inherit; font: inherit; font-weight: 700; cursor: pointer; padding: 4px 0; min-height: 32px; }
+.sort-btn:hover { color: var(--text); }
+.list__what { overflow-wrap: anywhere; min-width: 160px; max-width: 360px; font-weight: 600; }
+.list__wrap { overflow-wrap: anywhere; max-width: 200px; }
+.list__nowrap { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.list__src { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.list__chips { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.list__check { width: 22px; height: 22px; accent-color: var(--ok); cursor: pointer; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

@@ -18,6 +18,11 @@ test('failing with no known age', () => {
   expect(container.textContent).toMatch(/failing/i)
 })
 
+test('bare omits the icon but keeps the words', () => {
+  const { container } = render(<FreshnessTag ageHours={5} stale bare />)
+  expect(container.textContent).toBe(' Stale, as of 5h ago')
+})
+
 test('fresh data shows its age without a warning', () => {
   const { container } = render(<FreshnessTag ageHours={0.2} />)
   expect(container.textContent).toMatch(/just now/i)
