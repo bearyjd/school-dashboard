@@ -67,6 +67,11 @@ and pushes the Docker image on push to `main`. It does **not** run `pytest`. Tre
 "CI is green" as meaning "the Docker image built," not "tests pass," until a test
 workflow is added (`.agent_native/agent_roadmap.md` item 2).
 
+## GameChanger calendar-feed (ICS) fallback
+
+`sync/gc-scrape.sh` falls back per team to a calendar feed (`school_dashboard/gc_ics.py`, `school-state gc-ics --team-id ID`)
+when `gc summary`/`gc teams` fails or is empty. Feed URLs are SECRETS in `~/.gc/ics-feeds.json` (chmod 600); never log or commit them. See `docs/ops/gc-ics-fallback.md`.
+
 ## One-off Commands
 
 > **Correction (2026-07-07):** `school_dashboard.calendar_import`, `query_upcoming_events`,
