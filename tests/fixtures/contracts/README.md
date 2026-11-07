@@ -28,10 +28,28 @@ due-date logic therefore behaves as in production.
 2. Update the fixture by hand with new or renamed keys, keeping the data synthetic.
 3. Run `pytest tests/test_contract_*.py`. A failure in `test_fixture_has_the_keys_consumers_read`
    or `test_fixture_is_accepted_end_to_end` means a consumer needs updating, not the test.
-4. Tests named `test_silent_degradation_*` document unguarded paths; they pass today by design.
-   If you add a guard, flip the matching test to assert the new warning.
+4. Tests named `test_silent_degradation_*` / `test_inconsistency_*` pin unguarded paths (gap ids
+   below, as in the PR body); they pass today by design. When one fails with "UNGUARDED gap Gn
+   closed (or changed)", the gap was fixed or the behaviour moved: flip that test to assert the
+   guarded behaviour (a warning or a clear failure).
 5. Update the pin SHAs in the table above.
 
-## Git note
+## Unguarded gap ids
 
-`.gitignore` ignores `*.json` and only exempts `tests/fixtures/*.json`, so these files are tracked via `git add -f`. A new fixture here needs `git add -f` too.
+| Id | Gap |
+|----|-----|
+| G1 | ixl: `remaining` renamed inside `totals` reads as "all done" |
+| G2 | ixl: payload with only the `remaining` list is accepted with empty totals |
+| G3 | ixl: `summary_text` KeyError when totals lack `done`/`assigned` |
+| G4 | sgy: `per_child` renamed merges nothing, no warning |
+| G5 | sgy: missing `child.name` raises a bare IndexError (loud, unhelpful) |
+| G6 | sgy: `due_date` renamed drops every dated row from overview/readiness |
+| G7 | sgy: `title` renamed collapses action items to one "Unknown" |
+| G8 | sgy: failed child reads as "SGY all done" |
+| G9 | sgy: auto-archive trusts partial/failed children (no top-level `warnings`) |
+| G10 | sgy: status case ("Submitted") handled differently by readiness vs overview |
+| G11 | sgy: free-form due dates skipped by readiness, parsed by overview |
+| G12a/b/c | powerschool: missing `name` / renamed item `due` / missing item `title`, no warning |
+| G13 | gc: `schedule` missing for some teams writes empty schedules, exit 0 |
+| G14a/b/c | gc: event `date` / `time` / `type` renamed degrades overview and digest silently |
+| G15 | readiness only iterates schoology children (IXL/PS-only child omitted) |

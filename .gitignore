@@ -15,6 +15,7 @@ state/
 !config/school-dashboard.example.json
 !config/calendars/*.json
 !tests/fixtures/*.json
+!tests/fixtures/**/*.json
 
 # School calendar PDF (may contain private family data)
 *.pdf
