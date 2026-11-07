@@ -1,0 +1,27 @@
+{
+  "teams": [
+    {"id": "team-0001", "name": "Sample Team Alpha", "sport": "baseball", "season": "Fall 2026"},
+    {"id": "team-0002", "name": "Sample Team Beta", "sport": "soccer", "season": "Fall 2026"}
+  ],
+  "summaries": {
+    "team-0001": {
+      "team_id": "team-0001",
+      "schedule": [
+        {"id": "evt-0001", "date": "2026-11-07", "time": "09:00", "timezone": "America/New_York", "type": "game", "opponent": "Sample Opponent One", "location": "Sample Field, 1 Example Way", "location_name": "Sample Field", "location_address": "1 Example Way", "home_away": "home", "game_type": "league", "notes": "", "sport": "baseball"},
+        {"id": "evt-0002", "date": "2026-11-10", "time": "17:30", "timezone": "America/New_York", "type": "practice", "opponent": "", "location": "Sample Park", "location_name": "Sample Park", "location_address": "", "home_away": "", "game_type": "", "notes": "Bring water", "sport": ""}
+      ],
+      "clips": [
+        {"id": "clip-0001", "title": "Sample clip", "url": "https://clips.example.invalid/c1", "event_id": "evt-0001"}
+      ],
+      "timestamp": "2026-11-05T06:10:00.000000"
+    },
+    "team-0002": {
+      "team_id": "team-0002",
+      "schedule": [
+        {"id": "evt-0101", "date": "2026-11-08", "time": "13:00", "timezone": "America/New_York", "type": "game", "opponent": "Sample Opponent Two", "location": "Sample Pitch", "location_name": "Sample Pitch", "location_address": "", "home_away": "away", "game_type": "league", "notes": "", "sport": "soccer"}
+      ],
+      "clips": [],
+      "timestamp": "2026-11-05T06:10:05.000000"
+    }
+  }
+}
