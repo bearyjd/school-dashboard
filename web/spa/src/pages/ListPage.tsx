@@ -1,11 +1,13 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useRef, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError, updateItem } from '../api'
+import { ERROR_MAINTENANCE, ERROR_OFFLINE } from '../api/errors'
 import type { Overview, OverviewEvent, OverviewItem, OverviewStatus } from '../api/types'
 import { Banner } from '../design/Banner'
 import { KidChip } from '../design/KidChip'
 import { StatusBadge } from '../design/StatusBadge'
+import { Tabs } from '../design/Tabs'
 import { AsOfTag, KidFilter, OverviewFrame } from '../components/OverviewFrame'
 import { OVERVIEW_KEY, useOverview } from '../lib/overview'
 import { useUrlState } from '../lib/urlState'
@@ -77,10 +79,18 @@ function SortHead({ col, label, sort, dir, onSort }: SortHeadProps) {
 }
 
 const MAINTENANCE_MESSAGE = 'Updates are paused for maintenance. Try again later.'
+const OFFLINE_MESSAGE = "You appear to be offline. Try again when you're connected."
+
+/** Server maintenance is a 503 `{error:'maintenance'}`; the service worker's offline reply is a 503 `{error:'offline'}`. */
+function checkOffError(err: unknown, title: string): string {
+  if (err instanceof ApiError && err.status === 503 && err.message === ERROR_MAINTENANCE) return MAINTENANCE_MESSAGE
+  if (!(err instanceof ApiError) || (err.status === 503 && err.message === ERROR_OFFLINE)) return OFFLINE_MESSAGE
+  return `Could not mark "${title || 'Untitled'}" done. It has been restored.`
+}
 
 /** Set one row's status in the cached overview; other rows (and other in-flight check-offs) are untouched. */
 function setRowStatus(client: QueryClient, id: string, status: OverviewStatus) {
-  client.setQueryData<Overview>(OVERVIEW_KEY, old =>
+  client.setQueriesData<Overview>({ queryKey: OVERVIEW_KEY }, old =>
     old && { ...old, items: old.items.map(i => (i.id === id ? { ...i, status } : i)) })
 }
 
@@ -100,9 +110,7 @@ function useCheckOff({ setError, setAnnounce }: CheckOffMessages) {
     },
     onError: (err, row) => {
       setRowStatus(client, row.id, row.status) // only the failed row comes back
-      setError(err instanceof ApiError && err.status === 503
-        ? MAINTENANCE_MESSAGE
-        : `Could not mark "${row.title || 'Untitled'}" done. It has been restored.`)
+      setError(checkOffError(err, row.title))
     },
     onSuccess: (_data, row) => setAnnounce(`Marked ${row.title || 'Untitled'} done`),
     // Not returned: the mutation must not wait for the refetch (it would delay the focus move on a slow server).
@@ -243,7 +251,12 @@ function ItemsTable({ data, kind, kid, setKid }: TableProps) {
   )
 }
 
-function EventsTable({ data, kid, setKid }: Omit<TableProps, 'kind'>) {
+interface EventsTableProps extends Omit<TableProps, 'kind'> {
+  past: boolean
+  setPast: (past: boolean) => void
+}
+
+function EventsTable({ data, kid, setKid, past, setPast }: EventsTableProps) {
   const [source, setSource] = useUrlState('source', raw => raw ?? '', '')
   const head = useSort(EVENT_SORTS)
   const { sort, dir } = head
@@ -258,7 +271,15 @@ function EventsTable({ data, kid, setKid }: Omit<TableProps, 'kind'>) {
   return (
     <>
       <FilterBar data={data} kid={kid} setKid={setKid} sources={sources} source={source} setSource={setSource}
-        extra={<Link className="list__link" to="/calendar">Week calendar</Link>} />
+        extra={(
+          <>
+            <label className="list__select">
+              <input type="checkbox" checked={past} onChange={e => setPast(e.target.checked)} />
+              Show past seasons
+            </label>
+            <Link className="list__link" to="/calendar">Week calendar</Link>
+          </>
+        )} />
       {rows.length === 0 ? <p className="list__empty">No upcoming events.</p> : (
         <div className="table-scroll">
           <table className="list__table" aria-label="Events">
@@ -275,7 +296,7 @@ function EventsTable({ data, kid, setKid }: Omit<TableProps, 'kind'>) {
               {rows.map((e, n) => (
                 <tr key={`${e.date}-${e.time}-${e.title}-${n}`}>
                   <td className="list__chips">
-                    {e.kids.length === 0 ? <span>Everyone</span>
+                    {e.kids.length === 0 ? <span>{e.unassigned ? 'Unassigned' : 'Everyone'}</span>
                       : e.kids.map(k => <KidChip key={k} name={k} index={kidIndex(data, k)} wide />)}
                   </td>
                   <td data-col="what" className="list__what">{e.title}</td>
@@ -292,13 +313,37 @@ function EventsTable({ data, kid, setKid }: Omit<TableProps, 'kind'>) {
   )
 }
 
+const TAB_ITEMS = (Object.keys(TITLES) as ListKind[]).map(id => ({ id, label: TITLES[id] }))
+
+/** Switch lists; only ?kid= carries over (sort and source filters are per list). */
+function ListTabs({ kind }: { kind: ListKind }) {
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const kid = params.get('kid')
+  return (
+    <Tabs
+      items={TAB_ITEMS}
+      active={kind}
+      idPrefix="list"
+      onChange={id => navigate(kid ? `/${id}?kid=${encodeURIComponent(kid)}` : `/${id}`, { replace: true })}
+    />
+  )
+}
+
 export function ListPage({ kind }: { kind: ListKind }) {
-  const query = useOverview()
+  const [pastParam, setPastParam] = useUrlState('past', raw => (raw === '1' ? '1' : ''), '')
+  const past = kind === 'events' && pastParam === '1'
+  const query = useOverview(past)
   const [kid, setKid] = useUrlState('kid', kidParser(query.data), '')
   return (
-    <OverviewFrame title={TITLES[kind]} query={query}>
+    <OverviewFrame
+      title={TITLES[kind]}
+      query={query}
+      header={<ListTabs kind={kind} />}
+      panel={{ id: `list-panel-${kind}`, labelledBy: `list-tab-${kind}` }}
+    >
       {data => kind === 'events'
-        ? <EventsTable data={data} kid={kid} setKid={setKid} />
+        ? <EventsTable data={data} kid={kid} setKid={setKid} past={past} setPast={p => setPastParam(p ? '1' : '')} />
         : <ItemsTable data={data} kind={kind} kid={kid} setKid={setKid} />}
     </OverviewFrame>
   )

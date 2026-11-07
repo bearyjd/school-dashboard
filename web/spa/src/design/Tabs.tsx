@@ -12,7 +12,7 @@ interface TabsProps {
   onChange: (id: string) => void
   /**
    * Prefix for element ids. The panel the caller renders must use
-   * `role="tabpanel"`, `id={`${idPrefix}-panel-${active}`}` and `aria-labelledby={`${idPrefix}-tab-${active}`}`.
+   * `role="tabpanel"` (only the active tab sets `aria-controls`), `id={`${idPrefix}-panel-${active}`}` and `aria-labelledby={`${idPrefix}-tab-${active}`}`.
    */
   idPrefix?: string
 }
@@ -45,7 +45,7 @@ export function Tabs({ items, active, onChange, idPrefix = 'tabs' }: TabsProps) 
           type="button"
           role="tab"
           aria-selected={t.id === active}
-          aria-controls={`${idPrefix}-panel-${t.id}`}
+          aria-controls={t.id === active ? `${idPrefix}-panel-${t.id}` : undefined}
           tabIndex={t.id === active ? 0 : -1}
           className={`tabs__tab${t.id === active ? ' tabs__tab--active' : ''}`}
           onClick={() => onChange(t.id)}

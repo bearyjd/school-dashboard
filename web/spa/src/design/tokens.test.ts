@@ -54,3 +54,12 @@ describe.each(Object.entries(EXACT))('%s tokens', (theme, expected) => {
     }
   })
 })
+
+test('manifest and theme-color use the Midnight background', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../../public/manifest.json', import.meta.url), 'utf8'))
+  const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8')
+  const bg = block('midnight').bg
+  expect(manifest.background_color.toLowerCase()).toBe(bg)
+  expect(manifest.theme_color.toLowerCase()).toBe(bg)
+  expect(html).toContain(`name="theme-color" content="${bg}"`)
+})

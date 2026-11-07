@@ -248,6 +248,14 @@ def _update_first_seen(stored: Any, watched: list[str], now: datetime) -> dict[s
     return out
 
 
+def load_first_seen() -> dict[str, datetime]:
+    """Per-source first-seen times recorded by the watchdog ({} when none)."""
+    stored = load_state(paths.state_dir() / WATCHDOG_FILE).get("first_seen")
+    stored = stored if isinstance(stored, dict) else {}
+    parsed = {name: _parse(ts) for name, ts in stored.items()}
+    return {name: dt for name, dt in parsed.items() if dt is not None}
+
+
 def _skip(reason: str, exit_code: int = 0, error: Optional[str] = None) -> dict:
     result = {"exit_code": exit_code, "skipped": reason, "healthy": exit_code == 0, "problems": []}
     if error:

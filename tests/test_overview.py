@@ -77,3 +77,25 @@ def test_exactly_500_missing_does_not_warn():
     state = {"powerschool": {"Alpha": {"missing": [
         {"title": f"m{i}", "due": "2026-10-01"} for i in range(500)]}}}
     assert _build(state)["warnings"] == []
+
+
+def test_paused_sources_are_flagged_not_stale():
+    meta = {"ixl": {"last_run": _iso(60), "last_ok": _iso(60), "last_result": "ok"}}
+    out = _build(meta=meta, active=["sgy", "powerschool"])
+    fr = out["freshness"]
+    assert fr["ixl"]["paused"] is True and fr["ixl"]["stale"] is False and fr["ixl"]["failing"] is False
+    assert fr["ixl"]["issue"] is None
+    assert fr["gc"]["paused"] is True
+    assert fr["sgy"]["paused"] is False and fr["powerschool"]["paused"] is False
+
+
+def test_all_sources_active_by_default():
+    assert all(f["paused"] is False for f in _build()["freshness"].values())
+
+
+def test_never_succeeded_source_reports_never_ok_once_first_seen_is_old_enough():
+    seen = {"sgy": NOW - timedelta(days=2), "ixl": NOW - timedelta(minutes=5)}
+    fr = _build(first_seen=seen)["freshness"]
+    assert fr["sgy"]["issue"] == "never_ok" and fr["sgy"]["stale"] is False and fr["sgy"]["failing"] is False
+    assert fr["ixl"]["issue"] is None  # the first scheduled sync has not had its chance yet
+    assert fr["gc"]["issue"] is None  # never watched: no first_seen

@@ -25,7 +25,7 @@ export function event(over: Partial<OverviewEvent> & Pick<OverviewEvent, 'title'
 
 export function fresh(over: Partial<Freshness> = {}): Freshness {
   return { last_ok: '2026-11-07T14:00:00Z', last_run: '2026-11-07T14:00:00Z', result: 'ok', issue: null,
-    stale: false, failing: false, age_hours: 1, ...over }
+    stale: false, failing: false, age_hours: 1, paused: false, ...over }
 }
 
 export const FIXTURE: Overview = {
@@ -44,7 +44,7 @@ export const FIXTURE: Overview = {
   events: [
     event({ title: 'Practice' }),
     event({ title: 'Joint game', kids: ['Alpha', 'Beta'], date: '2026-11-09' }),
-    event({ title: 'No school', kids: [], unassigned: true, date: '2026-11-10', time: '', source: 'school', type: 'holiday' }),
+    event({ title: 'No school', kids: [], date: '2026-11-10', time: '', source: 'school', type: 'holiday' }),
     event({ title: 'Later match', kids: ['Beta'], date: '2026-11-20' }),
   ],
   freshness: {

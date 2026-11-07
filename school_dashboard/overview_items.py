@@ -177,6 +177,11 @@ def _ixl_rows(state: dict, kids: list[str]) -> list[dict]:
     return rows
 
 
+def _manual_source(item: dict) -> str:
+    """Items-table rows added by the email import are labelled `email`; everything else is `manual`."""
+    return "email" if item.get("source") == "email" else "manual"
+
+
 def _manual_rows(manual_items: list[dict], today: date, nxt: date, kids: list[str]) -> list[dict]:
     rows = []
     for item in _dict_list(manual_items):
@@ -185,7 +190,7 @@ def _manual_rows(manual_items: list[dict], today: date, nxt: date, kids: list[st
             continue
         rows.append(_row(kid=_kid(item.get("child"), kids),
                          title=item.get("title"), course="", due=item.get("due_date"),
-                         status=status, source="manual", category=item.get("type"),
+                         status=status, source=_manual_source(item), category=item.get("type"),
                          item_id=item["id"] if type(item.get("id")) is int else None))
     return rows
 

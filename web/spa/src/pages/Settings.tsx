@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getStoredTheme, setTheme, type ThemeChoice } from '../design/theme'
+import { KidChip } from '../design/KidChip'
+import { useOverview } from '../lib/overview'
 import './Settings.css'
 
 const CHOICES: { id: ThemeChoice; label: string; hint: string }[] = [
@@ -11,6 +13,7 @@ const CHOICES: { id: ThemeChoice; label: string; hint: string }[] = [
 
 export function Settings() {
   const [choice, setChoice] = useState<ThemeChoice>(getStoredTheme)
+  const kids = useOverview().data?.kids ?? []
 
   const pick = (next: ThemeChoice) => {
     setTheme(next)
@@ -37,6 +40,21 @@ export function Settings() {
           </label>
         ))}
       </fieldset>
+
+      {kids.length > 0 && (
+        <section className="settings__group" aria-labelledby="settings-kids">
+          <h2 id="settings-kids" className="settings__legend">Kid colours</h2>
+          <p className="settings__hint">Colours follow the order of the roster.</p>
+          <ul aria-label="Kid colours" className="settings__kids">
+            {kids.map(k => (
+              <li key={k.name} className="settings__kid">
+                <KidChip name={k.name} index={k.colorIndex} wide />
+                <span className="settings__hint"> (colour {k.colorIndex + 1})</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="settings__group" aria-labelledby="settings-more">
         <h2 id="settings-more" className="settings__legend">More</h2>

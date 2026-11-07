@@ -1,7 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { beforeEach, expect, test } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { watchSystemTheme } from '../design/theme'
+import { FIXTURE } from '../test-utils'
 import { Settings } from './Settings'
 
 function fakeMedia(initial: boolean) {
@@ -16,15 +18,21 @@ function fakeMedia(initial: boolean) {
 }
 
 function renderSettings() {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => FIXTURE })))
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <MemoryRouter initialEntries={['/settings']}>
-      <Routes>
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/classic/home" element={<h1>Classic home</h1>} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={['/settings']}>
+        <Routes>
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/classic/home" element={<h1>Classic home</h1>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
 }
+
+afterEach(() => vi.unstubAllGlobals())
 
 beforeEach(() => {
   localStorage.clear()
@@ -59,4 +67,12 @@ test('classic link navigates to /classic/home', () => {
   renderSettings()
   fireEvent.click(screen.getByRole('link', { name: /classic view/i }))
   expect(screen.getByRole('heading', { name: 'Classic home' })).toBeTruthy()
+})
+
+test('kid colour legend lists the roster in colour order, with names as text', async () => {
+  fakeMedia(true)
+  renderSettings()
+  const legend = await screen.findByRole('list', { name: /kid colours/i })
+  const rows = within(legend).getAllByRole('listitem')
+  expect(rows.map(r => r.textContent)).toEqual(['AAlpha (colour 1)', 'BBeta (colour 2)'])
 })

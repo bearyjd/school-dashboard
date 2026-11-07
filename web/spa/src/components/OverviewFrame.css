@@ -19,3 +19,5 @@
 .pill[aria-pressed='true']::before { content: '✓'; font-size: 12px; }
 
 .as-of { font-size: 11px; color: var(--missing-text); font-weight: 700; white-space: nowrap; }
+.frame__panel--busy { opacity: 0.6; }
+.as-of--paused { color: var(--muted); font-weight: 600; }

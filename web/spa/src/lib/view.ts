@@ -12,6 +12,7 @@ const SOURCE_LABELS: Record<string, string> = {
   gc: 'GameChanger',
   school: 'School calendar',
   manual: 'Manual',
+  email: 'Email',
 }
 
 export function sourceLabel(source: string): string {
@@ -21,18 +22,20 @@ export function sourceLabel(source: string): string {
 /** Item source name -> key in `Overview.freshness` (manual items have no scrape). */
 export function freshnessKey(source: OverviewSource): string | null {
   if (source === 'schoology') return 'sgy'
-  if (source === 'manual') return null
+  if (source === 'manual' || source === 'email') return null
   return source
 }
 
 export function itemFreshness(item: OverviewItem, freshness: Record<string, Freshness>): Freshness | null {
   const key = freshnessKey(item.source)
   const f = key ? freshness[key] : undefined
-  return f && (f.stale || f.failing) ? f : null
+  // A paused source keeps its cached rows, so they say how old the data is (muted; no banner, see problemSources).
+  // A never_ok source has no rows to tag, so it only gets the banner.
+  return f && (f.stale || f.failing || (f.paused && f.age_hours !== null)) ? f : null
 }
 
 export function problemSources(freshness: Record<string, Freshness>): [string, Freshness][] {
-  return Object.entries(freshness).filter(([, f]) => f.stale || f.failing)
+  return Object.entries(freshness).filter(([, f]) => !f.paused && (f.stale || f.failing || f.issue === 'never_ok'))
 }
 
 /** Any string is accepted; a name that is not on the roster means "everyone". */
@@ -48,9 +51,12 @@ export function itemMatchesKid(item: OverviewItem, kid: string): boolean {
   return !kid || item.kid === kid
 }
 
-/** School-wide events (no kid) always show, even under a kid filter. */
+/**
+ * School-wide events (no kids, assigned to no team) show under every kid filter. Unassigned events (a team the
+ * roster cannot place) belong to nobody, so they show only when no kid is selected.
+ */
 export function eventMatchesKid(event: OverviewEvent, kid: string): boolean {
-  return !kid || event.kids.length === 0 || event.kids.includes(kid)
+  return !kid || (event.kids.length === 0 && !event.unassigned) || event.kids.includes(kid)
 }
 
 const DUE_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' })

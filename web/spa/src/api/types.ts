@@ -87,7 +87,7 @@ export interface Digest {
 }
 
 export type OverviewStatus = 'overdue' | 'missing' | 'late' | 'tonight' | 'upcoming' | 'done';
-export type OverviewSource = 'powerschool' | 'schoology' | 'ixl' | 'manual';
+export type OverviewSource = 'powerschool' | 'schoology' | 'ixl' | 'manual' | 'email';
 
 export interface OverviewKid {
   name: string;
@@ -131,6 +131,8 @@ export interface Freshness {
   stale: boolean;
   failing: boolean;
   age_hours: number | null;
+  /** Disabled or unconfigured: the watchdog skips it, so it is never stale, failing or never_ok. */
+  paused: boolean;
 }
 
 export interface Overview {

@@ -117,3 +117,15 @@ def test_events_sorted_by_parsed_time():
                                    _evt("2026-11-07", "1:30 PM"), _evt("2026-11-07", "")])]}
     out = gc_events(gc, ROSTER, TODAY, 14)
     assert [e["time"] for e in out] == ["09:00", "10:00", "13:30", ""]
+
+
+def test_school_event_child_is_canonicalised(tmp_path):
+    db = tmp_path / "s.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE events (id INTEGER PRIMARY KEY, date TEXT, title TEXT, type TEXT,"
+                 " child TEXT, source TEXT)")
+    conn.execute("INSERT INTO events (date,title,type,child,source) VALUES"
+                 " ('2026-11-12','Picture day','EVENT','john','x')")
+    conn.commit()
+    conn.close()
+    assert school_events(str(db), TODAY, 14)[0]["kids"] == ["Jack"]  # built-in alias john -> Jack

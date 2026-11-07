@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import { expect, test, vi } from 'vitest'
+import { ERROR_OFFLINE } from './api/errors'
 
 const source = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8')
 const ORIGIN = 'https://x.test'
@@ -114,7 +115,7 @@ test('offline API call returns a 503 JSON error', async () => {
   fetchFn.mockRejectedValue(new Error('offline'))
   const res = await request(handlers, '/api/overview')
   expect(res.status).toBe(503)
-  expect(await res.json()).toEqual({ error: 'offline' })
+  expect(await res.json()).toEqual({ error: ERROR_OFFLINE }) // sw.js hard-codes this string
 })
 
 test('successful same-origin assets under /app/assets/ are cached', async () => {

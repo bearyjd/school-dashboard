@@ -1,5 +1,5 @@
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -43,3 +43,14 @@ def test_empty_state_returns_empty_lists(client):
     body = resp.get_json()
     assert body["items"] == [] and body["events"] == []
     assert body["warnings"]
+
+
+def test_freshness_follows_watchdog_active_sources_and_first_seen(client, state_env, monkeypatch):
+    monkeypatch.setenv("SOURCE_IXL_ENABLED", "0")
+    monkeypatch.delenv("GC_TOKEN", raising=False)
+    monkeypatch.delenv("GC_EMAIL", raising=False)
+    old = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(timespec="seconds")
+    (state_env / "watchdog.json").write_text(json.dumps({"first_seen": {"sgy": old}}))
+    fr = client.get("/api/overview").get_json()["freshness"]
+    assert fr["ixl"]["paused"] is True and fr["gc"]["paused"] is True
+    assert fr["sgy"]["paused"] is False and fr["sgy"]["issue"] == "never_ok"
