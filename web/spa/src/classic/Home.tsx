@@ -61,21 +61,21 @@ export function Home() {
                 </div>
               )}
               <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
-                <div className="card" style={{ flex: 1, minWidth: 120, background: 'var(--color-surface2)', padding: '10px 12px' }}>
+                <div className="card" style={{ flex: 1, minWidth: 120, background: 'var(--bg)', padding: '10px 12px' }}>
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
                     <span>IXL</span>
                     <span className={`badge ${ixlBadge.cls}`}>{ixlBadge.label}</span>
                   </div>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: !hasIxl ? 'var(--color-text-muted)' : ixlRemaining > 0 ? 'var(--color-warn)' : 'var(--color-success)' }}>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: !hasIxl ? 'var(--color-text-muted)' : ixlRemaining > 0 ? 'var(--missing-text)' : 'var(--ok-text)' }}>
                     {!hasIxl ? 'No data yet' : ixlRemaining > 0 ? `${ixlRemaining} left` : '✓ Done'}
                   </div>
                 </div>
-                <div className="card" style={{ flex: 1, minWidth: 120, background: 'var(--color-surface2)', padding: '10px 12px' }}>
+                <div className="card" style={{ flex: 1, minWidth: 120, background: 'var(--bg)', padding: '10px 12px' }}>
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
                     <span>SGY</span>
                     <span className={`badge ${sgyBadge.cls}`}>{sgyBadge.label}</span>
                   </div>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: !hasSgy ? 'var(--color-text-muted)' : openSgy.length > 0 ? 'var(--color-warn)' : 'var(--color-success)' }}>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: !hasSgy ? 'var(--color-text-muted)' : openSgy.length > 0 ? 'var(--missing-text)' : 'var(--ok-text)' }}>
                     {!hasSgy ? 'No data yet' : openSgy.length > 0 ? `${openSgy.length} open` : '✓ Done'}
                   </div>
                 </div>

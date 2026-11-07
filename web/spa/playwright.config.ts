@@ -11,10 +11,12 @@ export default defineConfig({
   timeout: 60_000,
   fullyParallel: false,
   workers: 1,
-  reporter: [['list']],
+  retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
     serviceWorkers: 'block',
+    trace: 'retain-on-failure',
   },
   webServer: {
     command: `python3 ../../scripts/spa-qa-server.py --port ${PORT}`,

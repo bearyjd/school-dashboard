@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
-import { ROUTES, THEMES } from './shared'
+import { ROUTES, THEMES, label, openRoute } from './shared'
 
 const BLOCKING = ['serious', 'critical']
 
@@ -12,10 +12,9 @@ for (const theme of THEMES) {
 
     for (const route of ROUTES) {
       for (const width of [375, 1280]) {
-        test(`/${route || 'today'} @ ${width}px has no serious or critical violations`, async ({ page }) => {
+        test(`${label(route)} @ ${width}px has no serious or critical violations`, async ({ page }) => {
           await page.setViewportSize({ width, height: 900 })
-          await page.goto(`/app/${route}`, { waitUntil: 'networkidle' })
-          await expect(page.locator('h1')).toBeVisible()
+          await openRoute(page, route)
           const { violations } = await new AxeBuilder({ page })
             .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
             .analyze()
@@ -29,8 +28,7 @@ for (const theme of THEMES) {
 
 test('keyboard focus order: skip link first, then the main navigation in order', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
-  await page.goto('/app/', { waitUntil: 'networkidle' })
-  await expect(page.locator('h1')).toBeVisible()
+  await openRoute(page, ROUTES[0])
   const labels = ['Skip to main content', 'Today', 'Tonight', 'Overdue', 'Missing', 'Events', 'Calendar', 'Chat', 'Sync', 'Settings', 'Classic view']
   for (const label of labels) {
     await page.keyboard.press('Tab')

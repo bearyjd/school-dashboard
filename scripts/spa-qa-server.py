@@ -13,9 +13,12 @@ No real credentials, names or network access are used or needed.
 import argparse
 import json
 import os
+import shutil
+import signal
 import sqlite3
 import sys
 import tempfile
+import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -23,7 +26,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parent.parent
 KIDS = {
     "Alex": {"grade": "7th", "school": "Test Middle"},
-    "Jack": {"grade": "5th", "school": "Test Elementary"},
+    "Sam": {"grade": "5th", "school": "Test Elementary"},
     "Jo": {"grade": "3rd", "school": "Test Elementary"},
 }
 STALE_HOURS = 20
@@ -41,7 +44,7 @@ def _write_inputs(inputs: Path, today: date) -> None:
         {"child": {"name": "Alex Tester"}, "grades": [], "announcements": [], "assignments": [
             {"title": "Water cycle essay", "course": "Science", "due_date": _day(today, -3), "status": "open"},
             {"title": "Read chapter 4", "course": "ELA", "due_date": _day(today, 1), "status": "open"}]},
-        {"child": {"name": "Jack Tester"}, "grades": [], "announcements": [], "assignments": [
+        {"child": {"name": "Sam Tester"}, "grades": [], "announcements": [], "assignments": [
             {"title": "Map project " + "x" * 120, "course": "History", "due_date": _day(today, -1), "status": "open"}]},
     ]}))
     ps = json.loads((ROOT / "tests" / "fixtures" / "powerschool-summary.json").read_text())
@@ -69,7 +72,7 @@ def _write_state(state_dir: Path, today: date) -> None:
     db = str(state_dir / "school.db")
     init_db(db)
     create_item(db, "Jo", "Poster for science fair", due_date=_day(today, -1))
-    create_item(db, "Jack", "Bring gym shoes", due_date=_day(today, 1))
+    create_item(db, "Sam", "Bring gym shoes", due_date=_day(today, 1))
     conn = sqlite3.connect(db)
     with conn:
         conn.executemany("INSERT INTO events (date, title, type, child, source) VALUES (?, ?, ?, ?, 'manual')", [
@@ -86,7 +89,7 @@ def _write_state(state_dir: Path, today: date) -> None:
         "scraped_at": datetime.now(timezone.utc).isoformat(),
         "teams": [
             {"team_id": "t1", "team_name": "Lions", "child": "Alex", "schedule": [game(1, "16:00", "Hawks"), game(8, "10:00", "Bears")]},
-            {"team_id": "t2", "team_name": "Cubs", "child": "Jack+Jo", "schedule": [game(2, "18:30", "Owls")]},
+            {"team_id": "t2", "team_name": "Cubs", "child": "Sam+Jo", "schedule": [game(2, "18:30", "Owls")]},
         ]}))
 
     for source in ("ixl", "sgy", "gc", "powerschool"):
@@ -98,29 +101,44 @@ def _write_state(state_dir: Path, today: date) -> None:
     meta_path.write_text(json.dumps(meta))
 
 
+SCRUBBED_PREFIXES = ("SCHOOL_", "NTFY_", "LITELLM_", "GC_", "GOG_", "IXL_", "SGY_", "PS_")
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    doc_lines = (__doc__ or "").strip().splitlines()
+    parser = argparse.ArgumentParser(description=doc_lines[0] if doc_lines else None)
     parser.add_argument("--port", type=int, default=5099)
     args = parser.parse_args()
 
     if not (ROOT / "web" / "spa" / "dist" / "index.html").exists():
         sys.exit("SPA not built. Run: npm --prefix web/spa run build")
 
-    tmp = Path(tempfile.mkdtemp(prefix="spa-qa-"))
-    state_dir = tmp / "state"
-    state_dir.mkdir()
-    cfg = tmp / "roster.json"
-    cfg.write_text(json.dumps({"children": KIDS}))
-    for var in [v for v in os.environ if v.startswith("SCHOOL_")]:
-        del os.environ[var]
-    os.environ.update({"SCHOOL_STATE_DIR": str(state_dir), "SCHOOL_DASHBOARD_CONFIG": str(cfg), "SYNC_TOKEN": ""})
+    # A SIGKILLed run (e.g. by a test runner) cannot clean up after itself; sweep what it left behind.
+    for stale in Path(tempfile.gettempdir()).glob("spa-qa-*"):
+        if stale.is_dir() and time.time() - stale.stat().st_mtime > 3600:
+            shutil.rmtree(stale, ignore_errors=True)
 
-    sys.path.insert(0, str(ROOT))
-    _write_state(state_dir, date.today())
-    from web.app import app
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))  # let the temp dir be cleaned up
+    with tempfile.TemporaryDirectory(prefix="spa-qa-") as tmp_name:
+        tmp = Path(tmp_name)
+        state_dir = tmp / "state"
+        state_dir.mkdir()
+        cfg = tmp / "roster.json"
+        cfg.write_text(json.dumps({"children": KIDS}))
+        # Nothing from the real environment or home directory (~/.gc, ~/.ixl, ...) may leak in.
+        for var in [v for v in os.environ if v.startswith(SCRUBBED_PREFIXES)]:
+            del os.environ[var]
+        os.environ.update({
+            "HOME": str(tmp), "SCHOOL_STATE_DIR": str(state_dir),
+            "SCHOOL_DASHBOARD_CONFIG": str(cfg), "SYNC_TOKEN": "",
+        })
 
-    print(f"Synthetic state in {state_dir}; serving http://127.0.0.1:{args.port}/app/", file=sys.stderr, flush=True)
-    app.run(host="127.0.0.1", port=args.port, threaded=True, use_reloader=False)
+        sys.path.insert(0, str(ROOT))
+        _write_state(state_dir, date.today())
+        from web.app import app
+
+        print(f"Synthetic state in {state_dir}; serving http://127.0.0.1:{args.port}/app/", file=sys.stderr, flush=True)
+        app.run(host="127.0.0.1", port=args.port, threaded=True, use_reloader=False)
 
 
 if __name__ == "__main__":

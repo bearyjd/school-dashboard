@@ -42,7 +42,8 @@ pytest -k "test_name"             # single test
 npm --prefix web/spa run dev   # → http://localhost:5173/app/
 npm --prefix web/spa run build # tsc -b && vite build
 npm --prefix web/spa run lint && npm --prefix web/spa test && npm --prefix web/spa run check-bundle
-# Screens (7 routes x 5 widths x 2 themes) + axe (zero serious/critical) against synthetic data;
+# Screens (10 routes x 5 widths x 2 themes, screenshots only, no visual diff) + axe (10 routes x 375/1280 px x 2 themes,
+# wcag2a/2aa/21a/21aa, serious+critical fail) against synthetic data;
 # needs `build` first and `pip install -e ".[server]"`; starts scripts/spa-qa-server.py itself:
 npm --prefix web/spa run e2e      # screenshots -> $E2E_SHOTS (default web/spa/test-results/shots)
 python3 scripts/spa-qa-server.py --port 5099   # same synthetic server for manual preview at /app/
@@ -67,10 +68,10 @@ higher than the "101 tests / 7 files" figure quoted lower in this document — t
 count predates `test_api_items.py`, `test_readiness.py`, `test_llm.py`, and
 `test_inline_agent.py` being added; see the corrected Tests table below.
 
-There is no test-running CI workflow — `.github/workflows/docker.yml` only builds
-and pushes the Docker image on push to `main`. It does **not** run `pytest`. Treat
-"CI is green" as meaning "the Docker image built," not "tests pass," until a test
-workflow is added (`.agent_native/agent_roadmap.md` item 2).
+CI: `.github/workflows/tests.yml` runs `pytest tests/` (job `pytest`), the SPA lint/build/vitest/
+bundle-budget checks (job `spa`) and the Playwright screens + axe suite (job `e2e`, non-blocking via
+`continue-on-error`). `.github/workflows/docker.yml` only builds and pushes the Docker image on push
+to `main`.
 
 ## GameChanger calendar-feed (ICS) fallback
 
@@ -158,7 +159,7 @@ school_dashboard/       Core Python package
 
 web/
   app.py                Flask app. Routes: /api/chat, /api/items*, /api/dashboard, /api/readiness, /api/digest/* (carousel), /api/sync, /api/sync/status. **Paths:** every state path resolves per call via `school_dashboard/paths.py` (`SCHOOL_STATE_DIR`, default `/app/state`, plus per-file overrides such as `SCHOOL_DB_PATH`), so `monkeypatch.setenv` works for all routes. Also: `/api/*` writes return 503 while `maintenance.json` is present (`school-state transition maintenance on|off`), except `/api/chat`.
-  spa/                  Vite + React + TypeScript SPA (`web/spa/`), data from `GET /api/overview`. Routes (under `/app`): `/` Today, `/tonight` `/overdue` `/missing` `/events` (sortable/filterable tables, state in the URL; manual items can be checked off), `/calendar`, `/chat`, `/sync`, `/settings`, `/classic/*` (the previous Home/Child views, kept as a fallback). Theme: Midnight / Daylight / System, chosen in Settings, stored in `localStorage['school-theme']`, applied as `data-theme` on `<html>` (`src/design/theme.ts`). Service worker cache is `school-v2`. Tests: vitest (`npm test`), Playwright screens + axe (`npm run e2e`, `web/spa/e2e/`, CI job `e2e` is non-blocking). Lighthouse (performance >= 90, LCP < 2.5 s, CLS < 0.1) is a manual gate. Rollout/rollback: `docs/ops/spa-redesign-rollout.md`.
+  spa/                  Vite + React + TypeScript SPA (`web/spa/`), data from `GET /api/overview`. Routes (under `/app`): `/` Today, `/tonight` `/overdue` `/missing` `/events` (sortable/filterable tables, state in the URL; manual items can be checked off), `/calendar`, `/chat`, `/sync`, `/settings`, `/classic/*` (the previous Home/Child views, kept as a fallback). Theme: Midnight / Daylight / System, chosen in Settings, stored in `localStorage['school-theme']`, applied as `data-theme` on `<html>` (`src/design/theme.ts`). Service worker cache is `school-v2`. Tests: vitest (`npm test`), Playwright screens + axe (`npm run e2e`, `web/spa/e2e/`; routes `/ /tonight /overdue /missing /events /calendar /settings /chat /sync /classic/home`; screens: 320/375/768/1024/1440 px x both themes, asserting no console errors, failed or unexpected 4xx/5xx requests, or horizontal overflow, and saving screenshots without comparing them; axe: 375 and 1280 px x both themes, impact serious and critical fail, moderate and minor are reported nowhere; CI job `e2e` is non-blocking). Lighthouse (performance >= 90, LCP < 2.5 s, CLS < 0.1) is a manual gate. Rollout/rollback: `docs/ops/spa-redesign-rollout.md`.
   templates/index.html  Legacy dashboard iframe + chat tab (pre-SPA). Uses marked.js for markdown rendering.
 
 sync/
@@ -274,7 +275,7 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
   in isolation, by its own docstring's admission — the real `sync/school-sync.sh`
   and `sync/gc-scrape.sh` orchestration is untested and can only be verified by a
   live run against real accounts.
-- `.github/workflows/docker.yml` is the only CI workflow and it never runs `pytest`.
+- `.github/workflows/docker.yml` never runs tests; `tests.yml` does (pytest, SPA checks, non-blocking e2e).
 
 ## Sync, Staleness & Vendor Model
 
