@@ -125,17 +125,20 @@ const TWO_MANUAL: Overview = {
   ],
 }
 
-/** Overview handler that drops manual rows whose PATCH already succeeded, like the real server. */
+/**
+ * The first /api/overview answers normally; every refetch after it never resolves. So whatever the
+ * test sees after a PATCH is the optimistic cache and the rollback, not a fresh server answer.
+ */
 function server(patch: (id: string) => { ok: boolean; status?: number; body?: unknown }): Handler {
-  const done = new Set<string>()
+  let overviewCalls = 0
   return (url, init) => {
     if (url === '/api/overview') {
-      return { ok: true, body: { ...TWO_MANUAL, items: TWO_MANUAL.items.filter(i => !done.has(String(i.itemId))) } }
+      overviewCalls += 1
+      return overviewCalls === 1 ? { ok: true, body: TWO_MANUAL } : new Promise<never>(() => {})
     }
     const id = url.split('/').pop() as string
-    const out = patch(id)
-    if (out.ok && init?.method === 'PATCH') done.add(id)
-    return out
+    expect(init?.method).toBe('PATCH')
+    return patch(id)
   }
 }
 
@@ -144,7 +147,11 @@ test('overlapping check-offs: when the first fails only that row comes back', as
   fireEvent.click(screen.getByRole('checkbox', { name: /poster/i }))
   fireEvent.click(screen.getByRole('checkbox', { name: /banner/i }))
   await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/poster/i))
+  // The refetch never resolves, so this is the rollback itself: Poster is back and unchecked,
+  // Banner (whose PATCH succeeded) stays done.
   await waitFor(() => expect(whatCol().sort()).toEqual(['Essay draft', 'Poster']))
+  expect((screen.getByRole('checkbox', { name: /poster/i }) as HTMLInputElement).checked).toBe(false)
+  expect(screen.queryByRole('checkbox', { name: /banner/i })).toBeNull()
 })
 
 test('maintenance 503 shows the paused-for-maintenance message', async () => {

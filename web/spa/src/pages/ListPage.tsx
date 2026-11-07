@@ -105,7 +105,8 @@ function useCheckOff({ setError, setAnnounce }: CheckOffMessages) {
         : `Could not mark "${row.title || 'Untitled'}" done. It has been restored.`)
     },
     onSuccess: (_data, row) => setAnnounce(`Marked ${row.title || 'Untitled'} done`),
-    onSettled: () => client.invalidateQueries({ queryKey: OVERVIEW_KEY }),
+    // Not returned: the mutation must not wait for the refetch (it would delay the focus move on a slow server).
+    onSettled: () => { void client.invalidateQueries({ queryKey: OVERVIEW_KEY }) },
   })
 }
 

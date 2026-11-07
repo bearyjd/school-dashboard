@@ -59,12 +59,13 @@ function Where() {
 }
 
 export interface FakeResponse { ok: boolean; status?: number; body?: unknown }
-export type Handler = (url: string, init?: RequestInit) => FakeResponse
+/** May return a promise (e.g. one that never settles, to model a slow refetch). */
+export type Handler = (url: string, init?: RequestInit) => FakeResponse | Promise<FakeResponse>
 
 /** Renders `ui` with a QueryClient, a router at `route`, and fetch stubbed by `handler`. */
 export function renderAt(ui: ReactElement, route: string, handler: Handler) {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-    const out = handler(url, init)
+    const out = await handler(url, init)
     return { ok: out.ok, status: out.status ?? (out.ok ? 200 : 500), statusText: 'err', json: async () => out.body }
   })
   vi.stubGlobal('fetch', fetchMock)
