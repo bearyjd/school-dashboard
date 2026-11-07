@@ -239,3 +239,30 @@ test('unassigned events are labelled Unassigned, not Everyone, and hidden under 
   expect(screen.queryByText('Mystery team game')).toBeNull()
   expect(screen.getByText('No school')).toBeTruthy()
 })
+
+test('tabs link the four lists, mark the current one and keep ?kid= in the url', async () => {
+  await show('overdue', FIXTURE, '/overdue?kid=Beta')
+  const tabs = screen.getAllByRole('tab').map(t => t.textContent)
+  expect(tabs).toEqual(['Tonight', 'Overdue', 'Missing', 'Events'])
+  expect(screen.getByRole('tab', { name: 'Overdue' }).getAttribute('aria-selected')).toBe('true')
+  expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(screen.getByRole('tab', { name: 'Overdue' }).id)
+  fireEvent.click(screen.getByRole('tab', { name: 'Missing' }))
+  expect(screen.getByTestId('where').textContent).toBe('/missing?kid=Beta')
+})
+
+test('tabs without a kid filter navigate to the bare path', async () => {
+  await show('tonight', FIXTURE, '/tonight')
+  fireEvent.click(screen.getByRole('tab', { name: 'Events' }))
+  expect(screen.getByTestId('where').textContent).toBe('/events')
+})
+
+test('arrow keys move between tabs and update the url', async () => {
+  await show('tonight', FIXTURE, '/tonight?kid=Alpha')
+  const first = screen.getByRole('tab', { name: 'Tonight' })
+  first.focus()
+  fireEvent.keyDown(first, { key: 'ArrowRight' })
+  expect(screen.getByTestId('where').textContent).toBe('/overdue?kid=Alpha')
+  expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Overdue' }))
+  fireEvent.keyDown(screen.getByRole('tab', { name: 'Overdue' }), { key: 'End' })
+  expect(screen.getByTestId('where').textContent).toBe('/events?kid=Alpha')
+})

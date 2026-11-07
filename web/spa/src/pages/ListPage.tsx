@@ -1,11 +1,12 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useRef, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError, updateItem } from '../api'
 import type { Overview, OverviewEvent, OverviewItem, OverviewStatus } from '../api/types'
 import { Banner } from '../design/Banner'
 import { KidChip } from '../design/KidChip'
 import { StatusBadge } from '../design/StatusBadge'
+import { Tabs } from '../design/Tabs'
 import { AsOfTag, KidFilter, OverviewFrame } from '../components/OverviewFrame'
 import { OVERVIEW_KEY, useOverview } from '../lib/overview'
 import { useUrlState } from '../lib/urlState'
@@ -292,14 +293,38 @@ function EventsTable({ data, kid, setKid }: Omit<TableProps, 'kind'>) {
   )
 }
 
+const TAB_ITEMS = (Object.keys(TITLES) as ListKind[]).map(id => ({ id, label: TITLES[id] }))
+
+/** Switch lists; only ?kid= carries over (sort and source filters are per list). */
+function ListTabs({ kind }: { kind: ListKind }) {
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const kid = params.get('kid')
+  return (
+    <Tabs
+      items={TAB_ITEMS}
+      active={kind}
+      idPrefix="list"
+      onChange={id => navigate(kid ? `/${id}?kid=${encodeURIComponent(kid)}` : `/${id}`, { replace: true })}
+    />
+  )
+}
+
 export function ListPage({ kind }: { kind: ListKind }) {
   const query = useOverview()
   const [kid, setKid] = useUrlState('kid', kidParser(query.data), '')
   return (
     <OverviewFrame title={TITLES[kind]} query={query}>
-      {data => kind === 'events'
-        ? <EventsTable data={data} kid={kid} setKid={setKid} />
-        : <ItemsTable data={data} kind={kind} kid={kid} setKid={setKid} />}
+      {data => (
+        <>
+          <ListTabs kind={kind} />
+          <div role="tabpanel" id={`list-panel-${kind}`} aria-labelledby={`list-tab-${kind}`}>
+            {kind === 'events'
+              ? <EventsTable data={data} kid={kid} setKid={setKid} />
+              : <ItemsTable data={data} kind={kind} kid={kid} setKid={setKid} />}
+          </div>
+        </>
+      )}
     </OverviewFrame>
   )
 }
