@@ -1,10 +1,16 @@
 // Fails when the gzipped JS or CSS in dist/assets exceeds the app-page budget.
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
 
 const BUDGET_BYTES = { '.js': 300 * 1024, '.css': 50 * 1024 }
-const dir = new URL('../dist/assets', import.meta.url).pathname
+const dir = fileURLToPath(new URL('../dist/assets', import.meta.url))
+
+if (!existsSync(dir)) {
+  console.error(`No build output at ${dir}; run "npm run build" first.`)
+  process.exit(1)
+}
 
 const totals = { '.js': 0, '.css': 0 }
 for (const name of readdirSync(dir)) {
