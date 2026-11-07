@@ -7,7 +7,7 @@ import { ListPage } from './pages/ListPage'
 import { Calendar } from './pages/Calendar'
 import { Chat } from './views/Chat'
 import { Sync } from './views/Sync'
-import { Settings } from './views/Settings'
+import { Settings } from './pages/Settings'
 
 const ClassicRoutes = lazy(() => import('./classic/ClassicRoutes'))
 

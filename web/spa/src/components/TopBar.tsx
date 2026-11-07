@@ -11,6 +11,7 @@ const LINKS = [
   { to: '/chat', label: 'Chat' },
   { to: '/sync', label: 'Sync' },
   { to: '/settings', label: 'Settings' },
+  { to: '/classic/home', label: 'Classic view' },
 ]
 
 /** Desktop navigation; hidden on phones, where BottomNav is used instead. */
