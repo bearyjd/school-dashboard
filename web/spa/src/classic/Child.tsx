@@ -56,7 +56,7 @@ export function Child() {
   return (
     <div className="screen">
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-md)' }}>
-        <button className="btn btn--ghost" onClick={() => navigate('/home')}>‹</button>
+        <button className="btn btn--ghost" onClick={() => navigate('/classic/home')}>‹</button>
         <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{name}</h2>
       </div>
 

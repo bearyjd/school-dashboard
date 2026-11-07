@@ -1,4 +1,4 @@
-import type { Item, Dashboard, SyncStatus, SyncMeta, ChatMessage, Digest, InlineAgentResponse } from './types';
+import type { Overview, Item, Dashboard, SyncStatus, SyncMeta, ChatMessage, Digest, InlineAgentResponse } from './types';
 
 const BASE = '';  // same origin — Flask serves both SPA and API
 
@@ -36,6 +36,8 @@ export const deleteItem = (id: number) =>
 
 // Dashboard
 export const fetchDashboard = () => apiFetch<Dashboard>('/api/dashboard');
+
+export const fetchOverview = () => apiFetch<Overview>('/api/overview');
 
 // Sync
 export const fetchSyncStatus = () => apiFetch<SyncStatus>('/api/sync/status');

@@ -27,5 +27,10 @@
 
 .bottom-nav__tab--active { color: var(--color-accent); }
 
+@media (min-width: 768px) {
+  .bottom-nav { display: none; }
+}
+
+.bottom-nav__tab:hover { color: var(--color-text); }
 .bottom-nav__icon { font-size: 20px; line-height: 1; }
 .bottom-nav__label { font-size: 10px; font-weight: 600; }
