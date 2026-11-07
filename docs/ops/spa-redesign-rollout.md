@@ -45,7 +45,8 @@ Run on the Docker host. `IMG` is the image name from `docker-compose.yml` (set i
 
 Ask the parents to relabel the GameChanger team map entry from the run-together label (for example
 `KidAKidB`) to the `+` form (`KidA+KidB`) in `config/env` (`GC_TEAM_MAP`). The `+` form lets the new
-calendar attribute a shared team to both kids; with the old label those events show as unassigned.
+calendar attribute a shared team to both kids; with the old label those events show as "Unassigned": they appear only when no kid filter is set,
+never under a kid's filter. The calendar covers this week and next (the data window).
 Restart or wait for the next sync.
 
 ## Rollback

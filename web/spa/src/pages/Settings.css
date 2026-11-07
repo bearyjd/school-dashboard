@@ -24,3 +24,4 @@
 .settings__option input { width: 20px; height: 20px; accent-color: var(--tonight); }
 .settings__label { font-weight: 700; }
 .settings__hint { color: var(--muted); font-size: 13px; }
+.settings__kids { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
