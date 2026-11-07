@@ -5,7 +5,7 @@ import sys
 from contextlib import contextmanager
 from typing import Iterator, Optional
 
-from school_dashboard import gc_ics, maintenance, paths, school_calendar, schoology_autoarchive, schoology_reset, statelock, transition
+from school_dashboard import gc_fallback_alert, gc_ics, maintenance, paths, school_calendar, schoology_autoarchive, schoology_reset, statelock, transition
 from school_dashboard import state
 from school_dashboard import html
 from school_dashboard import email
@@ -267,6 +267,11 @@ def cmd_gc_ics(args: argparse.Namespace) -> None:
     print(json.dumps(result, indent=2))
 
 
+def cmd_gc_fallback_alert(args: argparse.Namespace) -> None:
+    """Send the rate-limited 'GameChanger login is failing' alert; never fails the caller."""
+    gc_fallback_alert.maybe_alert(args.ics_teams, args.total)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="school-state", description="School situational awareness state manager")
     parser.add_argument("--state-file", type=str, default=None, help="State file path (default: $SCHOOL_STATE_PATH or /app/state/school-state.json)")
@@ -339,6 +344,11 @@ def main() -> None:
     p_ics.add_argument("--team-id", required=True, help="Full GameChanger team id")
     p_ics.add_argument("--json", action="store_true", help="(default) JSON on stdout")
     p_ics.set_defaults(func=cmd_gc_ics)
+
+    p_gfa = subs.add_parser("gc-fallback-alert", help="Alert (max 1/24h) when GC schedules come from calendar feeds")
+    p_gfa.add_argument("--ics-teams", type=int, required=True, help="Teams served from the calendar feed")
+    p_gfa.add_argument("--total", type=int, required=True, help="Teams written")
+    p_gfa.set_defaults(func=cmd_gc_fallback_alert)
 
     transition.add_parser(subs)
     school_calendar.add_parser(subs)

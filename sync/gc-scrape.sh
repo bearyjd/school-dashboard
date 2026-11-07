@@ -138,7 +138,7 @@ N=0
 while IFS=$'\t' read -r TEAM_ID TEAM_NAME; do
     [[ -z "$TEAM_ID" ]] && continue
 
-    [[ -n "$TEAM_NAME" ]] && warn_if_unmapped "$TEAM_ID" "$TEAM_NAME"
+    warn_if_unmapped "$TEAM_ID" "${TEAM_NAME:-$TEAM_ID}"
     CHILD="${TEAM_MAP[$TEAM_ID]:-$TEAM_NAME}"
     log "Scraping: ${TEAM_NAME:-$TEAM_ID} ($TEAM_ID) → child=${CHILD:-?}"
 
@@ -177,6 +177,12 @@ with open(sys.argv[1]) as f:
             if [[ "$REASON" == failed || "$ICS_EVENTS" -gt 0 ]]; then
                 log "WARN: using calendar feed for team ${TEAM_ID:0:8} (api $REASON)"
                 mv -f "$WORK/ics-$N.json" "$WORK/team-$N.json"
+                python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    for w in json.load(f).get('warnings') or []:
+        print('WARN: calendar feed ' + sys.argv[2] + ': ' + str(w), file=sys.stderr)
+" "$WORK/team-$N.json" "${TEAM_ID:0:8}" 2>>"$LOGFILE" || true
                 SOURCE=ics
             fi
         fi
@@ -221,6 +227,9 @@ read -r WRITTEN TOTAL_EVENTS ICS_TEAMS <<< "$COUNTS"
 # hard failure so the sync status reflects reality instead of
 # overwriting a good gc-schedule.json with empty data.
 if [[ "$TEAM_COUNT" -gt 0 && "${TOTAL_EVENTS:-0}" -eq 0 ]]; then
+    if [[ "$API_TEAMS_OK" -eq 0 || "${ICS_TEAMS:-0}" -gt 0 ]]; then
+        fail "GC API unavailable and calendar feeds empty. Refusing to overwrite $GC_PATH."
+    fi
     fail "All $TEAM_COUNT team(s) returned empty schedules — likely auth failure (gc returns 200 with empty data on 401). Refusing to overwrite $GC_PATH."
 fi
 
@@ -232,5 +241,11 @@ fi
 # Re-check right before publishing: maintenance may have started during the scrape.
 if maintenance_skip "gc-schedule write"; then exit 0; fi
 mv -f "$GC_PATH.tmp.$$" "$GC_PATH" || fail "Failed to write $GC_PATH"
+
+# The fallback must not hide a broken login: nudge (rate-limited, best effort) when any team used a feed.
+if [[ "${ICS_TEAMS:-0}" -gt 0 ]]; then
+    school-state gc-fallback-alert --ics-teams "$ICS_TEAMS" --total "$WRITTEN" 2>>"$LOGFILE" \
+        || log "WARN: gc fallback alert command failed"
+fi
 
 log "Done — $WRITTEN team(s), $TOTAL_EVENTS event(s) written to $GC_PATH"

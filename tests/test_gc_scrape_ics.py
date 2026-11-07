@@ -48,7 +48,8 @@ def _setup(tmp_path, port, *, teams, summaries, feeds, teams_fail=False):
     state = tmp_path / "state"
     state.mkdir()
     (bindir / "school-state").write_text(
-        f'#!/bin/sh\n[ "$1" = gc-ics ] && exec {sys.executable} -m school_dashboard.cli "$@"\nexit 10\n')
+        f'#!/bin/sh\n[ "$1" = gc-ics ] && exec {sys.executable} -m school_dashboard.cli "$@"\n'
+        f'[ "$1" = gc-fallback-alert ] && {{ echo "$@" >> {tmp_path}/alerts.log; exit 0; }}\nexit 10\n')
     (bindir / "school-state").chmod(0o755)
     (bindir / "gc").write_text(f"""#!/usr/bin/env python3
 import json, sys
@@ -154,3 +155,51 @@ def test_feed_failure_keeps_old_skip_behavior(tmp_path):
     assert r.returncode == 0
     assert set(_by_team(state)) == {"tB"}
     _log(state, r)
+
+
+def _alerts(tmp_path):
+    p = tmp_path / "alerts.log"
+    return p.read_text().splitlines() if p.exists() else []
+
+
+def test_alert_requested_when_feed_used(tmp_path, server):
+    env, state = _setup(tmp_path, server, teams=["tA", "tB"], summaries={"tA": "fail"}, feeds=["tA"])
+    assert _run(env).returncode == 0
+    assert _alerts(tmp_path) == ["gc-fallback-alert --ics-teams 1 --total 2"]
+
+
+def test_no_alert_when_api_healthy(tmp_path, server):
+    env, state = _setup(tmp_path, server, teams=["tA", "tB"], summaries={}, feeds=["tA"])
+    assert _run(env).returncode == 0
+    assert _alerts(tmp_path) == []
+
+
+def test_all_ics_requests_alert_for_all(tmp_path, server):
+    env, state = _setup(tmp_path, server, teams=["tA", "tB"],
+                        summaries={"tA": "fail", "tB": "fail"}, feeds=["tA", "tB"])
+    assert _run(env).returncode == 0
+    assert _alerts(tmp_path) == ["gc-fallback-alert --ics-teams 2 --total 2"]
+
+
+def test_feed_warnings_are_logged(tmp_path, server, monkeypatch):
+    monkeypatch.setitem(globals(), "ICS", ICS.replace("UID:1", "UID:1\r\nRRULE:FREQ=WEEKLY"))
+    env, state = _setup(tmp_path, server, teams=["tA"], summaries={"tA": "fail"}, feeds=["tA"])
+    r = _run(env)
+    assert r.returncode == 0
+    assert "WARN: calendar feed tA: 1 recurring event(s) not expanded" in _log(state, r)
+
+
+def test_feed_only_unmapped_team_warns_with_id(tmp_path, server):
+    env, state = _setup(tmp_path, server, teams=[], summaries={}, feeds=["tZ"], teams_fail=True)
+    r = _run(env)
+    assert r.returncode == 0
+    assert "team tZ (tZ) not in GC_TEAM_MAP" in _log(state, r)
+
+
+def test_empty_feeds_do_not_blame_auth(tmp_path, server, monkeypatch):
+    monkeypatch.setitem(globals(), "ICS", "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n")
+    env, state = _setup(tmp_path, server, teams=[], summaries={}, feeds=["tA"], teams_fail=True)
+    r = _run(env)
+    assert r.returncode == 1
+    log = _log(state, r)
+    assert "API unavailable and calendar feeds empty" in log and "likely auth failure" not in log

@@ -32,8 +32,23 @@ Rules enforced by `school_dashboard/gc_ics.py`:
 - `webcal://` is converted to `https://`; only host `api.team-manager.gc.com`
   over https is accepted (`GC_ICS_ALLOWED_HOSTS` extends the host list, for tests only).
 - The `teamId` in the URL must equal the JSON key.
-- No redirects, 20 s timeout, 2 MiB size cap.
-- A warning (no URL) is logged if the file is not mode 0600 or owned by another user.
+- The URL is validated against the parse of the prepared request URL (what
+  requests/urllib3 actually connect to). Backslashes, whitespace, control or
+  non-ASCII characters, userinfo (`user@`), a trailing dot and any port other
+  than 443 are rejected. Plain http is accepted only for loopback hosts
+  (127.0.0.1, localhost, ::1) named in `GC_ICS_ALLOWED_HOSTS` (tests only).
+- No redirects, 20 s per-read timeout, 60 s total deadline, 2 MiB size cap.
+- The config file is refused (feeds disabled, error in the log) if it is
+  readable by group/other or owned by another user: run `chmod 600`.
+- Feed text is untrusted: control characters are stripped, SUMMARY / LOCATION /
+  calendar name are capped at 160 characters, and at most 500 events per feed
+  are kept (a warning is logged when truncated).
+- Recurring events (RRULE/RDATE/EXDATE) are not expanded: only the first
+  occurrence is listed and a warning is logged. Events are keyed by
+  (UID, RECURRENCE-ID); a cancelled event removes an earlier entry with the same
+  key. Multi-day all-day events keep their start date only.
+- Malformed events (bad dates, empty SUMMARY) are skipped and counted in the
+  warnings, which `gc-scrape.sh` writes to its log.
 
 ## 3. Behaviour
 
@@ -45,6 +60,12 @@ itself fails or is empty, the teams with feeds are used instead (name from the
 feed's `X-WR-CALNAME`, child from `GC_TEAM_MAP`). If every team came from
 feeds the run still exits 0 and logs
 `WARN: GC API unavailable; schedules from calendar feeds only`.
+
+Alert: the fallback must not hide a broken login. When any team was served
+from a feed, `gc-scrape.sh` runs `school-state gc-fallback-alert`, which sends
+an ntfy "School: GameChanger login is failing" at most once per 24 h (state in
+`gc-fallback-alert.json` in the state dir; needs `NTFY_TOPIC`). A failed send
+never fails the scrape, and `sync_meta` still records `ok`.
 
 Limits: feeds carry no opponent or home/away fields. Opponent is parsed from
 `vs` / `@` in the title, otherwise the title is used; times are converted from
