@@ -171,9 +171,14 @@ def build_system_prompt() -> str:
 
 @app.route("/")
 def index():
-    """Land on the SPA. 302, not 301, so browsers never cache the redirect."""
+    """Land on the SPA. 302, not 301, so browsers never cache the redirect.
+
+    ntfy digests link to ``/?digest=<id>`` and only the pre-SPA page can render that
+    carousel, so those links go to ``/legacy`` until the SPA has a digest view.
+    """
     query = request.query_string.decode("utf-8", errors="replace")
-    return redirect("/app/" + (f"?{query}" if query else ""), code=302)
+    target = "/legacy" if "digest" in request.args else "/app/"
+    return redirect(target + (f"?{query}" if query else ""), code=302)
 
 
 @app.route("/legacy")

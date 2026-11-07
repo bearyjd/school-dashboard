@@ -195,6 +195,8 @@ docker/
 
 | Route | Method | Purpose |
 |-------|--------|---------|
+| `/` | GET | 302 to `/app/` (query kept); `?digest=<id>` goes to `/legacy` so ntfy digest links still open the carousel |
+| `/legacy` | GET | Pre-SPA dashboard page (retired with the classic view; renders `SYNC_TOKEN` into the page) |
 | `/api/items` | GET | List items (filter by `?child=NAME`, `?include_completed=1`) |
 | `/api/items` | POST | Create item (JSON: `child`, `title`, `type`, `due_date`, `notes`) |
 | `/api/items/<id>` | PATCH | Update item (partial: `child`, `title`, `type`, `due_date`, `notes`, `completed`) |
