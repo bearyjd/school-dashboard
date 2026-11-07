@@ -40,7 +40,12 @@ pytest tests/test_readiness.py -v # single file
 pytest -k "test_name"             # single test
 # Run SPA dev server (proxies API to Flask on :5000)
 npm --prefix web/spa run dev   # → http://localhost:5173/app/
-npm --prefix web/spa run build # tsc -b && vite build — the only automated SPA check today (no unit tests in web/spa yet)
+npm --prefix web/spa run build # tsc -b && vite build
+npm --prefix web/spa run lint && npm --prefix web/spa test && npm --prefix web/spa run check-bundle
+# Screens (7 routes x 5 widths x 2 themes) + axe (zero serious/critical) against synthetic data;
+# needs `build` first and `pip install -e ".[server]"`; starts scripts/spa-qa-server.py itself:
+npm --prefix web/spa run e2e      # screenshots -> $E2E_SHOTS (default web/spa/test-results/shots)
+python3 scripts/spa-qa-server.py --port 5099   # same synthetic server for manual preview at /app/
 ```
 
 **Run `pytest tests/` from the repo root (the documented command).** `pyproject.toml` now sets `testpaths = ["tests"]`, so bare `pytest` is also safe; the note below explains the original trap, which is fixed.
@@ -153,7 +158,7 @@ school_dashboard/       Core Python package
 
 web/
   app.py                Flask app. Routes: /api/chat, /api/items*, /api/dashboard, /api/readiness, /api/digest/* (carousel), /api/sync, /api/sync/status. **Paths:** every state path resolves per call via `school_dashboard/paths.py` (`SCHOOL_STATE_DIR`, default `/app/state`, plus per-file overrides such as `SCHOOL_DB_PATH`), so `monkeypatch.setenv` works for all routes. Also: `/api/*` writes return 503 while `maintenance.json` is present (`school-state transition maintenance on|off`), except `/api/chat`.
-  spa/                  Vite + React + TypeScript SPA (`web/spa/`). `npm run build` (tsc -b && vite build) is the only automated check today — no vitest/jest tests exist yet in `package.json` devDependencies.
+  spa/                  Vite + React + TypeScript SPA (`web/spa/`), data from `GET /api/overview`. Routes (under `/app`): `/` Today, `/tonight` `/overdue` `/missing` `/events` (sortable/filterable tables, state in the URL; manual items can be checked off), `/calendar`, `/chat`, `/sync`, `/settings`, `/classic/*` (the previous Home/Child views, kept as a fallback). Theme: Midnight / Daylight / System, chosen in Settings, stored in `localStorage['school-theme']`, applied as `data-theme` on `<html>` (`src/design/theme.ts`). Service worker cache is `school-v2`. Tests: vitest (`npm test`), Playwright screens + axe (`npm run e2e`, `web/spa/e2e/`, CI job `e2e` is non-blocking). Lighthouse (performance >= 90, LCP < 2.5 s, CLS < 0.1) is a manual gate. Rollout/rollback: `docs/ops/spa-redesign-rollout.md`.
   templates/index.html  Legacy dashboard iframe + chat tab (pre-SPA). Uses marked.js for markdown rendering.
 
 sync/
@@ -195,6 +200,7 @@ docker/
 | `/api/items/<id>` | DELETE | Delete item |
 | `/api/digest/<id>` | GET | Retrieve digest carousel (returns `{id, created_at, title, cards}`) |
 | `/api/digest/<id>/cards/<index>` | PATCH | Toggle card done state (JSON: `done: bool`) |
+| `/api/overview` | GET | Normalised items (status overdue/missing/late/tonight/upcoming), events (GameChanger + school calendar) and per-source freshness for the SPA (`?days=1..60`, `?past=1`) |
 | `/api/dashboard` | GET | Aggregate view (schoology, ixl, email_items) |
 | `/api/chat` | POST | Chat with LiteLLM (JSON: `message`, `history`) |
 | `/api/readiness` | GET | Get readiness checklist |
