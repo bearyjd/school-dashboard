@@ -9,7 +9,7 @@ import tempfile
 import threading
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from flask import Flask, jsonify, render_template, request, Response, send_from_directory
+from flask import Flask, jsonify, redirect, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
@@ -171,6 +171,14 @@ def build_system_prompt() -> str:
 
 @app.route("/")
 def index():
+    """Land on the SPA. 302, not 301, so browsers never cache the redirect."""
+    query = request.query_string.decode("utf-8", errors="replace")
+    return redirect("/app/" + (f"?{query}" if query else ""), code=302)
+
+
+@app.route("/legacy")
+def legacy_index():
+    """The pre-SPA dashboard, kept until the classic view is retired."""
     return render_template("index.html", sync_token=os.environ.get("SYNC_TOKEN", ""))
 
 
