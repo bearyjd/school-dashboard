@@ -17,7 +17,9 @@ export function SourceBanners({ freshness }: { freshness: Record<string, Freshne
       {bad.map(([key, f]) => (
         <Banner key={key} tone={f.failing ? 'error' : 'warn'}>
           <strong>{sourceLabel(key)}</strong>{' '}
-          <FreshnessTag ageHours={f.age_hours} stale={f.stale && !f.failing} failing={f.failing} bare />
+          {f.issue === 'never_ok'
+            ? <span className="freshness freshness--stale">No successful sync yet</span>
+            : <FreshnessTag ageHours={f.age_hours} stale={f.stale && !f.failing} failing={f.failing} bare />}
         </Banner>
       ))}
     </div>

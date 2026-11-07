@@ -176,3 +176,17 @@ test('unassigned events show with no filter and are hidden under a kid filter', 
   await show(data, '/?kid=Alpha')
   expect(screen.queryByText('Mystery team game')).toBeNull()
 })
+
+test('a paused source gets no banner even when its data is old', async () => {
+  const data = { ...FIXTURE, freshness: { ...FIXTURE.freshness, ixl: fresh({ paused: true, stale: true, age_hours: 90 }) } }
+  await show(data)
+  expect(screen.queryByText(/Stale, as of|Failing, last good|No successful sync/)).toBeNull()
+})
+
+test('a source that never succeeded shows a banner', async () => {
+  const data = { ...FIXTURE, freshness: { ...FIXTURE.freshness,
+    gc: fresh({ issue: 'never_ok', last_ok: null, last_run: null, result: null, age_hours: null }) } }
+  await show(data)
+  const banner = screen.getByText('GameChanger').closest('[role=status]') as HTMLElement
+  expect(banner.textContent).toMatch(/No successful sync yet/)
+})

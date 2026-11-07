@@ -25,7 +25,7 @@ export function event(over: Partial<OverviewEvent> & Pick<OverviewEvent, 'title'
 
 export function fresh(over: Partial<Freshness> = {}): Freshness {
   return { last_ok: '2026-11-07T14:00:00Z', last_run: '2026-11-07T14:00:00Z', result: 'ok', issue: null,
-    stale: false, failing: false, age_hours: 1, ...over }
+    stale: false, failing: false, age_hours: 1, paused: false, ...over }
 }
 
 export const FIXTURE: Overview = {

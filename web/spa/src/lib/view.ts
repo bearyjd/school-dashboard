@@ -12,6 +12,7 @@ const SOURCE_LABELS: Record<string, string> = {
   gc: 'GameChanger',
   school: 'School calendar',
   manual: 'Manual',
+  email: 'Email',
 }
 
 export function sourceLabel(source: string): string {
@@ -21,7 +22,7 @@ export function sourceLabel(source: string): string {
 /** Item source name -> key in `Overview.freshness` (manual items have no scrape). */
 export function freshnessKey(source: OverviewSource): string | null {
   if (source === 'schoology') return 'sgy'
-  if (source === 'manual') return null
+  if (source === 'manual' || source === 'email') return null
   return source
 }
 
@@ -32,7 +33,7 @@ export function itemFreshness(item: OverviewItem, freshness: Record<string, Fres
 }
 
 export function problemSources(freshness: Record<string, Freshness>): [string, Freshness][] {
-  return Object.entries(freshness).filter(([, f]) => f.stale || f.failing)
+  return Object.entries(freshness).filter(([, f]) => !f.paused && (f.stale || f.failing || f.issue === 'never_ok'))
 }
 
 /** Any string is accepted; a name that is not on the roster means "everyone". */
