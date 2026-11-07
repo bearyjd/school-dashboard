@@ -71,7 +71,7 @@ def test_large_output_does_not_hit_argv_limit(tmp_path):
     assert set(data) == {"scraped_at", "teams"}
     assert len(data["teams"]) == N_TEAMS
     assert [t["child"] for t in data["teams"]] == [f"Kid{i}" for i in range(N_TEAMS)]
-    assert all(set(t) == {"team_id", "team_name", "child", "schedule"} for t in data["teams"])
+    assert all(set(t) == {"team_id", "team_name", "child", "schedule", "schedule_source"} for t in data["teams"])
     assert sum(len(t["schedule"]) for t in data["teams"]) == N_TEAMS * N_EVENTS
     assert f"{N_TEAMS * N_EVENTS} event(s)" in log
 

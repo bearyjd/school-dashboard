@@ -62,11 +62,23 @@ trap 'exit 143' TERM INT
 
 log "Starting gc scrape"
 
+# --- Step 0: Teams that have a calendar-feed (ICS) fallback configured ---
+# Ids only (never URLs/tokens). Missing or unreadable config => no fallbacks.
+python3 -c "
+import sys
+from school_dashboard import gc_ics
+for tid in gc_ics.load_feeds():
+    print(tid)
+" > "$WORK/feed-ids.txt" 2>>"$LOGFILE" || : > "$WORK/feed-ids.txt"
+has_feed() { grep -Fxq -- "$1" "$WORK/feed-ids.txt"; }
+
 # --- Step 1: Fetch team list ---
 log "Fetching team list..."
-gc teams --json > "$WORK/teams.json" 2>>"$LOGFILE" || fail "gc teams failed (check auth: GC_TOKEN or GC_EMAIL/GC_PASSWORD)"
+API_TEAMS_OK=1
+gc teams --json > "$WORK/teams.json" 2>>"$LOGFILE" || API_TEAMS_OK=0
 
 # "id<TAB>name" lines
+if [[ "$API_TEAMS_OK" -eq 1 ]]; then
 python3 -c "
 import json, sys
 with open(sys.argv[1]) as f:
@@ -79,8 +91,22 @@ for t in teams:
         clean = lambda v: str(v).translate({9: ' ', 10: ' ', 13: ' '})
         print(clean(tid) + '\\t' + clean(name))
 " "$WORK/teams.json" > "$WORK/team-lines.tsv" 2>>"$LOGFILE" || : > "$WORK/team-lines.tsv"
+else
+    : > "$WORK/team-lines.tsv"
+fi
 TEAM_COUNT=$(wc -l < "$WORK/team-lines.tsv" | tr -d ' ')
 
+if [[ "$TEAM_COUNT" -eq 0 && -s "$WORK/feed-ids.txt" ]]; then
+    # Team list failed or empty: iterate the teams that have a feed (name filled from the feed).
+    log "WARN: team list unavailable or empty — iterating teams with calendar feeds"
+    while IFS= read -r fid; do
+        [[ -n "$fid" ]] && printf '%s\t%s\n' "$fid" "" >> "$WORK/team-lines.tsv"
+    done < "$WORK/feed-ids.txt"
+    TEAM_COUNT=$(wc -l < "$WORK/team-lines.tsv" | tr -d ' ')
+    API_TEAMS_OK=0
+fi
+
+[[ "$API_TEAMS_OK" -eq 0 && "$TEAM_COUNT" -eq 0 ]] && fail "gc teams failed (check auth: GC_TOKEN or GC_EMAIL/GC_PASSWORD)"
 log "Found $TEAM_COUNT team(s)"
 [[ "$TEAM_COUNT" -eq 0 ]] && fail "No teams found — check GC_TOKEN or GC_EMAIL/GC_PASSWORD in config/env"
 
@@ -105,22 +131,61 @@ warn_if_unmapped() {
 }
 
 # --- Step 3: Iterate teams, save each summary to a file ---
-# manifest.tsv: n<TAB>team_id<TAB>team_name<TAB>child  (team-<n>.json holds the summary)
+# manifest.tsv: n<TAB>team_id<TAB>team_name<TAB>child<TAB>source  (team-<n>.json holds the summary)
+# source is "api", or "ics" when the calendar-feed fallback supplied the schedule.
 : > "$WORK/manifest.tsv"
 N=0
 while IFS=$'\t' read -r TEAM_ID TEAM_NAME; do
     [[ -z "$TEAM_ID" ]] && continue
 
-    warn_if_unmapped "$TEAM_ID" "$TEAM_NAME"
+    [[ -n "$TEAM_NAME" ]] && warn_if_unmapped "$TEAM_ID" "$TEAM_NAME"
     CHILD="${TEAM_MAP[$TEAM_ID]:-$TEAM_NAME}"
-    log "Scraping: $TEAM_NAME ($TEAM_ID) → child=$CHILD"
+    log "Scraping: ${TEAM_NAME:-$TEAM_ID} ($TEAM_ID) → child=${CHILD:-?}"
 
     N=$((N + 1))
-    gc summary --json --team "$TEAM_ID" > "$WORK/team-$N.json" 2>>"$LOGFILE" || {
-        log "WARN: gc summary failed for team $TEAM_ID — skipping"
-        continue
-    }
-    printf '%s\t%s\t%s\t%s\n' "$N" "$TEAM_ID" "$TEAM_NAME" "$CHILD" >> "$WORK/manifest.tsv"
+    SOURCE=api
+    REASON=""
+    if [[ "$API_TEAMS_OK" -eq 1 ]]; then
+        if gc summary --json --team "$TEAM_ID" > "$WORK/team-$N.json" 2>>"$LOGFILE"; then
+            # Count events; -1 when the output is not a parseable summary.
+            API_EVENTS=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        s = json.load(f).get('schedule') or []
+    print(len(s) if isinstance(s, list) else 0)
+except (OSError, ValueError, AttributeError):
+    print(-1)
+" "$WORK/team-$N.json" 2>>"$LOGFILE") || API_EVENTS=-1
+            [[ "$API_EVENTS" -le 0 ]] && REASON=empty
+        else
+            REASON=failed
+        fi
+    else
+        REASON=failed
+    fi
+
+    if [[ -n "$REASON" ]]; then
+        if has_feed "$TEAM_ID" \
+            && school-state gc-ics --team-id "$TEAM_ID" > "$WORK/ics-$N.json" 2>>"$LOGFILE"; then
+            ICS_EVENTS=$(python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    print(len(json.load(f).get('schedule') or []))
+" "$WORK/ics-$N.json" 2>>"$LOGFILE") || ICS_EVENTS=0
+            # An API call that succeeded with no events is only overridden by a feed that has some.
+            if [[ "$REASON" == failed || "$ICS_EVENTS" -gt 0 ]]; then
+                log "WARN: using calendar feed for team ${TEAM_ID:0:8} (api $REASON)"
+                mv -f "$WORK/ics-$N.json" "$WORK/team-$N.json"
+                SOURCE=ics
+            fi
+        fi
+        if [[ "$SOURCE" == api && "$REASON" == failed ]]; then
+            log "WARN: gc summary failed for team $TEAM_ID — skipping"
+            continue
+        fi
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\n' "$N" "$TEAM_ID" "$TEAM_NAME" "$CHILD" "$SOURCE" >> "$WORK/manifest.tsv"
 done < "$WORK/team-lines.tsv"
 
 # --- Step 4: Build output from the files (single python call, no argv data) ---
@@ -132,7 +197,7 @@ teams = []
 with open(work + '/manifest.tsv') as m:
     for line in m:
         try:
-            n, tid, name, child = line.rstrip('\\n').split('\\t')
+            n, tid, name, child, source = line.rstrip('\\n').split('\\t')
             with open(f'{work}/team-{n}.json') as f:
                 summary = json.load(f)
             schedule = summary.get('schedule') or []
@@ -142,12 +207,14 @@ with open(work + '/manifest.tsv') as m:
         except (OSError, ValueError, AttributeError) as e:
             print(f'WARN: Failed to parse manifest/summary line {line[:40]!r} ({e}) — skipping', file=sys.stderr)
             continue
-        teams.append({'team_id': tid, 'team_name': name, 'child': child, 'schedule': schedule})
+        name = name or summary.get('team_name') or tid
+        teams.append({'team_id': tid, 'team_name': name, 'child': child or name,
+                      'schedule_source': source, 'schedule': schedule})
 with open(out, 'w') as f:
     print(json.dumps({'scraped_at': ts, 'teams': teams}, indent=2), file=f)
-print(len(teams), sum(len(t['schedule']) for t in teams))
+print(len(teams), sum(len(t['schedule']) for t in teams), sum(t['schedule_source'] == 'ics' for t in teams))
 " "$WORK" "$TS" "$GC_PATH.tmp.$$" 2>>"$LOGFILE") || fail "Failed to write $GC_PATH"
-read -r WRITTEN TOTAL_EVENTS <<< "$COUNTS"
+read -r WRITTEN TOTAL_EVENTS ICS_TEAMS <<< "$COUNTS"
 
 # Every team returning an empty schedule means the gc CLI 401'd silently
 # (it returns exit 0 with empty data on auth failure). Treat that as a
@@ -155,6 +222,10 @@ read -r WRITTEN TOTAL_EVENTS <<< "$COUNTS"
 # overwriting a good gc-schedule.json with empty data.
 if [[ "$TEAM_COUNT" -gt 0 && "${TOTAL_EVENTS:-0}" -eq 0 ]]; then
     fail "All $TEAM_COUNT team(s) returned empty schedules — likely auth failure (gc returns 200 with empty data on 401). Refusing to overwrite $GC_PATH."
+fi
+
+if [[ "${WRITTEN:-0}" -gt 0 && "${ICS_TEAMS:-0}" -eq "${WRITTEN:-0}" ]]; then
+    log "WARN: GC API unavailable; schedules from calendar feeds only"
 fi
 
 # --- Step 5: Publish ---
