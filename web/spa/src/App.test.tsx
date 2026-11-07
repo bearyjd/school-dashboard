@@ -49,6 +49,28 @@ test('unknown path redirects to Today', async () => {
   expect(await screen.findByRole('heading', { level: 1, name: 'Today' })).toBeTruthy()
 })
 
+test('legacy /home redirects to the classic home', async () => {
+  at('/home')
+  expect(await screen.findByRole('heading', { name: 'Classic home' })).toBeTruthy()
+})
+
+test('legacy /child/:name redirects to the classic child view', async () => {
+  at('/child/Zed')
+  expect(await screen.findByRole('heading', { name: 'Classic child' })).toBeTruthy()
+})
+
+test('skip link targets the main content container', () => {
+  at('/')
+  const link = screen.getByRole('link', { name: /skip to main content/i })
+  expect(link.getAttribute('href')).toBe('#main')
+  expect(document.getElementById('main')).toBeTruthy()
+})
+
+test('both navs share the Main label', () => {
+  at('/')
+  expect(document.querySelectorAll('nav[aria-label="Main"]').length).toBe(2)
+})
+
 test('navigation exposes the main destinations', () => {
   at('/')
   for (const name of ['Today', 'Calendar', 'Chat', 'Settings']) {

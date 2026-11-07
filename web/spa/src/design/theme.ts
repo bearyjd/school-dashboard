@@ -26,6 +26,17 @@ export function applyTheme(choice: ThemeChoice): void {
   document.documentElement.dataset.theme = resolveTheme(choice, prefersDark())
 }
 
+/** Follow device light/dark changes while the stored choice is 'system'. Returns an unsubscribe function. */
+export function watchSystemTheme(): () => void {
+  if (typeof window.matchMedia !== 'function') return () => {}
+  const mql = window.matchMedia('(prefers-color-scheme: dark)')
+  const onChange = () => {
+    if (getStoredTheme() === 'system') applyTheme('system')
+  }
+  mql.addEventListener('change', onChange)
+  return () => mql.removeEventListener('change', onChange)
+}
+
 export function setTheme(choice: ThemeChoice): void {
   try {
     localStorage.setItem(THEME_KEY, choice)

@@ -18,6 +18,11 @@ test('colour index wraps around the 3-colour palette', () => {
   expect(container.firstElementChild?.classList.contains('kid-2')).toBe(true)
 })
 
+test('compact chip is labelled with the full name for assistive tech', () => {
+  render(<KidChip name="Zed" index={0} />)
+  expect(screen.getByLabelText('Zed')).toBeTruthy()
+})
+
 test('empty name does not crash', () => {
   const { container } = render(<KidChip name="" index={0} />)
   expect(container.firstElementChild).toBeTruthy()

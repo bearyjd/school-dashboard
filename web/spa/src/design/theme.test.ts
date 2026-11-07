@@ -1,5 +1,41 @@
 import { beforeEach, describe, expect, test } from 'vitest'
-import { getStoredTheme, resolveTheme, setTheme } from './theme'
+import { getStoredTheme, resolveTheme, setTheme, watchSystemTheme } from './theme'
+
+describe('watchSystemTheme', () => {
+  function fakeMedia(initial: boolean) {
+    let listener: (() => void) | null = null
+    const mql = {
+      matches: initial,
+      addEventListener: (_: string, l: () => void) => { listener = l },
+      removeEventListener: () => { listener = null },
+    }
+    window.matchMedia = (() => mql) as unknown as typeof window.matchMedia
+    return { mql, fire: () => listener?.(), isListening: () => listener !== null }
+  }
+
+  beforeEach(() => localStorage.clear())
+
+  test('re-applies the theme when the device preference changes and the choice is system', () => {
+    const m = fakeMedia(true)
+    setTheme('system')
+    const stop = watchSystemTheme()
+    expect(document.documentElement.dataset.theme).toBe('midnight')
+    m.mql.matches = false
+    m.fire()
+    expect(document.documentElement.dataset.theme).toBe('daylight')
+    stop()
+    expect(m.isListening()).toBe(false)
+  })
+
+  test('ignores device changes when an explicit theme is chosen', () => {
+    const m = fakeMedia(true)
+    setTheme('midnight')
+    watchSystemTheme()
+    m.mql.matches = false
+    m.fire()
+    expect(document.documentElement.dataset.theme).toBe('midnight')
+  })
+})
 
 describe('resolveTheme', () => {
   test('system follows the device', () => {

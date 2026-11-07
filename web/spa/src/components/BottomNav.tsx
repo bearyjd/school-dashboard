@@ -27,7 +27,7 @@ function isCurrent(tab: Tab, pathname: string): boolean {
 export function BottomNav() {
   const { pathname } = useLocation()
   return (
-    <nav className="bottom-nav" aria-label="Main (phone)">
+    <nav className="bottom-nav" aria-label="Main">
       {TABS.map(t => {
         const current = isCurrent(t, pathname)
         return (
