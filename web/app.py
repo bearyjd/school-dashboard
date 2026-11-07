@@ -549,7 +549,8 @@ def api_overview():
     school = overview_events.school_events(db_file, today, days)
     payload = overview.build_overview(
         state, manual, gc_data, school, read_sync_meta(str(paths.sync_meta_path())),
-        get_roster(), now, tz, days=days, include_past_seasons=include_past)
+        get_roster(), now, tz, days=days, include_past_seasons=include_past,
+        active=watchdog.monitored_sources(), first_seen=watchdog.load_first_seen())
     return jsonify({**payload, "warnings": warnings + payload["warnings"]})
 
 
