@@ -30,7 +30,7 @@ school_dashboard/       Core Python package
 web/
   app.py                Flask app. Routes: /api/chat, /api/agent/inline, /api/items*, /api/sync*, /api/digest*, /app (SPA).
   templates/index.html  Legacy dashboard iframe.
-  spa/                  React + TypeScript SPA (Vite build → served at /app).
+  spa/                  React + TypeScript SPA (Vite build → served at /app): Today, Tonight/Overdue/Missing/Events tables, Calendar, Chat, Sync, Settings (Midnight/Daylight/System theme). Data from /api/overview. The previous views remain at /app/classic/home. Tests: `npm --prefix web/spa test`; screens + axe: `npm --prefix web/spa run e2e`.
 
 sync/
   school-sync.sh        Cron script: IXL → SGY → GC → state → email-sync → HTML → digest (intel step permanently skipped — `intel.py` no longer exists).

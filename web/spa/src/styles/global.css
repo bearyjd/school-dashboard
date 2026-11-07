@@ -69,9 +69,9 @@ body {
   border-radius: 100px;
 }
 
-.badge--ok { background: rgba(76,175,125,0.15); color: var(--color-success); }
-.badge--warn { background: rgba(245,166,35,0.15); color: var(--color-warn); }
-.badge--error { background: rgba(255,107,107,0.15); color: var(--color-error); }
+.badge--ok { background: transparent; border: 1px solid currentColor; color: var(--ok-text, var(--color-success)); }
+.badge--warn { background: transparent; border: 1px solid currentColor; color: var(--missing-text, var(--color-warn)); }
+.badge--error { background: transparent; border: 1px solid currentColor; color: var(--overdue-text, var(--color-error)); }
 
 button {
   cursor: pointer;
@@ -91,7 +91,7 @@ button {
   transition: opacity 0.15s;
 }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn--primary { background: var(--color-accent); color: #fff; }
+.btn--primary { background: var(--color-accent); color: var(--on-accent, #fff); }
 .btn--secondary { background: var(--color-surface2); color: var(--color-text); }
 .btn--ghost { background: transparent; color: var(--color-text-muted); }
 

@@ -57,3 +57,60 @@ jobs:
 
       - name: Bundle budget
         run: npm run check-bundle
+
+  # Screens + axe against scripts/spa-qa-server.py (synthetic data). Non-blocking until it has a track record.
+  # To make it blocking: delete the `continue-on-error` line below, then mark the `e2e` check as
+  # required in the branch protection rules for main.
+  e2e:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: pip install -e ".[server]"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/spa/package-lock.json
+
+      - name: Install SPA dependencies and build
+        working-directory: web/spa
+        run: |
+          npm ci
+          npm run build
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('web/spa/package-lock.json') }}
+
+      - name: Install Chromium
+        working-directory: web/spa
+        run: npx playwright install --with-deps chromium
+
+      - name: Screens and accessibility
+        working-directory: web/spa
+        run: npm run e2e
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: |
+            web/spa/test-results
+            web/spa/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7

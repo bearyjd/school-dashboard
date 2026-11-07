@@ -154,6 +154,24 @@ test('overlapping check-offs: when the first fails only that row comes back', as
   expect(screen.queryByRole('checkbox', { name: /banner/i })).toBeNull()
 })
 
+const overviewFetches = (fetchMock: { mock: { calls: unknown[][] } }) =>
+  fetchMock.mock.calls.filter(c => c[0] === '/api/overview').length
+
+test('a successful check-off refetches the overview', async () => {
+  const { fetchMock } = await show('overdue', TWO_MANUAL, '/', server(() => ({ ok: true, body: { ok: true } })))
+  expect(overviewFetches(fetchMock)).toBe(1)
+  fireEvent.click(screen.getByRole('checkbox', { name: /poster/i }))
+  await waitFor(() => expect(overviewFetches(fetchMock)).toBe(2))
+})
+
+test('a failed check-off also refetches the overview', async () => {
+  const { fetchMock } = await show('overdue', TWO_MANUAL, '/', server(() => ({ ok: false, body: { error: 'boom' } })))
+  expect(overviewFetches(fetchMock)).toBe(1)
+  fireEvent.click(screen.getByRole('checkbox', { name: /poster/i }))
+  await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
+  await waitFor(() => expect(overviewFetches(fetchMock)).toBe(2))
+})
+
 test('maintenance 503 shows the paused-for-maintenance message', async () => {
   await show('overdue', TWO_MANUAL, '/', server(() => ({ ok: false, status: 503, body: { error: 'maintenance' } })))
   fireEvent.click(screen.getByRole('checkbox', { name: /poster/i }))

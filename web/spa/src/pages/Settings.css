@@ -1,0 +1,26 @@
+.settings__group {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  padding: var(--space-md);
+  margin: 0 0 var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings__group legend, .settings__legend {
+  font-weight: 800;
+  font-size: 1rem;
+  padding: 0 6px;
+  margin: 0;
+}
+.settings__option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.settings__option input { width: 20px; height: 20px; accent-color: var(--tonight); }
+.settings__label { font-weight: 700; }
+.settings__hint { color: var(--muted); font-size: 13px; }
