@@ -49,7 +49,7 @@ export function Home() {
           const sgyBadge = freshnessLabel(meta, 'sgy')
 
           return (
-            <div key={child} className="card" onClick={() => navigate(`/child/${encodeURIComponent(child)}`)}
+            <div key={child} className="card" onClick={() => navigate(`/classic/child/${encodeURIComponent(child)}`)}
               style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>{child}</h2>

@@ -1,0 +1,62 @@
+/* Component styles: colours come from tokens.css variables only. */
+
+.kid-0 { --kid: var(--kid-0); }
+.kid-1 { --kid: var(--kid-1); }
+.kid-2 { --kid: var(--kid-2); }
+
+.kid-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text); }
+.kid-chip__dot {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--kid); background: var(--surface); font-size: 11px; font-weight: 800;
+}
+
+.status-badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 100px;
+  font-size: 11px; font-weight: 700; text-transform: capitalize; background: var(--surface);
+  border: 1px solid currentColor;
+}
+.status-badge--overdue { color: var(--overdue-text); }
+.status-badge--missing, .status-badge--late { color: var(--missing-text); }
+.status-badge--tonight { color: var(--tonight-text); }
+.status-badge--upcoming { color: var(--muted); }
+
+.tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 14px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--tile-accent, var(--border));
+  border-radius: var(--r-md); box-shadow: var(--shadow); color: var(--text); text-align: left;
+  font-family: inherit; transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.tile--overdue { --tile-accent: var(--overdue); }
+.tile--missing { --tile-accent: var(--missing); }
+.tile--tonight { --tile-accent: var(--tonight); }
+.tile--ok { --tile-accent: var(--ok); }
+.tile__value { font-size: 34px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.tile__label { font-size: 12px; color: var(--muted); font-weight: 600; }
+.tile--action { cursor: pointer; }
+.tile--action:hover { transform: translateY(-2px); }
+.tile--action:active { transform: translateY(0); opacity: 0.85; }
+
+.row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); min-width: 0; }
+.row__main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.row__title { font-size: 13px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; text-decoration: none; }
+a.row__title { text-decoration: underline; text-underline-offset: 2px; }
+.row__meta { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--border); }
+.tabs__tab {
+  background: transparent; color: var(--muted); padding: 10px 14px; font-weight: 700; border-radius: var(--r-sm) var(--r-sm) 0 0;
+  border-bottom: 3px solid transparent; transition: opacity 0.15s ease;
+}
+.tabs__tab:hover { color: var(--text); }
+.tabs__tab--active { background: var(--selected); color: var(--text); border-bottom-color: var(--tonight); }
+
+.banner { display: flex; gap: 8px; align-items: flex-start; padding: 10px 14px; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface); font-size: 13px; }
+.banner--warn { border-color: var(--missing); color: var(--missing-text); }
+.banner--error { border-color: var(--overdue); color: var(--overdue-text); }
+.banner--info { border-color: var(--tonight); color: var(--tonight-text); }
+
+.freshness { font-size: 11px; color: var(--muted); display: inline-flex; gap: 4px; align-items: center; }
+.freshness--stale { color: var(--missing-text); font-weight: 700; }
+.freshness--failing { color: var(--overdue-text); font-weight: 700; }
+
+:is(button, a, input, textarea, select):focus-visible { outline: 2px solid var(--tonight); outline-offset: 2px; }

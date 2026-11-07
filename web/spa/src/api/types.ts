@@ -86,6 +86,60 @@ export interface Digest {
   cards: DigestCard[];
 }
 
+export type OverviewStatus = 'overdue' | 'missing' | 'late' | 'tonight' | 'upcoming' | 'done';
+export type OverviewSource = 'powerschool' | 'schoology' | 'ixl' | 'manual';
+
+export interface OverviewKid {
+  name: string;
+  colorIndex: number;
+}
+
+export interface OverviewItem {
+  id: string;
+  kid: string;
+  title: string;
+  course: string;
+  due: string | null;
+  status: OverviewStatus;
+  source: OverviewSource;
+  category: string | null;
+  score: string | null;
+  url: string;
+  readonly: boolean;
+}
+
+export interface OverviewEvent {
+  kids: string[];
+  unassigned: boolean;
+  title: string;
+  date: string;
+  time: string;
+  type: string;
+  location: string;
+  source: 'gc' | 'school';
+  scheduleSource: 'api' | 'ics' | null;
+  team: string | null;
+}
+
+export interface Freshness {
+  last_ok: string | null;
+  last_run: string | null;
+  result: string | null;
+  issue: string | null;
+  stale: boolean;
+  failing: boolean;
+  age_hours: number | null;
+}
+
+export interface Overview {
+  generated_at: string;
+  kids: OverviewKid[];
+  items: OverviewItem[];
+  events: OverviewEvent[];
+  freshness: Record<string, Freshness>;
+  warnings: string[];
+}
+
 export interface InlineAgentAction {
   type: 'mark_item_done' | 'reschedule_item' | 'create_item' | 'trigger_sync';
   payload: Record<string, unknown>;
