@@ -15,7 +15,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from contract_support import load, mutate, renamed
+from contract_support import TODAY, assert_unguarded, load, mutate, renamed
 
 from school_dashboard import digest
 from school_dashboard.overview_events import gc_events
@@ -33,6 +33,8 @@ if a[0] == "teams":
     print(json.dumps(fx["teams"]))
 elif a[0] == "summary":
     print(json.dumps(fx["summaries"][a[a.index("--team") + 1]]))
+else:
+    sys.exit("unexpected gc subcommand: " + " ".join(a))
 """
 
 
@@ -41,7 +43,9 @@ def _run_scrape(tmp_path: Path, fixture: dict):
     bindir.mkdir()
     state = tmp_path / "state"
     state.mkdir()
-    (bindir / "school-state").write_text("#!/bin/sh\nexit 10\n")  # maintenance inactive
+    # gc-scrape.sh runs `school-state transition maintenance check`: exit 10 means "maintenance
+    # inactive, proceed" (any other code is treated as active and skips the scrape).
+    (bindir / "school-state").write_text("#!/bin/sh\nexit 10\n")
     (bindir / "gc").write_text(STUB)
     for tool in bindir.iterdir():
         tool.chmod(0o755)
@@ -83,14 +87,14 @@ def test_fixture_is_accepted_end_to_end(scraped):
         ("team-0001", "Sample Team Alpha", "Alpha", "api"), ("team-0002", "Sample Team Beta", "Beta", "api")]
     assert [len(t["schedule"]) for t in data["teams"]] == [2, 1]
 
-    events = gc_events(data, ROSTER, date.today(), 14)
+    events = gc_events(data, ROSTER, TODAY, 14)
     assert [(e["kids"], e["title"], e["time"], e["type"]) for e in events] == [
         (["Alpha"], "vs Sample Opponent One", "09:00", "game"),
         (["Beta"], "vs Sample Opponent Two", "13:00", "game"),
         (["Alpha"], "practice", "17:30", "practice")]
     assert events[0]["location"].startswith("Sample Field")
 
-    lines = [digest._format_gc_event_line(e, date.today()) for e in digest._load_gc_events(str(path), 14)]
+    lines = [digest._format_gc_event_line(e, TODAY) for e in digest._load_gc_events(str(path), 14, TODAY.isoformat())]
     assert len(lines) == 3
     assert any("vs. Sample Opponent Two, Away, 13:00, @ Sample Pitch" in line for line in lines)
 
@@ -118,8 +122,8 @@ def test_silent_degradation_schedule_renamed_for_one_team(tmp_path):
         {"team-0002": renamed(d["summaries"]["team-0002"], "schedule", "events")}))
     result, data = _run_scrape(tmp_path, bad)
     assert result.returncode == 0
-    assert [len(t["schedule"]) for t in data["teams"]] == [2, 0]
-    assert "WARN" not in (tmp_path / "state" / "gc-scrape.log").read_text()
+    assert_unguarded([len(t["schedule"]) for t in data["teams"]] == [2, 0], "G13")
+    assert_unguarded("WARN" not in (tmp_path / "state" / "gc-scrape.log").read_text(), "G13")
 
 
 def _scraped_with(tmp_path: Path, edit) -> tuple:
@@ -138,21 +142,22 @@ def _rename_event_key(old: str, new: str):
 def test_silent_degradation_event_date_renamed_drops_every_event(tmp_path):
     """UNGUARDED: `date` renamed -> both consumers silently see no events."""
     data, path = _scraped_with(tmp_path, _rename_event_key("date", "start_date"))
-    assert gc_events(data, ROSTER, date.today(), 14) == []
-    assert digest._load_gc_events(str(path), 14) == []
+    assert_unguarded(gc_events(data, ROSTER, TODAY, 14) == [], "G14a")
+    assert_unguarded(digest._load_gc_events(str(path), 14, TODAY.isoformat()) == [], "G14a")
 
 
 def test_silent_degradation_event_time_renamed_blanks_times(tmp_path):
     """UNGUARDED: `time` renamed -> events stay but with no time of day."""
     data, path = _scraped_with(tmp_path, _rename_event_key("time", "start_time"))
-    assert {e["time"] for e in gc_events(data, ROSTER, date.today(), 14)} == {""}
-    assert {e["time"] for e in digest._load_gc_events(str(path), 14)} == {""}
+    assert_unguarded({e["time"] for e in gc_events(data, ROSTER, TODAY, 14)} == {""}, "G14b")
+    assert_unguarded({e["time"] for e in digest._load_gc_events(str(path), 14, TODAY.isoformat())} == {""}, "G14b")
 
 
 def test_silent_degradation_event_type_renamed_loses_opponent_in_digest(tmp_path):
     """UNGUARDED: the digest only prints the opponent for type == 'game'."""
     data, path = _scraped_with(tmp_path, _rename_event_key("type", "event_type"))
-    lines = [digest._format_gc_event_line(e, date.today()) for e in digest._load_gc_events(str(path), 14)]
-    assert lines and not any("Sample Opponent" in line for line in lines)
-    assert all(e["type"] == "" for e in gc_events(data, ROSTER, date.today(), 14))
+    lines = [digest._format_gc_event_line(e, TODAY) for e in digest._load_gc_events(str(path), 14, TODAY.isoformat())]
+    assert lines
+    assert_unguarded(not any("Sample Opponent" in line for line in lines), "G14c")
+    assert_unguarded(all(e["type"] == "" for e in gc_events(data, ROSTER, TODAY, 14)), "G14c")
 

@@ -9,10 +9,10 @@ Provenance caveat: vendor/powerschool-scrape is not checked out in CI; this shap
 powerschool.py's documented contract (see the fixtures README).
 """
 import logging
-from datetime import datetime
 
 import pytest
-from contract_support import build_state, consumers, load, mutate, renamed, set_roster
+from contract_support import (assert_unguarded, build_state, consumers, load, mutate, renamed,
+                              set_roster)
 
 from school_dashboard import powerschool, state
 
@@ -24,11 +24,6 @@ def env(state_env, tmp_path, monkeypatch):
     set_roster(tmp_path, monkeypatch)
     yield state_env, tmp_path
     state._config_cache = None
-
-
-def _ps(data: dict) -> dict:
-    data["scraped_at"] = datetime.now().isoformat(timespec="seconds")
-    return data
 
 
 def _alpha(data: dict) -> dict:
@@ -71,14 +66,14 @@ def test_guarded_untrusted_scrape_records_a_warning(env, mutation, reason):
     state_env, tmp_path = env
     first = build_state(state_env, tmp_path)
     assert first["state"]["powerschool"]
-    built = build_state(state_env, tmp_path, ps=_ps(mutation(load("powerschool"))))
+    built = build_state(state_env, tmp_path, ps=mutation(load("powerschool")))
     assert built["state"]["powerschool"] == first["state"]["powerschool"]  # previous data kept
     assert reason in built["state"]["powerschool_meta"]["warnings"][0]
 
 
 def test_guarded_renamed_list_keeps_previous_entry_with_a_warning(env):
     state_env, tmp_path = env
-    bad = mutate(_ps(load("powerschool")), lambda d: d["children"].__setitem__(
+    bad = mutate(load("powerschool"), lambda d: d["children"].__setitem__(
         0, renamed(_alpha(d), "missing", "overdue")))
     built = build_state(state_env, tmp_path, ps=bad)
     assert "Alpha" not in built["state"]["powerschool"]
@@ -89,11 +84,11 @@ def test_guarded_renamed_list_keeps_previous_entry_with_a_warning(env):
 def test_silent_degradation_child_name_key_renamed(env):
     """UNGUARDED: a child entry without `name` is dropped by _ps_names with no warning."""
     state_env, tmp_path = env
-    bad = mutate(_ps(load("powerschool")), lambda d: d["children"].__setitem__(
+    bad = mutate(load("powerschool"), lambda d: d["children"].__setitem__(
         0, renamed(_alpha(d), "name", "student_name")))
     built = build_state(state_env, tmp_path, ps=bad)
-    assert "Alpha" not in built["state"]["powerschool"]
-    assert built["state"]["powerschool_meta"]["warnings"] == []
+    assert_unguarded("Alpha" not in built["state"]["powerschool"], "G12a")
+    assert_unguarded(built["state"]["powerschool_meta"]["warnings"] == [], "G12a")
 
 
 def test_silent_degradation_item_due_renamed(env):
@@ -107,12 +102,12 @@ def test_silent_degradation_item_due_renamed(env):
             for key in ("missing", "late", "upcoming"):
                 child[key] = [renamed(i, "due", "due_date") for i in child[key]]
 
-    built = build_state(state_env, tmp_path, ps=mutate(_ps(load("powerschool")), edit))
-    assert built["state"]["powerschool_meta"]["warnings"] == []
-    assert all(i["due"] is None for i in built["state"]["powerschool"]["Alpha"]["late"])
+    built = build_state(state_env, tmp_path, ps=mutate(load("powerschool"), edit))
+    assert_unguarded(built["state"]["powerschool_meta"]["warnings"] == [], "G12b")
+    assert_unguarded(all(i["due"] is None for i in built["state"]["powerschool"]["Alpha"]["late"]), "G12b")
     ps_status = {i["title"]: i["status"] for i in consumers(built)["items"] if i["source"] == "powerschool"}
-    assert ps_status == {"Quiz 4 Corrections": "missing", "Essay Draft": "late"}
-    assert "(due" not in powerschool.format_block(built["state"])
+    assert_unguarded(ps_status == {"Quiz 4 Corrections": "missing", "Essay Draft": "late"}, "G12b")
+    assert_unguarded("(due" not in powerschool.format_block(built["state"]), "G12b")
 
 
 def test_silent_degradation_item_title_renamed(env):
@@ -122,10 +117,10 @@ def test_silent_degradation_item_title_renamed(env):
     def edit(d: dict) -> None:
         _alpha(d)["missing"] = [renamed(i, "title", "name") for i in _alpha(d)["missing"]]
 
-    built = build_state(state_env, tmp_path, ps=mutate(_ps(load("powerschool")), edit))
-    assert built["state"]["powerschool_meta"]["warnings"] == []
-    assert "Untitled" in powerschool.format_block(built["state"])
-    assert "Quiz 4 Corrections" not in powerschool.format_block(built["state"])
+    built = build_state(state_env, tmp_path, ps=mutate(load("powerschool"), edit))
+    assert_unguarded(built["state"]["powerschool_meta"]["warnings"] == [], "G12c")
+    block = powerschool.format_block(built["state"])
+    assert_unguarded("Untitled" in block and "Quiz 4 Corrections" not in block, "G12c")
 
 
 def test_logging_stays_quiet_for_the_valid_fixture(env, caplog):

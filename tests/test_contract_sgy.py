@@ -10,10 +10,11 @@ Consumers and the keys they read:
                                    .assignments[].title
 """
 import json
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
-from contract_support import build_state, consumers, load, mutate, renamed, set_roster
+from contract_support import (TODAY, assert_unguarded, build_state, consumers, load, mutate, renamed, set_roster,
+                              unguarded_raises)
 
 from school_dashboard import schoology_autoarchive, state
 
@@ -89,7 +90,7 @@ def test_silent_degradation_failed_and_partial_scrapes_count_as_trusted(tmp_path
     path.write_text(json.dumps(load("sgy")))
     _, trusted, _ = schoology_autoarchive.scrape_view(str(path))
     assert "warnings" not in load("sgy")
-    assert trusted == {"Alpha": True, "Beta": True, "Gamma": True}
+    assert_unguarded(trusted == {"Alpha": True, "Beta": True, "Gamma": True}, "G9")
 
 
 def test_silent_degradation_failed_child_reads_as_all_done(env):
@@ -98,23 +99,23 @@ def test_silent_degradation_failed_child_reads_as_all_done(env):
     state_env, tmp_path = env
     built = build_state(state_env, tmp_path)
     assert load("sgy")["per_child"][2]["scrape_confidence"] == "failed"
-    assert "Gamma: IXL all done, SGY all done" in consumers(built)["quick"]
+    assert_unguarded("Gamma: IXL all done, SGY all done" in consumers(built)["quick"], "G8")
 
 
 def test_per_child_renamed_is_silently_ignored(env, caplog):
     """UNGUARDED: `per_child` renamed -> 0 children merged, no warning, exit 0."""
     state_env, tmp_path = env
     built = build_state(state_env, tmp_path, sgy=renamed(load("sgy"), "per_child", "children_data"))
-    assert built["state"]["schoology"] == {}
-    assert _pending(built) == []
-    assert not [r for r in caplog.records if r.levelname in ("WARNING", "ERROR")]
+    assert_unguarded(built["state"]["schoology"] == {}, "G4")
+    assert_unguarded(_pending(built) == [], "G4")
+    assert_unguarded(not [r for r in caplog.records if r.levelname in ("WARNING", "ERROR")], "G4")
 
 
 def test_child_name_key_missing_crashes_the_update(env):
     """Fails loudly, but as a bare IndexError from `''.split()[0]` in update_from_sgy_file."""
     state_env, tmp_path = env
     bad = mutate(load("sgy"), lambda d: _alpha(d).update(child=renamed(_alpha(d)["child"], "name", "full_name")))
-    with pytest.raises(IndexError):
+    with unguarded_raises(IndexError, "G5"):
         build_state(state_env, tmp_path, sgy=bad)
 
 
@@ -126,10 +127,10 @@ def test_silent_degradation_due_date_renamed_drops_all_dates(env):
         assignments=[renamed(a, "due_date", "dueDate") for a in _alpha(d)["assignments"]]))
     built = build_state(state_env, tmp_path, sgy=bad)
     out = consumers(built)
-    assert "SGY 4 open" in out["quick"]
-    assert not [i for i in out["items"] if i["source"] == "schoology"]
-    assert not [i for i in out["readiness"].get("Alpha", []) if i["type"] == "assignment"]
-    assert all(i["due"] is None for i in _pending(built) if i["child"] == "Alpha")
+    assert_unguarded("SGY 4 open" in out["quick"], "G6")
+    assert_unguarded(not [i for i in out["items"] if i["source"] == "schoology"], "G6")
+    assert_unguarded(not [i for i in out["readiness"].get("Alpha", []) if i["type"] == "assignment"], "G6")
+    assert_unguarded(all(i["due"] is None for i in _pending(built) if i["child"] == "Alpha"), "G6")
 
 
 def test_silent_degradation_title_renamed_collapses_action_items(env):
@@ -140,30 +141,30 @@ def test_silent_degradation_title_renamed_collapses_action_items(env):
         assignments=[renamed(a, "title", "name") for a in _alpha(d)["assignments"]]))
     built = build_state(state_env, tmp_path, sgy=bad)
     alpha_items = [i for i in _pending(built) if i["child"] == "Alpha"]
-    assert [i["summary"] for i in alpha_items] == ["Unknown"]
+    assert_unguarded([i["summary"] for i in alpha_items] == ["Unknown"], "G7")
 
 
 def test_inconsistency_status_case_readiness_vs_overview(env):
     """The scraper emits the page's status text unlowercased ('Submitted'). Overview and the
     quick check lowercase it; readiness compares case-sensitively and still lists the item."""
     state_env, tmp_path = env
-    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    tomorrow = (TODAY + timedelta(days=1)).isoformat()
     bad = mutate(load("sgy"), lambda d: _alpha(d)["assignments"][1].update(due_date=tomorrow))
     out = consumers(build_state(state_env, tmp_path, sgy=bad))
     assert "Sample Reading Log" not in {i["title"] for i in out["items"]}
-    assert "Sample Reading Log" in {i["label"] for i in out["readiness"]["Alpha"]}
+    assert_unguarded("Sample Reading Log" in {i["label"] for i in out["readiness"]["Alpha"]}, "G10")
 
 
 def test_inconsistency_freeform_due_date_readiness_vs_overview(env):
     """'Month D, YYYY' due dates (unparsed page text) are understood by overview but silently
     skipped by readiness (date.fromisoformat)."""
     state_env, tmp_path = env
-    tomorrow = date.today() + timedelta(days=1)
+    tomorrow = TODAY + timedelta(days=1)
     freeform = f"{tomorrow:%B} {tomorrow.day}, {tomorrow.year}"
     bad = mutate(load("sgy"), lambda d: _alpha(d)["assignments"][2].update(due_date=freeform))
     out = consumers(build_state(state_env, tmp_path, sgy=bad))
     assert "Practice Set A" in {i["title"] for i in out["items"]}
-    assert "Practice Set A" not in {i["label"] for i in out["readiness"]["Alpha"]}
+    assert_unguarded("Practice Set A" not in {i["label"] for i in out["readiness"]["Alpha"]}, "G11")
 
 
 def test_unused_keys_can_vanish_without_effect(env):
@@ -179,3 +180,13 @@ def test_unused_keys_can_vanish_without_effect(env):
     again = build_state(state_env, tmp_path, sgy=slim)["state"]["schoology"]
     assert {k: len(v["assignments"]) for k, v in again.items()} == {
         k: len(v["assignments"]) for k, v in base.items()}
+
+
+def test_silent_degradation_readiness_omits_children_without_schoology(env):
+    """UNGUARDED: readiness iterates only state['schoology']; Alpha has IXL data but no
+    schoology entry here, so it gets no checklist at all."""
+    state_env, tmp_path = env
+    bad = mutate(load("sgy"), lambda d: d["per_child"].pop(0))
+    built = build_state(state_env, tmp_path, sgy=bad)
+    assert built["state"]["ixl"]["Alpha"]["totals"]
+    assert_unguarded("Alpha" not in consumers(built)["readiness"], "G15")

@@ -11,7 +11,8 @@ Consumers and the keys they read:
 import logging
 
 import pytest
-from contract_support import build_state, consumers, load, mutate, renamed, set_roster, without
+from contract_support import (assert_unguarded, build_state, consumers, load, mutate, renamed, set_roster,
+                              unguarded_raises, without)
 
 from school_dashboard import state
 
@@ -75,9 +76,9 @@ def test_silent_degradation_inner_remaining_key_renamed(env):
     built = build_state(state_env, tmp_path, ixl=bad)
     assert "Alpha" in built["state"]["ixl"]
     out = consumers(built)
-    assert "Alpha: IXL all done" in out["quick"]
-    assert not [i for i in out["items"] if i["source"] == "ixl"]
-    assert not [i for i in out["readiness"].get("Alpha", []) if i["type"] == "ixl"]
+    assert_unguarded("Alpha: IXL all done" in out["quick"], "G1")
+    assert_unguarded(not [i for i in out["items"] if i["source"] == "ixl"], "G1")
+    assert_unguarded(not [i for i in out["readiness"].get("Alpha", []) if i["type"] == "ixl"], "G1")
 
 
 def test_silent_degradation_totals_missing_but_remaining_list_present(env):
@@ -85,8 +86,8 @@ def test_silent_degradation_totals_missing_but_remaining_list_present(env):
     child is stored with empty totals and reads as "all done"."""
     state_env, tmp_path = env
     built = build_state(state_env, tmp_path, ixl=without(load("ixl"), "totals"))
-    assert built["state"]["ixl"]["Alpha"]["totals"] == {}
-    assert "Alpha: IXL all done" in consumers(built)["quick"]
+    assert_unguarded(built["state"]["ixl"]["Alpha"]["totals"] == {}, "G2")
+    assert_unguarded("Alpha: IXL all done" in consumers(built)["quick"], "G2")
 
 
 def test_summary_text_crashes_when_totals_lack_done(env):
@@ -95,5 +96,5 @@ def test_summary_text_crashes_when_totals_lack_done(env):
     bad = mutate(load("ixl"), lambda d: d.update(
         totals={s: without(t, "done") for s, t in d["totals"].items()}))
     built = build_state(state_env, tmp_path, ixl=bad)
-    with pytest.raises(KeyError):
+    with unguarded_raises(KeyError, "G3"):
         state.summary_text(built["state"])
