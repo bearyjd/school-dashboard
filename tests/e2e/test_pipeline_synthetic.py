@@ -87,6 +87,16 @@ def test_pipeline_end_to_end(pipeline, today):
     assert body["has_data"]["Alex"] == {"ixl": True, "sgy": True, "ps": True}
     assert [c["name"] for c in body["children"]] == ["Alex", "Jack", "Jo"]
 
+    overview = client.get("/api/overview")
+    assert overview.status_code == 200
+    ov = overview.get_json()
+    missing = {}
+    for item in ov["items"]:
+        if item["source"] == "powerschool" and item["status"] == "missing":
+            missing[item["kid"]] = missing.get(item["kid"], 0) + 1
+    assert missing == {"Alex": 1}
+    assert [k["name"] for k in ov["kids"]] == ["Alex", "Jack", "Jo"]
+
     assert client.get("/api/readiness").status_code == 200
     meta = client.get("/api/sync/meta")
     assert meta.status_code == 200 and meta.get_json()["ps"]["last_result"] == "ok"
