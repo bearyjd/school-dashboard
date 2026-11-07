@@ -514,6 +514,45 @@ def api_dashboard():
         return jsonify({"error": str(e)}), 500
 
 
+def _int_arg(name: str, default: int, low: int, high: int) -> int:
+    try:
+        return min(high, max(low, int(request.args.get(name, default))))
+    except (TypeError, ValueError):
+        return default
+
+
+@app.route("/api/overview")
+def api_overview():
+    from school_dashboard import overview, overview_events, overview_items, watchdog
+    from school_dashboard.db import list_items
+
+    days = _int_arg("days", 14, 1, 60)
+    include_past = request.args.get("past") == "1"
+    now = datetime.now(timezone.utc)
+    tz = watchdog.get_tz()
+    warnings: list[str] = []
+
+    state = load_json(str(paths.state_path()))
+    if not isinstance(state, dict) or "error" in state:
+        state = {}
+        warnings.append("school state unavailable")
+    gc_data = load_json(str(paths.gc_path()))
+    if not isinstance(gc_data, dict) or "error" in gc_data:
+        gc_data = {}
+    db_file = str(paths.db_path())
+    try:
+        manual = list_items(db_file)
+    except sqlite3.Error:
+        manual = []
+        warnings.append("manual items unavailable")
+    today = overview_items.local_today(now, tz)
+    school = overview_events.school_events(db_file, today, days)
+    payload = overview.build_overview(
+        state, manual, gc_data, school, read_sync_meta(str(paths.sync_meta_path())),
+        get_roster(), now, tz, days=days, include_past_seasons=include_past)
+    return jsonify({**payload, "warnings": warnings + payload["warnings"]})
+
+
 @app.route("/api/calendar")
 def api_calendar():
     events = fetch_gcal_events(GOG_ACCOUNT)
