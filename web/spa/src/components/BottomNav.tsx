@@ -1,36 +1,47 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import './BottomNav.css'
 
-const TABS = [
-  { to: '/', label: 'Today', icon: '🏠', end: true },
-  { to: '/tonight', label: 'Lists', icon: '📋' },
-  { to: '/calendar', label: 'Calendar', icon: '📅' },
-  { to: '/chat', label: 'Chat', icon: '💬' },
-  { to: '/sync', label: 'Sync', icon: '🔄' },
-  { to: '/settings', label: 'Settings', icon: '⚙️' },
+interface Tab {
+  to: string
+  label: string
+  icon: string
+  /** Paths (and their sub-paths) that mark this tab as the current page. */
+  match: string[]
+}
+
+const TABS: Tab[] = [
+  { to: '/', label: 'Today', icon: '🏠', match: [] },
+  { to: '/tonight', label: 'Lists', icon: '📋', match: ['/tonight', '/overdue', '/missing', '/events'] },
+  { to: '/calendar', label: 'Calendar', icon: '📅', match: ['/calendar'] },
+  { to: '/chat', label: 'Chat', icon: '💬', match: ['/chat'] },
+  { to: '/sync', label: 'Sync', icon: '🔄', match: ['/sync'] },
+  { to: '/settings', label: 'Settings', icon: '⚙️', match: ['/settings'] },
 ]
 
-const LIST_PATHS = ['/tonight', '/overdue', '/missing', '/events']
+function isCurrent(tab: Tab, pathname: string): boolean {
+  if (tab.to === '/') return pathname === '/'
+  return tab.match.some(p => pathname === p || pathname.startsWith(`${p}/`))
+}
 
 /** Phone navigation; hidden from 768px up, where TopBar is used instead. */
 export function BottomNav() {
   const { pathname } = useLocation()
   return (
     <nav className="bottom-nav" aria-label="Main (phone)">
-      {TABS.map(t => (
-        <NavLink
-          key={t.to}
-          to={t.to}
-          end={t.end}
-          className={({ isActive }) => {
-            const active = isActive || (t.to === '/tonight' && LIST_PATHS.includes(pathname))
-            return `bottom-nav__tab${active ? ' bottom-nav__tab--active' : ''}`
-          }}
-        >
-          <span className="bottom-nav__icon" aria-hidden="true">{t.icon}</span>
-          <span className="bottom-nav__label">{t.label}</span>
-        </NavLink>
-      ))}
+      {TABS.map(t => {
+        const current = isCurrent(t, pathname)
+        return (
+          <Link
+            key={t.to}
+            to={t.to}
+            aria-current={current ? 'page' : undefined}
+            className={`bottom-nav__tab${current ? ' bottom-nav__tab--active' : ''}`}
+          >
+            <span className="bottom-nav__icon" aria-hidden="true">{t.icon}</span>
+            <span className="bottom-nav__label">{t.label}</span>
+          </Link>
+        )
+      })}
     </nav>
   )
 }
