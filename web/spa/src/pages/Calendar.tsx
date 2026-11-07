@@ -10,12 +10,13 @@ import { APP_TZ, eventMatchesKid, formatTime, itemMatchesKid, kidIndex, kidParse
 import { shiftWeek, todayAnchor, weekDays } from '../lib/week'
 import './Calendar.css'
 
-const MAX_WEEK_OFFSET = 52
+// /api/overview covers today + 14 days (two rolling weeks); other weeks would look empty rather than unknown.
+const MAX_WEEK_OFFSET = 1
 const WIDE_QUERY = '(min-width: 768px)'
 
 function parseWeek(raw: string | null): number {
   const n = Number(raw)
-  return raw !== null && Number.isInteger(n) && Math.abs(n) <= MAX_WEEK_OFFSET ? n : 0
+  return raw !== null && Number.isInteger(n) && n >= 0 && n <= MAX_WEEK_OFFSET ? n : 0
 }
 
 /** True on tablet/desktop widths. Without matchMedia (old webviews) the grid is assumed. */
@@ -59,7 +60,7 @@ function Day({ data, kid, date, label, isToday }: DayProps) {
             <span className="cal-entry__kind">Event{e.time && ` ${formatTime(e.time)}`}</span>
             <span className="cal-entry__title">{e.title}</span>
             <span className="cal-entry__chips">
-              {e.kids.length === 0 ? <span className="cal-entry__all">Everyone</span>
+              {e.kids.length === 0 ? <span className="cal-entry__all">{e.unassigned ? 'Unassigned' : 'Everyone'}</span>
                 : e.kids.map(k => <KidChip key={k} name={k} index={kidIndex(data, k)} />)}
             </span>
           </li>
@@ -99,7 +100,7 @@ function CalendarBody({ data, kid, setKid }: { data: Overview; kid: string; setK
       )}
       <KidFilter data={data} value={kid} onChange={setKid} />
       <div className="cal__nav">
-        <button type="button" className="btn" onClick={() => setOffset(offset - 1)} disabled={offset <= -MAX_WEEK_OFFSET}>
+        <button type="button" className="btn" onClick={() => setOffset(offset - 1)} disabled={offset <= 0}>
           <span aria-hidden="true">◀ </span>Previous week
         </button>
         <button type="button" className="btn" onClick={() => setOffset(0)} disabled={offset === 0}>This week</button>

@@ -44,7 +44,7 @@ export const FIXTURE: Overview = {
   events: [
     event({ title: 'Practice' }),
     event({ title: 'Joint game', kids: ['Alpha', 'Beta'], date: '2026-11-09' }),
-    event({ title: 'No school', kids: [], unassigned: true, date: '2026-11-10', time: '', source: 'school', type: 'holiday' }),
+    event({ title: 'No school', kids: [], date: '2026-11-10', time: '', source: 'school', type: 'holiday' }),
     event({ title: 'Later match', kids: ['Beta'], date: '2026-11-20' }),
   ],
   freshness: {

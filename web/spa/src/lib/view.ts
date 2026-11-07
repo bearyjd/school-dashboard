@@ -48,9 +48,12 @@ export function itemMatchesKid(item: OverviewItem, kid: string): boolean {
   return !kid || item.kid === kid
 }
 
-/** School-wide events (no kid) always show, even under a kid filter. */
+/**
+ * School-wide events (no kids, assigned to no team) show under every kid filter. Unassigned events (a team the
+ * roster cannot place) belong to nobody, so they show only when no kid is selected.
+ */
 export function eventMatchesKid(event: OverviewEvent, kid: string): boolean {
-  return !kid || event.kids.length === 0 || event.kids.includes(kid)
+  return !kid || (event.kids.length === 0 && !event.unassigned) || event.kids.includes(kid)
 }
 
 const DUE_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' })

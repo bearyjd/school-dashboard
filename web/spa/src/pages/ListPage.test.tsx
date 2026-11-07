@@ -222,3 +222,20 @@ test('error without data offers retry', async () => {
   renderAt(<ListPage kind="overdue" />, '/', () => ({ ok: false, body: { error: 'x' } }))
   expect(await screen.findByRole('button', { name: /retry/i })).toBeTruthy()
 })
+
+const withUnassigned: Overview = {
+  ...FIXTURE,
+  events: [...FIXTURE.events, { ...FIXTURE.events[0], title: 'Mystery team game', kids: [], unassigned: true }],
+}
+
+test('unassigned events are labelled Unassigned, not Everyone, and hidden under a kid filter', async () => {
+  await show('events', withUnassigned)
+  const row = screen.getByText('Mystery team game').closest('tr') as HTMLElement
+  expect(within(row).getByText('Unassigned')).toBeTruthy()
+  expect(within(row).queryByText('Everyone')).toBeNull()
+  const schoolRow = screen.getByText('No school').closest('tr') as HTMLElement
+  expect(within(schoolRow).getByText('Everyone')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: /Alpha/ }))
+  expect(screen.queryByText('Mystery team game')).toBeNull()
+  expect(screen.getByText('No school')).toBeTruthy()
+})

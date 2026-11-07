@@ -166,3 +166,13 @@ test('long titles use the wrapping row title and html is plain text', async () =
   expect(el.className).toContain('row__title')
   expect(document.querySelector('b')).toBeNull()
 })
+
+test('unassigned events show with no filter and are hidden under a kid filter', async () => {
+  const data = { ...FIXTURE, events: [...FIXTURE.events,
+    { ...FIXTURE.events[0], title: 'Mystery team game', kids: [], unassigned: true, date: '2026-11-08' }] }
+  const { unmount } = await show(data, '/')
+  expect(screen.getByText('Mystery team game')).toBeTruthy()
+  unmount()
+  await show(data, '/?kid=Alpha')
+  expect(screen.queryByText('Mystery team game')).toBeNull()
+})

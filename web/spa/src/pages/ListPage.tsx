@@ -275,7 +275,7 @@ function EventsTable({ data, kid, setKid }: Omit<TableProps, 'kind'>) {
               {rows.map((e, n) => (
                 <tr key={`${e.date}-${e.time}-${e.title}-${n}`}>
                   <td className="list__chips">
-                    {e.kids.length === 0 ? <span>Everyone</span>
+                    {e.kids.length === 0 ? <span>{e.unassigned ? 'Unassigned' : 'Everyone'}</span>
                       : e.kids.map(k => <KidChip key={k} name={k} index={kidIndex(data, k)} wide />)}
                   </td>
                   <td data-col="what" className="list__what">{e.title}</td>
