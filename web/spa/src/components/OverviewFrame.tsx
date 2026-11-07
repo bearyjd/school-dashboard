@@ -28,6 +28,13 @@ export function SourceBanners({ freshness }: { freshness: Record<string, Freshne
 
 /** Muted "as of" tag for rows whose source is stale or failing (failing gets its own icon). */
 export function AsOfTag({ freshness }: { freshness: Freshness }) {
+  if (freshness.paused) {
+    return (
+      <span className="as-of as-of--paused">
+        <span aria-hidden="true">{'⏸'}</span> paused, last data as of {formatAge(freshness.age_hours)}
+      </span>
+    )
+  }
   const icon = freshness.failing ? '✖' : '⚠'
   return <span className="as-of"><span aria-hidden="true">{icon}</span> as of {formatAge(freshness.age_hours)}</span>
 }
@@ -52,18 +59,26 @@ export function KidFilter({ data, value, onChange }: KidFilterProps) {
   )
 }
 
+interface PanelProps {
+  id: string
+  labelledBy: string
+}
+
 interface FrameProps {
   title: string
   query: UseQueryResult<Overview>
   children: (data: Overview) => ReactNode
+  /** Rendered under the title in every state (loading, error, data), e.g. tabs. */
+  header?: ReactNode
+  /** Wraps everything below `header` in a tabpanel; `aria-busy` while the query shows placeholder data. */
+  panel?: PanelProps
 }
 
 /** Page chrome shared by Today, the tabs and the calendar: heading, loading, error + cached age, freshness banners. */
-export function OverviewFrame({ title, query, children }: FrameProps) {
-  const { data, isError, isPending, refetch } = query
-  return (
-    <main className="screen frame">
-      <h1 className="page-title">{title}</h1>
+export function OverviewFrame({ title, query, children, header, panel }: FrameProps) {
+  const { data, isError, isPending, isPlaceholderData, refetch } = query
+  const body = (
+    <>
       {isPending && <p role="status">Loading…</p>}
       {!data && isError && (
         <div className="frame__error">
@@ -86,6 +101,23 @@ export function OverviewFrame({ title, query, children }: FrameProps) {
           {children(data)}
         </>
       )}
+    </>
+  )
+  return (
+    <main className="screen frame">
+      <h1 className="page-title">{title}</h1>
+      {header}
+      {panel ? (
+        <div
+          role="tabpanel"
+          id={panel.id}
+          aria-labelledby={panel.labelledBy}
+          aria-busy={isPlaceholderData || undefined}
+          className={isPlaceholderData ? 'frame__panel frame__panel--busy' : 'frame__panel'}
+        >
+          {body}
+        </div>
+      ) : body}
     </main>
   )
 }

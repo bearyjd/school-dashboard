@@ -2,6 +2,7 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 import { useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError, updateItem } from '../api'
+import { ERROR_MAINTENANCE, ERROR_OFFLINE } from '../api/errors'
 import type { Overview, OverviewEvent, OverviewItem, OverviewStatus } from '../api/types'
 import { Banner } from '../design/Banner'
 import { KidChip } from '../design/KidChip'
@@ -82,8 +83,8 @@ const OFFLINE_MESSAGE = "You appear to be offline. Try again when you're connect
 
 /** Server maintenance is a 503 `{error:'maintenance'}`; the service worker's offline reply is a 503 `{error:'offline'}`. */
 function checkOffError(err: unknown, title: string): string {
-  if (err instanceof ApiError && err.status === 503 && err.message === 'maintenance') return MAINTENANCE_MESSAGE
-  if (!(err instanceof ApiError) || (err.status === 503 && err.message === 'offline')) return OFFLINE_MESSAGE
+  if (err instanceof ApiError && err.status === 503 && err.message === ERROR_MAINTENANCE) return MAINTENANCE_MESSAGE
+  if (!(err instanceof ApiError) || (err.status === 503 && err.message === ERROR_OFFLINE)) return OFFLINE_MESSAGE
   return `Could not mark "${title || 'Untitled'}" done. It has been restored.`
 }
 
@@ -335,17 +336,15 @@ export function ListPage({ kind }: { kind: ListKind }) {
   const query = useOverview(past)
   const [kid, setKid] = useUrlState('kid', kidParser(query.data), '')
   return (
-    <OverviewFrame title={TITLES[kind]} query={query}>
-      {data => (
-        <>
-          <ListTabs kind={kind} />
-          <div role="tabpanel" id={`list-panel-${kind}`} aria-labelledby={`list-tab-${kind}`}>
-            {kind === 'events'
-              ? <EventsTable data={data} kid={kid} setKid={setKid} past={past} setPast={p => setPastParam(p ? '1' : '')} />
-              : <ItemsTable data={data} kind={kind} kid={kid} setKid={setKid} />}
-          </div>
-        </>
-      )}
+    <OverviewFrame
+      title={TITLES[kind]}
+      query={query}
+      header={<ListTabs kind={kind} />}
+      panel={{ id: `list-panel-${kind}`, labelledBy: `list-tab-${kind}` }}
+    >
+      {data => kind === 'events'
+        ? <EventsTable data={data} kid={kid} setKid={setKid} past={past} setPast={p => setPastParam(p ? '1' : '')} />
+        : <ItemsTable data={data} kind={kind} kid={kid} setKid={setKid} />}
     </OverviewFrame>
   )
 }

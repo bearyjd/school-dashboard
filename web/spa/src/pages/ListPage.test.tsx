@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { Overview } from '../api/types'
-import { FIXTURE, NOW, item, okOverview, renderAt, type Handler } from '../test-utils'
+import { FIXTURE, NOW, fresh, item, okOverview, renderAt, type Handler } from '../test-utils'
 import { ListPage, type ListKind } from './ListPage'
 
 beforeEach(() => vi.useFakeTimers({ toFake: ['Date'], now: NOW }))
@@ -315,4 +315,48 @@ test('other lists ignore ?past=1', async () => {
   const { fetchMock } = await show('overdue', FIXTURE, '/overdue?past=1')
   expect(overviewUrls(fetchMock)).toEqual(['/api/overview'])
   expect(screen.queryByRole('checkbox', { name: /show past seasons/i })).toBeNull()
+})
+
+test('tabs stay available when the overview fails to load', async () => {
+  renderAt(<ListPage kind="overdue" />, '/overdue?kid=Beta', () => ({ ok: false, status: 500, body: { error: 'boom' } }))
+  await screen.findByText(/Could not load the latest data/)
+  expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(['Tonight', 'Overdue', 'Missing', 'Events'])
+  fireEvent.click(screen.getByRole('tab', { name: 'Events' }))
+  expect(screen.getByTestId('where').textContent).toBe('/events?kid=Beta')
+})
+
+test('tabs are present while loading', () => {
+  renderAt(<ListPage kind="overdue" />, '/overdue', () => new Promise<never>(() => {}))
+  expect(screen.getAllByRole('tab')).toHaveLength(4)
+  expect(screen.getByRole('status').textContent).toMatch(/Loading/)
+})
+
+test('only the active tab points at a panel, and that panel exists', async () => {
+  await show('overdue')
+  const tabs = screen.getAllByRole('tab')
+  expect(tabs.filter(t => t.hasAttribute('aria-controls'))).toHaveLength(1)
+  const active = screen.getByRole('tab', { name: 'Overdue' })
+  expect(document.getElementById(active.getAttribute('aria-controls') as string)).toBe(screen.getByRole('tabpanel'))
+})
+
+test('rows of a paused source carry a muted paused tag with the age of the last data', async () => {
+  const data: Overview = { ...FIXTURE, freshness: { ...FIXTURE.freshness, ixl: fresh({ paused: true, age_hours: 50 }) } }
+  await show('tonight', data)
+  const row = screen.getByText('IXL: 3 remaining').closest('tr') as HTMLElement
+  expect(row.textContent).toMatch(/paused, last data as of 2d 2h ago/)
+  expect(within(screen.getByText('Read chapter').closest('tr') as HTMLElement).queryByText(/paused/)).toBeNull()
+})
+
+test('the table is marked busy while the past-seasons request loads', async () => {
+  let release: (r: { ok: boolean; body: unknown }) => void = () => {}
+  const handler: Handler = url => url.includes('past=1')
+    ? new Promise(res => { release = res })
+    : { ok: true, body: FIXTURE }
+  await show('events', FIXTURE, '/events', handler)
+  const panel = screen.getByRole('tabpanel')
+  expect(panel.getAttribute('aria-busy')).toBeNull()
+  fireEvent.click(screen.getByRole('checkbox', { name: /show past seasons/i }))
+  await waitFor(() => expect(screen.getByRole('tabpanel').getAttribute('aria-busy')).toBe('true'))
+  release({ ok: true, body: FIXTURE })
+  await waitFor(() => expect(screen.getByRole('tabpanel').getAttribute('aria-busy')).toBeNull())
 })

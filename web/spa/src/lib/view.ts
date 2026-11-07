@@ -29,7 +29,9 @@ export function freshnessKey(source: OverviewSource): string | null {
 export function itemFreshness(item: OverviewItem, freshness: Record<string, Freshness>): Freshness | null {
   const key = freshnessKey(item.source)
   const f = key ? freshness[key] : undefined
-  return f && (f.stale || f.failing) ? f : null
+  // A paused source keeps its cached rows, so they say how old the data is (muted; no banner, see problemSources).
+  // A never_ok source has no rows to tag, so it only gets the banner.
+  return f && (f.stale || f.failing || (f.paused && f.age_hours !== null)) ? f : null
 }
 
 export function problemSources(freshness: Record<string, Freshness>): [string, Freshness][] {

@@ -7,11 +7,11 @@ import { StatusBadge } from '../design/StatusBadge'
 import { useOverview } from '../lib/overview'
 import { useUrlState } from '../lib/urlState'
 import { APP_TZ, eventMatchesKid, formatTime, itemMatchesKid, kidIndex, kidParser } from '../lib/view'
-import { shiftWeek, todayAnchor, weekDays } from '../lib/week'
+import { DATA_WINDOW_DAYS, shiftWeek, todayAnchor, weekDays } from '../lib/week'
 import './Calendar.css'
 
-// /api/overview covers today + 14 days (two rolling weeks); other weeks would look empty rather than unknown.
-const MAX_WEEK_OFFSET = 1
+// Weeks beyond the data window would look empty rather than unknown.
+export const MAX_WEEK_OFFSET = DATA_WINDOW_DAYS / 7 - 1
 const WIDE_QUERY = '(min-width: 768px)'
 
 function parseWeek(raw: string | null): number {

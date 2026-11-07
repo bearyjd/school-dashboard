@@ -1,7 +1,8 @@
 import { fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { FIXTURE, NOW, okOverview, renderAt } from '../test-utils'
-import { Calendar } from './Calendar'
+import { DATA_WINDOW_DAYS } from '../lib/week'
+import { Calendar, MAX_WEEK_OFFSET } from './Calendar'
 
 beforeEach(() => vi.useFakeTimers({ toFake: ['Date'], now: NOW }))
 afterEach(() => {
@@ -127,4 +128,8 @@ test('unassigned events are labelled Unassigned and hidden under a kid filter', 
   renderAt(<Calendar />, '/calendar?kid=Alpha', okOverview(data))
   await screen.findByRole('region', { name: /Sat, Nov 7/ })
   expect(screen.queryByText('Mystery team game')).toBeNull()
+})
+
+test('the week limit is derived from the 14-day data window', () => {
+  expect(MAX_WEEK_OFFSET).toBe(DATA_WINDOW_DAYS / 7 - 1)
 })

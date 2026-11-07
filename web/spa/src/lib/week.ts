@@ -1,3 +1,5 @@
+/** Days of events /api/overview returns (today plus 13), i.e. the server's default `days`. */
+export const DATA_WINDOW_DAYS = 14
 const ROLLOVER_HOUR = 4
 const DAY_MS = 86_400_000
 
