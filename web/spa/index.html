@@ -8,6 +8,20 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="/app/manifest.json" />
     <title>School Dashboard</title>
+    <script>
+      // Set the theme before first paint (keep in step with src/design/theme.ts).
+      (function () {
+        var t = 'midnight';
+        try {
+          var s = localStorage.getItem('school-theme');
+          if (s === 'midnight' || s === 'daylight' || s === 'system') t = s;
+        } catch (e) {}
+        if (t === 'system') {
+          t = !window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches ? 'midnight' : 'daylight';
+        }
+        document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
