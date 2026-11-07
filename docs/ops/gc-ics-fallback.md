@@ -67,6 +67,12 @@ an ntfy "School: GameChanger login is failing" at most once per 24 h (state in
 `gc-fallback-alert.json` in the state dir; needs `NTFY_TOPIC`). A failed send
 never fails the scrape, and `sync_meta` still records `ok`.
 
+If the feed config exists but cannot be used (bad permissions/owner, malformed
+JSON), the log shows `WARN: calendar feeds disabled: <reason>` and a separate
+"School: calendar feed config problem" ntfy is sent (also max once per 24 h,
+state in `gc-feed-config-alert.json`). Each feed fetch is also capped by
+`timeout ${GC_ICS_TIMEOUT:-90}` in `gc-scrape.sh` (exit 124 is logged as timed out).
+
 Limits: feeds carry no opponent or home/away fields. Opponent is parsed from
 `vs` / `@` in the title, otherwise the title is used; times are converted from
 UTC to America/New_York.

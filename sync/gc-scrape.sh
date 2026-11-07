@@ -64,12 +64,30 @@ log "Starting gc scrape"
 
 # --- Step 0: Teams that have a calendar-feed (ICS) fallback configured ---
 # Ids only (never URLs/tokens). Missing or unreadable config => no fallbacks.
+# A config that exists but cannot be used (bad perms/owner/JSON) exits 3: log a clean
+# reason and alert (rate-limited), so failing teams are not silently dropped.
+FEED_CONFIG_RC=0
 python3 -c "
 import sys
 from school_dashboard import gc_ics
-for tid in gc_ics.load_feeds():
+try:
+    ids = list(gc_ics.load_feeds())
+except gc_ics.ICSError as exc:
+    print('WARN: calendar feeds disabled: ' + str(exc), file=sys.stderr)
+    sys.exit(3)
+for tid in ids:
     print(tid)
-" > "$WORK/feed-ids.txt" 2>>"$LOGFILE" || : > "$WORK/feed-ids.txt"
+" > "$WORK/feed-ids.txt" 2>>"$LOGFILE" || FEED_CONFIG_RC=$?
+if [[ "$FEED_CONFIG_RC" -ne 0 ]]; then
+    : > "$WORK/feed-ids.txt"
+    if [[ "$FEED_CONFIG_RC" -eq 3 ]]; then
+        school-state gc-fallback-alert --config-problem 2>>"$LOGFILE" \
+            || log "WARN: calendar feed config alert command failed"
+    fi
+fi
+# Per-feed fetch cap (the Python deadline is the first line of defence; this is the backstop).
+ICS_TIMEOUT_CMD=()
+command -v timeout &>/dev/null && ICS_TIMEOUT_CMD=(timeout "${GC_ICS_TIMEOUT:-90}")
 has_feed() { grep -Fxq -- "$1" "$WORK/feed-ids.txt"; }
 
 # --- Step 1: Fetch team list ---
@@ -166,8 +184,15 @@ except (OSError, ValueError, AttributeError):
     fi
 
     if [[ -n "$REASON" ]]; then
-        if has_feed "$TEAM_ID" \
-            && school-state gc-ics --team-id "$TEAM_ID" > "$WORK/ics-$N.json" 2>>"$LOGFILE"; then
+        ICS_RC=1
+        if has_feed "$TEAM_ID"; then
+            ICS_RC=0
+            "${ICS_TIMEOUT_CMD[@]}" school-state gc-ics --team-id "$TEAM_ID" > "$WORK/ics-$N.json" 2>>"$LOGFILE" \
+                || ICS_RC=$?
+            [[ "$ICS_RC" -eq 124 ]] && log "WARN: calendar feed for team ${TEAM_ID:0:8} timed out"
+            [[ "$ICS_RC" -ne 0 ]] && log "WARN: calendar feed unusable for team ${TEAM_ID:0:8} (rc=$ICS_RC)"
+        fi
+        if [[ "$ICS_RC" -eq 0 ]]; then
             ICS_EVENTS=$(python3 -c "
 import json, sys
 with open(sys.argv[1]) as f:
@@ -187,7 +212,7 @@ with open(sys.argv[1]) as f:
             fi
         fi
         if [[ "$SOURCE" == api && "$REASON" == failed ]]; then
-            log "WARN: gc summary failed for team $TEAM_ID — skipping"
+            log "WARN: gc summary failed for team ${TEAM_ID:0:8} and no usable calendar feed — skipping"
             continue
         fi
     fi

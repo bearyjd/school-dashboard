@@ -54,6 +54,32 @@ def test_no_topic_no_send(tmp_path, send, calls, monkeypatch):
     assert calls == []
 
 
+@pytest.mark.parametrize("stamp", ["2026-11-01T00:00:00", "2099-01-01T00:00:00+00:00", "garbage", 5])
+def test_bad_last_sent_treated_as_absent(tmp_path, send, calls, monkeypatch, stamp):
+    monkeypatch.setenv("NTFY_TOPIC", "faketopic")
+    p = tmp_path / "a.json"
+    p.write_text(json.dumps({"last_sent": stamp}))
+    assert fa.maybe_alert(1, 1, now=NOW, send=send, path=p) is True
+    assert len(calls) == 1
+
+
+def test_never_raises_even_if_state_dir_unwritable(tmp_path, send, monkeypatch):
+    monkeypatch.setenv("NTFY_TOPIC", "faketopic")
+    blocker = tmp_path / "file"
+    blocker.write_text("x")
+    assert fa.maybe_alert(1, 1, now=NOW, send=send, path=blocker / "sub" / "a.json") is False
+
+
+def test_config_alert_own_title_state_and_limit(tmp_path, send, calls, monkeypatch):
+    monkeypatch.setenv("NTFY_TOPIC", "faketopic")
+    cfg, main = tmp_path / "cfg.json", tmp_path / "main.json"
+    assert fa.maybe_config_alert(now=NOW, send=send, path=cfg) is True
+    assert calls[0][1:] == ("The calendar feed file could not be read (check its permissions).",
+                            "School: calendar feed config problem")
+    assert fa.maybe_config_alert(now=NOW + timedelta(hours=1), send=send, path=cfg) is False
+    assert fa.maybe_alert(1, 1, now=NOW + timedelta(hours=1), send=send, path=main) is True
+
+
 def test_state_file_private_json(tmp_path, send, monkeypatch):
     monkeypatch.setenv("NTFY_TOPIC", "faketopic")
     p = tmp_path / "a.json"

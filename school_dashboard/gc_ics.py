@@ -18,7 +18,7 @@ from urllib.parse import parse_qs
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
-from urllib3.exceptions import LocationParseError
+from urllib3.exceptions import HTTPError, LocationParseError
 from urllib3.util import parse_url
 
 from school_dashboard.powerschool import _clean_text
@@ -107,6 +107,20 @@ def validate_url(team_id: str, url: str) -> str:
     return prepared
 
 
+def _read_chunks(resp: requests.Response):
+    """Yield body chunks as they arrive, so the caller's deadline is checked per recv.
+
+    A plain read(n) blocks until n bytes arrive, which lets a slow-drip server
+    stall past the deadline; read1 returns after a single socket read.
+    """
+    raw = getattr(resp, "raw", None)
+    if hasattr(raw, "read1"):
+        while chunk := raw.read1(1024, decode_content=True):
+            yield chunk
+    else:
+        yield from resp.iter_content(chunk_size=1024)
+
+
 def fetch_ics(team_id: str, url: str) -> str:
     safe_url = validate_url(team_id, url)
     tag = team_id[:8]
@@ -119,7 +133,7 @@ def fetch_ics(team_id: str, url: str) -> str:
                 raise ICSError(f"feed fetch for team {tag} failed: HTTP {resp.status_code}")
             chunks: list[bytes] = []
             size = 0
-            for chunk in resp.iter_content(chunk_size=65536):
+            for chunk in _read_chunks(resp):
                 if time.monotonic() > deadline:
                     raise ICSError(f"feed fetch for team {tag} exceeded its deadline")
                 size += len(chunk)
@@ -130,7 +144,7 @@ def fetch_ics(team_id: str, url: str) -> str:
             resp.close()
     except ICSError:
         raise
-    except requests.RequestException as exc:
+    except (requests.RequestException, HTTPError) as exc:
         # str(exc) may embed the URL; report the class name only.
         raise ICSError(f"feed fetch for team {tag} failed: {type(exc).__name__}") from None
     return b"".join(chunks).decode("utf-8", errors="replace")

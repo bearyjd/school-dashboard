@@ -269,7 +269,10 @@ def cmd_gc_ics(args: argparse.Namespace) -> None:
 
 def cmd_gc_fallback_alert(args: argparse.Namespace) -> None:
     """Send the rate-limited 'GameChanger login is failing' alert; never fails the caller."""
-    gc_fallback_alert.maybe_alert(args.ics_teams, args.total)
+    if args.config_problem:
+        gc_fallback_alert.maybe_config_alert()
+    else:
+        gc_fallback_alert.maybe_alert(args.ics_teams, args.total)
 
 
 def main() -> None:
@@ -346,8 +349,9 @@ def main() -> None:
     p_ics.set_defaults(func=cmd_gc_ics)
 
     p_gfa = subs.add_parser("gc-fallback-alert", help="Alert (max 1/24h) when GC schedules come from calendar feeds")
-    p_gfa.add_argument("--ics-teams", type=int, required=True, help="Teams served from the calendar feed")
-    p_gfa.add_argument("--total", type=int, required=True, help="Teams written")
+    p_gfa.add_argument("--ics-teams", type=int, default=0, help="Teams served from the calendar feed")
+    p_gfa.add_argument("--total", type=int, default=0, help="Teams written")
+    p_gfa.add_argument("--config-problem", action="store_true", help="Alert that the feed config is unreadable")
     p_gfa.set_defaults(func=cmd_gc_fallback_alert)
 
     transition.add_parser(subs)

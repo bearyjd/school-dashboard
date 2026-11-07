@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -411,3 +411,37 @@ def test_missing_timezone_data_is_clear_error(monkeypatch):
 def test_more_dst_days(utc, local):
     evs, _ = gc_ics.parse_ics(ics(vevent(f":{utc}")))
     assert (evs[0]["date"], evs[0]["time"]) == local
+
+
+def test_slow_drip_server_cut_off_by_deadline(monkeypatch):
+    import time
+
+    class Drip(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/calendar")
+            self.end_headers()
+            try:
+                for _ in range(100):
+                    self.wfile.write(b"x")
+                    self.wfile.flush()
+                    time.sleep(0.3)
+            except OSError:
+                pass
+
+        def log_message(self, *a):
+            pass
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), Drip)
+    srv.daemon_threads = True
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    monkeypatch.setenv("GC_ICS_ALLOWED_HOSTS", "127.0.0.1")
+    monkeypatch.setattr(gc_ics, "FETCH_DEADLINE", 2)
+    url = f"http://127.0.0.1:{srv.server_port}/f.ics?teamId={TEAM}&token={FAKE_TOKEN}"
+    start = time.monotonic()
+    try:
+        with pytest.raises(gc_ics.ICSError, match="deadline"):
+            gc_ics.fetch_ics(TEAM, url)
+    finally:
+        srv.shutdown()
+    assert time.monotonic() - start < 6  # 2s deadline; the 1-byte/0.3s drip would otherwise run ~30s

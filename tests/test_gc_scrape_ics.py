@@ -5,7 +5,8 @@ import site
 import subprocess
 import sys
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -203,3 +204,52 @@ def test_empty_feeds_do_not_blame_auth(tmp_path, server, monkeypatch):
     assert r.returncode == 1
     log = _log(state, r)
     assert "API unavailable and calendar feeds empty" in log and "likely auth failure" not in log
+
+
+def test_bad_perms_config_warns_alerts_and_skips_failed_team(tmp_path, server):
+    env, state = _setup(tmp_path, server, teams=["tA", "tB"], summaries={"tA": "fail"}, feeds=["tA"])
+    Path(env["GC_ICS_FEEDS"]).chmod(0o644)
+    r = _run(env)
+    assert r.returncode == 0, r.stderr
+    assert set(_by_team(state)) == {"tB"}
+    log = _log(state, r)
+    assert "WARN: calendar feeds disabled:" in log and "chmod 600" in log
+    assert "gc summary failed for team tA and no usable calendar feed" in log
+    assert _alerts(tmp_path) == ["gc-fallback-alert --config-problem"]
+
+
+def test_malformed_config_also_alerts(tmp_path, server):
+    env, state = _setup(tmp_path, server, teams=["tA", "tB"], summaries={"tA": "fail"}, feeds=["tA"])
+    Path(env["GC_ICS_FEEDS"]).write_text("{nope")
+    assert _run(env).returncode == 0
+    assert _alerts(tmp_path) == ["gc-fallback-alert --config-problem"]
+
+
+def test_absent_config_is_not_an_alert(tmp_path, server):
+    env, state = _setup(tmp_path, server, teams=["tA", "tB"], summaries={"tA": "fail"}, feeds=["tA"])
+    Path(env["GC_ICS_FEEDS"]).unlink()
+    assert _run(env).returncode == 0
+    assert _alerts(tmp_path) == []
+
+
+def test_hung_feed_is_killed_by_shell_timeout(tmp_path):
+    class Hang(BaseHTTPRequestHandler):
+        def do_GET(self):
+            time.sleep(30)
+
+        def log_message(self, *a):
+            pass
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), Hang)
+    srv.daemon_threads = True
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        env, state = _setup(tmp_path, srv.server_port, teams=["tA", "tB"],
+                            summaries={"tA": "fail"}, feeds=["tA"])
+        env["GC_ICS_TIMEOUT"] = "1"
+        r = _run(env)  # server stalls 30s; python's own read timeout is 20s, so only `timeout` can fire
+    finally:
+        srv.shutdown()
+    assert r.returncode == 0
+    assert set(_by_team(state)) == {"tB"}
+    assert "calendar feed for team tA timed out" in _log(state, r)
