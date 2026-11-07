@@ -63,6 +63,9 @@ def _clean_text(value: object) -> Optional[str]:
     return flat[:MAX_FIELD_CHARS]
 
 
+clean_text = _clean_text  # public name for other modules
+
+
 def clean_assignments(items: object) -> list:
     """New list of sanitised assignment dicts (max 30); non-list input / non-dict entries dropped."""
     if not isinstance(items, list):

@@ -82,6 +82,11 @@ def _hours(delta: timedelta) -> float:
     return round(delta.total_seconds() / 3600, 1)
 
 
+# Public names for other modules; the underscore names stay for existing callers.
+parse_ts = _parse
+hours = _hours
+
+
 def _stale(source: str, ok: datetime, now: datetime, tz: tzinfo,
            grace: timedelta) -> Optional[Problem]:
     expected = expected_sync(now, tz)

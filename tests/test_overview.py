@@ -63,3 +63,17 @@ def test_events_merged_and_windowed():
     out = _build(gc=gc, school=school)
     assert [e["date"] for e in out["events"]] == ["2026-11-08", "2026-11-09"]
     assert [e["date"] for e in _build(gc=gc, days=1)["events"]] == []
+
+
+def test_freshness_exposes_issue():
+    meta = {"powerschool": {"last_run": _iso(30), "last_ok": _iso(30), "last_result": "ok"},
+            "ixl": {"last_run": _iso(1), "last_ok": _iso(1), "last_result": "ok"}}
+    fr = _build(meta=meta)["freshness"]
+    assert fr["powerschool"]["issue"] == "stale"
+    assert fr["ixl"]["issue"] is None
+
+
+def test_exactly_500_missing_does_not_warn():
+    state = {"powerschool": {"Alpha": {"missing": [
+        {"title": f"m{i}", "due": "2026-10-01"} for i in range(500)]}}}
+    assert _build(state)["warnings"] == []

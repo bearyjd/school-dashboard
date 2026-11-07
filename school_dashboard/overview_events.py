@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Optional
 
 from school_dashboard.overview_items import parse_date
-from school_dashboard.powerschool import _clean_text
+from school_dashboard.powerschool import clean_text
 
 _log = logging.getLogger(__name__)
 
@@ -23,19 +24,43 @@ def split_kids(label: str, roster: list[str]) -> list[str]:
     return list(dict.fromkeys(found))
 
 
+_TIME = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*([AaPp])?\.?[Mm]?\.?\s*$")
+
+
+def normalize_time(value: object) -> str:
+    """'9:00 AM' / '15:00' -> 'HH:MM'; unparseable or empty input gives ''."""
+    match = _TIME.match(value) if isinstance(value, str) else None
+    if not match:
+        return ""
+    hour, minute, meridiem = int(match.group(1)), int(match.group(2)), match.group(3)
+    if meridiem:
+        if not 1 <= hour <= 12:
+            return ""
+        hour = hour % 12 + (12 if meridiem.lower() == "p" else 0)
+    if hour > 23 or minute > 59:
+        return ""
+    return f"{hour:02d}:{minute:02d}"
+
+
+def event_sort_key(event: dict) -> tuple:
+    """Date, then time of day; events without a parseable time sort last."""
+    return (event["date"], event["time"] or "99:99")
+
+
 def _gc_event(evt: dict, evt_date: date, kids: list[str], team: dict, source: str) -> dict:
-    opponent = _clean_text(evt.get("opponent")) or ""
-    kind = _clean_text(evt.get("type")) or ""
+    opponent = clean_text(evt.get("opponent")) or ""
+    kind = clean_text(evt.get("type")) or ""
     return {
         "kids": kids,
+        "unassigned": not kids,  # team matches no roster kid (not a school-wide event)
         "title": (f"vs {opponent}" if opponent else kind or "Event")[:160],
         "date": evt_date.isoformat(),
-        "time": _clean_text(evt.get("time")) or "",
+        "time": normalize_time(evt.get("time")),
         "type": kind,
-        "location": _clean_text(evt.get("location")) or "",
+        "location": clean_text(evt.get("location")) or "",
         "source": "gc",
         "scheduleSource": source,
-        "team": _clean_text(team.get("team_name")) or None,
+        "team": clean_text(team.get("team_name")) or None,
     }
 
 
@@ -71,7 +96,7 @@ def gc_events(gc_data: dict, roster: list[str], today: date, days: int, *,
         kids = split_kids(team.get("child") or team.get("team_name") or "", roster)
         source = "ics" if team.get("schedule_source") == "ics" else "api"
         out.extend(_gc_event(e, d, kids, team, source) for e, d in events)
-    return sorted(out, key=lambda e: (e["date"], e["time"]))
+    return sorted(out, key=event_sort_key)
 
 
 def school_events(db_path: str, today: date, days: int) -> list[dict]:
@@ -98,11 +123,12 @@ def school_events(db_path: str, today: date, days: int) -> list[dict]:
         if evt_date is None:
             continue
         out.append({
-            "kids": [_clean_text(child)] if _clean_text(child) else [],
-            "title": _clean_text(title) or "Event",
+            "kids": [clean_text(child)] if clean_text(child) else [],
+            "unassigned": False,
+            "title": clean_text(title) or "Event",
             "date": evt_date.isoformat(),
             "time": "",
-            "type": _clean_text(kind) or "",
+            "type": clean_text(kind) or "",
             "location": "",
             "source": "school",
             "scheduleSource": None,

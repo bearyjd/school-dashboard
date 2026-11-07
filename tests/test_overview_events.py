@@ -94,3 +94,26 @@ def test_bad_event_rows_skipped():
     assert all(len(e["title"]) <= 160 for e in out)
     assert gc_events({}, ROSTER, TODAY, 14) == []
     assert gc_events({"teams": "bad"}, ROSTER, TODAY, 14) == []
+
+
+def test_unassigned_team_distinct_from_school_wide(tmp_path):
+    gc = {"teams": [_team("St. Mark Lions", [_evt("2026-11-07")]),
+                    _team("Penn", [_evt("2026-11-08")])]}
+    out = gc_events(gc, ROSTER, TODAY, 14)
+    assert [(e["kids"], e["unassigned"]) for e in out] == [([], True), (["Penn"], False)]
+    db = tmp_path / "s.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE events (id INTEGER PRIMARY KEY, date TEXT, title TEXT, type TEXT,"
+                 " child TEXT, source TEXT)")
+    conn.execute("INSERT INTO events (date,title,type,child,source) VALUES"
+                 " ('2026-11-12','No School','HOLIDAY',NULL,'x')")
+    conn.commit()
+    conn.close()
+    assert school_events(str(db), TODAY, 14)[0]["unassigned"] is False
+
+
+def test_events_sorted_by_parsed_time():
+    gc = {"teams": [_team("Penn", [_evt("2026-11-07", "10:00 AM"), _evt("2026-11-07", "9:00 AM"),
+                                   _evt("2026-11-07", "1:30 PM"), _evt("2026-11-07", "")])]}
+    out = gc_events(gc, ROSTER, TODAY, 14)
+    assert [e["time"] for e in out] == ["09:00", "10:00", "13:30", ""]

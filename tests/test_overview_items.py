@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo
 
 from school_dashboard.overview_items import (
     build_items,
+    build_items_report,
     classify,
     local_today,
     next_school_day,
@@ -108,3 +109,55 @@ def test_caps_at_500():
         {"title": f"m{i}", "due": "2026-10-01"} for i in range(600)]}}}
     rows = build_items(state, [], today, KIDS)
     assert len([r for r in rows if r["status"] == "missing"]) == 500
+
+
+def test_powerschool_upcoming_past_due_is_never_overdue():
+    today = date(2026, 11, 6)
+    state = {"powerschool": {"Alpha": {"upcoming": [
+        {"title": "Yesterday", "due": "2026-11-05"}, {"title": "Soon", "due": "2026-11-09"}]}}}
+    rows = build_items(state, [], today, KIDS)
+    assert [(r["title"], r["status"]) for r in rows] == [("Soon", "tonight")]
+
+
+def _missing(n):
+    return {"powerschool": {"Alpha": {"missing": [
+        {"title": f"m{i}", "due": f"2026-09-{(i % 28) + 1:02d}"} for i in range(n)]}}}
+
+
+def test_dropped_counts_exact_500_vs_501():
+    today = date(2026, 11, 6)
+    _, dropped = build_items_report(_missing(500), [], today, KIDS)
+    assert dropped == {"overdue": 0, "missing": 0}
+    rows, dropped = build_items_report(_missing(501), [], today, KIDS)
+    assert dropped["missing"] == 1 and len(rows) == 500
+
+
+def test_cap_keeps_most_urgent_rows():
+    today = date(2026, 11, 6)
+    state = {"powerschool": {"Alpha": {"missing": (
+        [{"title": f"new{i}", "due": "2026-11-05"} for i in range(500)]
+        + [{"title": "oldest", "due": "2026-01-01"}])}}}
+    rows = build_items(state, [], today, KIDS)
+    assert len(rows) == 500
+    assert "oldest" in [r["title"] for r in rows]
+
+
+def test_url_scheme_allowlist():
+    today = date(2026, 11, 6)
+    state = {"schoology": {"Alpha": {"assignments": [
+        {"title": "a", "due_date": "2026-11-09", "link": "javascript:alert(1)"},
+        {"title": "b", "due_date": "2026-11-09", "link": "https://example.test/x"},
+        {"title": "c", "due_date": "2026-11-09", "link": "data:text/html,hi"}]}}}
+    urls = {r["title"]: r["url"] for r in build_items(state, [], today, KIDS)}
+    assert urls == {"a": "", "b": "https://example.test/x", "c": ""}
+
+
+def test_item_ids_stable_across_list_order():
+    today = date(2026, 11, 6)
+    a = {"title": "A", "due_date": "2026-11-09"}
+    b = {"title": "B", "due_date": "2026-11-09"}
+    one = {r["title"]: r["id"] for r in build_items(
+        {"schoology": {"Alpha": {"assignments": [a, b]}}}, [], today, KIDS)}
+    two = {r["title"]: r["id"] for r in build_items(
+        {"schoology": {"Alpha": {"assignments": [b, a]}}}, [], today, KIDS)}
+    assert one == two and one["A"] != one["B"]
