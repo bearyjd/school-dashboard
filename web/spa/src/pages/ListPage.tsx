@@ -1,7 +1,7 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, type ReactNode } from 'react'
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { updateItem } from '../api'
+import { ApiError, updateItem } from '../api'
 import type { Overview, OverviewEvent, OverviewItem, OverviewStatus } from '../api/types'
 import { Banner } from '../design/Banner'
 import { KidChip } from '../design/KidChip'
@@ -29,15 +29,13 @@ const KIND_STATUSES: Record<Exclude<ListKind, 'events'>, OverviewStatus[]> = {
 
 type SortKey = 'kid' | 'title' | 'course' | 'due' | 'source' | 'type'
 type SortDir = 'asc' | 'desc'
-const SORT_KEYS: SortKey[] = ['kid', 'title', 'course', 'due', 'source', 'type']
+const ITEM_SORTS: SortKey[] = ['kid', 'title', 'course', 'due', 'source']
+const EVENT_SORTS: SortKey[] = ['kid', 'title', 'due', 'type', 'source']
 
-/** One URL param: `kid` ascending, `-kid` descending. Anything unknown is the default, `due`. */
-const parseSort = (raw: string | null): string => {
-  const key = raw?.replace(/^-/, '') as SortKey
-  return SORT_KEYS.includes(key) ? raw! : 'due'
-}
-
-function useSort(): { sort: SortKey; dir: SortDir; onSort: (col: SortKey) => void } {
+/** One URL param: `kid` ascending, `-kid` descending. A key this table has no column for is the default, `due`. */
+function useSort(allowed: SortKey[]): { sort: SortKey; dir: SortDir; onSort: (col: SortKey) => void } {
+  const parseSort = (raw: string | null): string =>
+    raw !== null && allowed.includes(raw.replace(/^-/, '') as SortKey) ? raw : 'due'
   const [raw, setRaw] = useUrlState('sort', parseSort, 'due')
   const sort = raw.replace(/^-/, '') as SortKey
   const dir: SortDir = raw.startsWith('-') ? 'desc' : 'asc'
@@ -78,27 +76,36 @@ function SortHead({ col, label, sort, dir, onSort }: SortHeadProps) {
   )
 }
 
-function useCheckOff(setError: (msg: string) => void) {
+const MAINTENANCE_MESSAGE = 'Updates are paused for maintenance. Try again later.'
+
+/** Set one row's status in the cached overview; other rows (and other in-flight check-offs) are untouched. */
+function setRowStatus(client: QueryClient, id: string, status: OverviewStatus) {
+  client.setQueryData<Overview>(OVERVIEW_KEY, old =>
+    old && { ...old, items: old.items.map(i => (i.id === id ? { ...i, status } : i)) })
+}
+
+interface CheckOffMessages {
+  setError: (msg: string) => void
+  setAnnounce: (msg: string) => void
+}
+
+function useCheckOff({ setError, setAnnounce }: CheckOffMessages) {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (row: OverviewItem) => updateItem(row.itemId as number, { completed: true }),
     onMutate: async (row: OverviewItem) => {
       setError('')
       await client.cancelQueries({ queryKey: OVERVIEW_KEY })
-      const snapshot = client.getQueryData<Overview>(OVERVIEW_KEY)
-      if (snapshot) {
-        client.setQueryData<Overview>(OVERVIEW_KEY, {
-          ...snapshot,
-          items: snapshot.items.map(i => (i.id === row.id ? { ...i, status: 'done' as const } : i)),
-        })
-      }
-      return { snapshot }
+      setRowStatus(client, row.id, 'done')
     },
-    onError: (_err, row, ctx) => {
-      if (ctx?.snapshot) client.setQueryData(OVERVIEW_KEY, ctx.snapshot)
-      setError(`Could not mark "${row.title || 'Untitled'}" done. It has been restored.`)
+    onError: (err, row) => {
+      setRowStatus(client, row.id, row.status) // only the failed row comes back
+      setError(err instanceof ApiError && err.status === 503
+        ? MAINTENANCE_MESSAGE
+        : `Could not mark "${row.title || 'Untitled'}" done. It has been restored.`)
     },
-    onSuccess: () => client.invalidateQueries({ queryKey: OVERVIEW_KEY }),
+    onSuccess: (_data, row) => setAnnounce(`Marked ${row.title || 'Untitled'} done`),
+    onSettled: () => client.invalidateQueries({ queryKey: OVERVIEW_KEY }),
   })
 }
 
@@ -138,10 +145,12 @@ interface TableProps {
 function ItemsTable({ data, kind, kid, setKid }: TableProps) {
   const [source, setSource] = useUrlState('source', raw => raw ?? '', '')
   const [show, setShow] = useUrlState('show', raw => (raw === 'late' || raw === 'missing' ? raw : 'all'), 'all')
-  const head = useSort()
+  const head = useSort(ITEM_SORTS)
   const { sort, dir } = head
   const [error, setError] = useState('')
-  const checkOff = useCheckOff(setError)
+  const [announce, setAnnounce] = useState('')
+  const tableRef = useRef<HTMLTableElement>(null)
+  const checkOff = useCheckOff({ setError, setAnnounce })
 
   const ofKind = data.items.filter(i => KIND_STATUSES[kind].includes(i.status))
   const sources = [...new Set(ofKind.map(i => i.source))].sort()
@@ -154,8 +163,19 @@ function ItemsTable({ data, kind, kid, setKid }: TableProps) {
   )
   const canCheck = (i: OverviewItem) => !i.readonly && i.itemId !== undefined
   const anyCheck = rows.some(canCheck)
+  /** Check a row off, then (once the server agrees) focus the next checkbox, or the table if there is none. */
+  const check = (row: OverviewItem) => {
+    const next = rows.slice(rows.indexOf(row) + 1).find(canCheck)
+    checkOff.mutate(row, {
+      onSuccess: () => {
+        const box = next && document.querySelector<HTMLInputElement>(`input[data-item-id="${CSS.escape(next.id)}"]`)
+        ;(box || tableRef.current || document.getElementById('main'))?.focus()
+      },
+    })
+  }
   return (
     <>
+      <div role="status" className="sr-only">{announce}</div>
       <FilterBar
         data={data} kid={kid} setKid={setKid} sources={sources} source={source} setSource={setSource}
         extra={kind === 'missing' && (
@@ -172,7 +192,7 @@ function ItemsTable({ data, kind, kid, setKid }: TableProps) {
       {error && <Banner tone="error">{error}</Banner>}
       {rows.length === 0 ? <p className="list__empty">Nothing here.</p> : (
         <div className="table-scroll">
-          <table className="list__table" aria-label={TITLES[kind]}>
+          <table ref={tableRef} tabIndex={-1} className="list__table" aria-label={TITLES[kind]}>
             <thead>
               <tr>
                 {anyCheck && <th scope="col"><span className="sr-only">Done</span></th>}
@@ -195,8 +215,9 @@ function ItemsTable({ data, kind, kid, setKid }: TableProps) {
                             type="checkbox"
                             className="list__check"
                             checked={false}
+                            data-item-id={i.id}
                             aria-label={`Mark done: ${i.title || 'Untitled'}`}
-                            onChange={() => checkOff.mutate(i)}
+                            onChange={() => check(i)}
                           />
                         )}
                       </td>
@@ -223,7 +244,7 @@ function ItemsTable({ data, kind, kid, setKid }: TableProps) {
 
 function EventsTable({ data, kid, setKid }: Omit<TableProps, 'kind'>) {
   const [source, setSource] = useUrlState('source', raw => raw ?? '', '')
-  const head = useSort()
+  const head = useSort(EVENT_SORTS)
   const { sort, dir } = head
   const sources = [...new Set(data.events.map(e => e.source))].sort()
   const key = (e: OverviewEvent): string =>

@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { Overview } from '../api/types'
-import { FIXTURE, NOW, item, okOverview, renderAt } from '../test-utils'
+import { FIXTURE, NOW, item, okOverview, renderAt, type Handler } from '../test-utils'
 import { ListPage, type ListKind } from './ListPage'
 
 beforeEach(() => vi.useFakeTimers({ toFake: ['Date'], now: NOW }))
@@ -10,7 +10,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function show(kind: ListKind, data: Overview = FIXTURE, route = '/', handler: Parameters<typeof renderAt>[2] = okOverview(data)) {
+async function show(kind: ListKind, data: Overview = FIXTURE, route = '/', handler: Handler = okOverview(data)) {
   const utils = renderAt(<ListPage kind={kind} />, route, handler)
   await screen.findByRole('table')
   return utils
@@ -114,6 +114,83 @@ test('garbage rows do not break the table and it sits in a scroll container', as
   expect(whatCol()).toContain(long)
   expect(screen.getByRole('table').parentElement?.className).toContain('table-scroll')
   expect(screen.getAllByRole('row')).toHaveLength(3)
+})
+
+const TWO_MANUAL: Overview = {
+  ...FIXTURE,
+  items: [
+    item({ id: 'a', title: 'Essay draft', due: '2026-11-04' }),
+    item({ id: 'p', title: 'Poster', source: 'manual', course: '', due: '2026-11-01', itemId: 5 }),
+    item({ id: 'b', title: 'Banner', source: 'manual', course: '', due: '2026-11-02', itemId: 6 }),
+  ],
+}
+
+/** Overview handler that drops manual rows whose PATCH already succeeded, like the real server. */
+function server(patch: (id: string) => { ok: boolean; status?: number; body?: unknown }): Handler {
+  const done = new Set<string>()
+  return (url, init) => {
+    if (url === '/api/overview') {
+      return { ok: true, body: { ...TWO_MANUAL, items: TWO_MANUAL.items.filter(i => !done.has(String(i.itemId))) } }
+    }
+    const id = url.split('/').pop() as string
+    const out = patch(id)
+    if (out.ok && init?.method === 'PATCH') done.add(id)
+    return out
+  }
+}
+
+test('overlapping check-offs: when the first fails only that row comes back', async () => {
+  await show('overdue', TWO_MANUAL, '/', server(id => (id === '5' ? { ok: false, body: { error: 'boom' } } : { ok: true, body: { ok: true } })))
+  fireEvent.click(screen.getByRole('checkbox', { name: /poster/i }))
+  fireEvent.click(screen.getByRole('checkbox', { name: /banner/i }))
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/poster/i))
+  await waitFor(() => expect(whatCol().sort()).toEqual(['Essay draft', 'Poster']))
+})
+
+test('maintenance 503 shows the paused-for-maintenance message', async () => {
+  await show('overdue', TWO_MANUAL, '/', server(() => ({ ok: false, status: 503, body: { error: 'maintenance' } })))
+  fireEvent.click(screen.getByRole('checkbox', { name: /poster/i }))
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/Updates are paused for maintenance\. Try again later\./))
+  await waitFor(() => expect(whatCol()).toContain('Poster'))
+})
+
+test('after a successful check-off focus moves to the next checkbox and the result is announced', async () => {
+  await show('overdue', TWO_MANUAL, '/', server(() => ({ ok: true, body: { ok: true } })))
+  fireEvent.click(screen.getByRole('checkbox', { name: /poster/i }))
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('checkbox', { name: /banner/i })))
+  expect(screen.getAllByRole('status').some(s => s.textContent === 'Marked Poster done')).toBe(true)
+})
+
+test('after checking off the last checkable row focus goes to the table', async () => {
+  const one: Overview = { ...TWO_MANUAL, items: TWO_MANUAL.items.slice(0, 2) }
+  const done = new Set<string>()
+  await show('overdue', one, '/', (url, init) => {
+    if (url === '/api/overview') return { ok: true, body: { ...one, items: one.items.filter(i => !done.has(String(i.itemId))) } }
+    if (init?.method === 'PATCH') done.add(url.split('/').pop() as string)
+    return { ok: true, body: { ok: true } }
+  })
+  fireEvent.click(screen.getByRole('checkbox', { name: /poster/i }))
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('table')))
+})
+
+test('sort keys are per table; an unknown one falls back to due', async () => {
+  const { unmount } = await show('overdue', FIXTURE, '/?sort=type')
+  expect(screen.getByRole('columnheader', { name: /due/i }).getAttribute('aria-sort')).toBe('ascending')
+  expect(screen.queryByRole('columnheader', { name: /type/i })).toBeNull()
+  unmount()
+  await show('events', FIXTURE, '/?sort=course')
+  expect(screen.getByRole('columnheader', { name: /when/i }).getAttribute('aria-sort')).toBe('ascending')
+  unmount()
+})
+
+test('a failing source tags its rows with the failing icon', async () => {
+  const data: Overview = {
+    ...FIXTURE,
+    freshness: { ...FIXTURE.freshness, powerschool: { ...FIXTURE.freshness.powerschool, failing: true, age_hours: 30 } },
+  }
+  await show('missing', data)
+  const row = screen.getByText('Quiz 3').closest('tr') as HTMLElement
+  expect(row.textContent).toMatch(/✖ as of 1d 6h ago/)
 })
 
 test('error without data offers retry', async () => {
