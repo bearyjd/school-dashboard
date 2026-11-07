@@ -86,7 +86,7 @@ def test_silent_degradation_totals_missing_but_remaining_list_present(env):
     child is stored with empty totals and reads as "all done"."""
     state_env, tmp_path = env
     built = build_state(state_env, tmp_path, ixl=without(load("ixl"), "totals"))
-    assert_unguarded(built["state"]["ixl"]["Alpha"]["totals"] == {}, "G2")
+    assert_unguarded(built["state"]["ixl"].get("Alpha", {}).get("totals") == {}, "G2")
     assert_unguarded("Alpha: IXL all done" in consumers(built)["quick"], "G2")
 
 

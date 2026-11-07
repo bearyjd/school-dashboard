@@ -11,7 +11,7 @@ powerschool.py's documented contract (see the fixtures README).
 import logging
 
 import pytest
-from contract_support import (assert_unguarded, build_state, consumers, load, mutate, renamed,
+from contract_support import (TODAY, assert_unguarded, build_state, consumers, load, mutate, renamed,
                               set_roster)
 
 from school_dashboard import powerschool, state
@@ -53,7 +53,7 @@ def test_fixture_is_accepted_end_to_end(env):
     assert "PS: missing 1 (Quiz 4 Corrections), late 1 (Essay Draft)" in out["quick"]
     ps_status = {i["title"]: i["status"] for i in out["items"] if i["source"] == "powerschool"}
     assert ps_status["Quiz 4 Corrections"] == "missing" and ps_status["Essay Draft"] == "late"
-    block = powerschool.format_block(s)
+    block = powerschool.format_block(s, today=TODAY)
     assert "Quiz 4 Corrections" in block and "Essay Draft" in block and "Lab Report" in block
 
 
@@ -107,7 +107,7 @@ def test_silent_degradation_item_due_renamed(env):
     assert_unguarded(all(i["due"] is None for i in built["state"]["powerschool"]["Alpha"]["late"]), "G12b")
     ps_status = {i["title"]: i["status"] for i in consumers(built)["items"] if i["source"] == "powerschool"}
     assert_unguarded(ps_status == {"Quiz 4 Corrections": "missing", "Essay Draft": "late"}, "G12b")
-    assert_unguarded("(due" not in powerschool.format_block(built["state"]), "G12b")
+    assert_unguarded("(due" not in powerschool.format_block(built["state"], today=TODAY), "G12b")
 
 
 def test_silent_degradation_item_title_renamed(env):
@@ -119,7 +119,7 @@ def test_silent_degradation_item_title_renamed(env):
 
     built = build_state(state_env, tmp_path, ps=mutate(load("powerschool"), edit))
     assert_unguarded(built["state"]["powerschool_meta"]["warnings"] == [], "G12c")
-    block = powerschool.format_block(built["state"])
+    block = powerschool.format_block(built["state"], today=TODAY)
     assert_unguarded("Untitled" in block and "Quiz 4 Corrections" not in block, "G12c")
 
 
