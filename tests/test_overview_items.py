@@ -87,6 +87,17 @@ def test_manual_items_and_done_skipped():
     assert [(r["title"], r["status"], r["source"]) for r in rows] == [("Poster", "overdue", "manual")]
 
 
+def test_manual_rows_carry_items_table_id():
+    today, nxt = date(2026, 11, 6), date(2026, 11, 9)
+    manual = [
+        {"id": 7, "child": "Alpha", "title": "Poster", "due_date": "2026-11-05", "completed": 0},
+        {"id": "x", "child": "Alpha", "title": "Odd", "due_date": "2026-11-05", "completed": 0},
+    ]
+    rows = {r["title"]: r for r in build_items({}, manual, today, KIDS)}
+    assert rows["Poster"]["itemId"] == 7
+    assert "itemId" not in rows["Odd"]
+
+
 def test_garbage_dates_skipped():
     today, nxt = date(2026, 11, 6), date(2026, 11, 9)
     bad = ["not-a-date", "", "2026-11-05T10:00:00", None, 12345]

@@ -106,6 +106,8 @@ export interface OverviewItem {
   score: string | null;
   url: string;
   readonly: boolean;
+  /** Items-table id; present on manual rows only (check-off via PATCH /api/items/<id>). */
+  itemId?: number;
 }
 
 export interface OverviewEvent {

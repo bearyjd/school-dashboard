@@ -80,13 +80,13 @@ def _safe_url(url: object) -> str:
 
 def _row(*, kid: str, title: object, course: object, due: object, status: str,
          source: str, category: object = None, score: object = None, url: object = None,
-         readonly: bool = False) -> dict:
+         readonly: bool = False, item_id: Optional[int] = None) -> dict:
     due_date = parse_date(due)
     clean_title = clean_text(title) or "Untitled"
     clean_course = clean_text(course) or ""
     due_iso = due_date.isoformat() if due_date else None
     key = "|".join([source, kid, clean_title, clean_course, due_iso or ""])
-    return {
+    row = {
         "id": f"{source}:{hashlib.sha1(key.encode()).hexdigest()[:12]}",
         "kid": kid,
         "title": clean_title,
@@ -99,6 +99,9 @@ def _row(*, kid: str, title: object, course: object, due: object, status: str,
         "url": _safe_url(url),
         "readonly": readonly,
     }
+    if item_id is not None:
+        row["itemId"] = item_id  # items-table id; lets the UI check off via PATCH /api/items/<id>
+    return row
 
 
 def _schoology_url(link: object) -> str:
@@ -182,7 +185,8 @@ def _manual_rows(manual_items: list[dict], today: date, nxt: date, kids: list[st
             continue
         rows.append(_row(kid=_kid(item.get("child"), kids),
                          title=item.get("title"), course="", due=item.get("due_date"),
-                         status=status, source="manual", category=item.get("type")))
+                         status=status, source="manual", category=item.get("type"),
+                         item_id=item["id"] if type(item.get("id")) is int else None))
     return rows
 
 
