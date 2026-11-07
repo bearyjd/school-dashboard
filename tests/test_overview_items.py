@@ -92,10 +92,13 @@ def test_manual_rows_carry_items_table_id():
     manual = [
         {"id": 7, "child": "Alpha", "title": "Poster", "due_date": "2026-11-05", "completed": 0},
         {"id": "x", "child": "Alpha", "title": "Odd", "due_date": "2026-11-05", "completed": 0},
+        {"id": True, "child": "Alpha", "title": "Bool", "due_date": "2026-11-05", "completed": 0},
+        {"id": None, "child": "Alpha", "title": "NoId", "due_date": "2026-11-05", "completed": 0},
     ]
     rows = {r["title"]: r for r in build_items({}, manual, today, KIDS)}
     assert rows["Poster"]["itemId"] == 7
-    assert "itemId" not in rows["Odd"]
+    for title in ("Odd", "Bool", "NoId"):  # non-int ids (bool is not a real id) are never exposed
+        assert "itemId" not in rows[title]
 
 
 def test_garbage_dates_skipped():
