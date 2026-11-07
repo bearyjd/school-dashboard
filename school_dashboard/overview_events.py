@@ -11,12 +11,13 @@ from typing import Optional
 
 from school_dashboard.overview_items import parse_date
 from school_dashboard.powerschool import clean_text
+from school_dashboard.state import canonical_name
 
 _log = logging.getLogger(__name__)
 
 
 def split_kids(label: str, roster: list[str]) -> list[str]:
-    """Roster names named by a team label ('Penn+Jack'); unmatched labels give []."""
+    """Roster names named by a team label ('<KidA>+<KidB>'); unmatched labels give []."""
     if not isinstance(label, str):
         return []
     by_lower = {name.lower(): name for name in roster}
@@ -123,7 +124,7 @@ def school_events(db_path: str, today: date, days: int) -> list[dict]:
         if evt_date is None:
             continue
         out.append({
-            "kids": [clean_text(child)] if clean_text(child) else [],
+            "kids": [canonical_name(clean_text(child))] if clean_text(child) else [],
             "unassigned": False,
             "title": clean_text(title) or "Event",
             "date": evt_date.isoformat(),

@@ -175,3 +175,15 @@ def test_item_ids_stable_across_list_order():
     two = {r["title"]: r["id"] for r in build_items(
         {"schoology": {"Alpha": {"assignments": [b, a]}}}, [], today, KIDS)}
     assert one == two and one["A"] != one["B"]
+
+
+def test_email_sourced_items_are_labelled_email_not_manual():
+    today = date(2026, 11, 6)
+    manual = [
+        {"id": 1, "child": "Alpha", "title": "Forms", "due_date": "2026-11-05", "completed": 0, "source": "email"},
+        {"id": 2, "child": "Alpha", "title": "Poster", "due_date": "2026-11-05", "completed": 0, "source": "manual"},
+        {"id": 3, "child": "Alpha", "title": "NoSrc", "due_date": "2026-11-05", "completed": 0},
+    ]
+    rows = {r["title"]: r for r in build_items({}, manual, today, KIDS)}
+    assert rows["Forms"]["source"] == "email" and rows["Forms"]["itemId"] == 1
+    assert rows["Poster"]["source"] == "manual" and rows["NoSrc"]["source"] == "manual"
