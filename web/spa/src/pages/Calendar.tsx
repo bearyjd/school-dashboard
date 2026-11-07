@@ -7,7 +7,7 @@ import { StatusBadge } from '../design/StatusBadge'
 import { useOverview } from '../lib/overview'
 import { useUrlState } from '../lib/urlState'
 import { APP_TZ, eventMatchesKid, formatTime, itemMatchesKid, kidIndex, kidParser } from '../lib/view'
-import { localToday, shiftWeek, weekDays } from '../lib/week'
+import { shiftWeek, todayAnchor, weekDays } from '../lib/week'
 import './Calendar.css'
 
 const MAX_WEEK_OFFSET = 52
@@ -83,26 +83,27 @@ function CalendarBody({ data, kid, setKid }: { data: Overview; kid: string; setK
   const [offset, setOffset] = useUrlState('week', parseWeek, 0)
   const wide = useWide()
   const now = new Date()
-  const base = new Date(`${localToday(now, APP_TZ)}T12:00:00Z`)
-  const days = weekDays(shiftWeek(base, offset, APP_TZ), APP_TZ, now)
+  const days = weekDays(shiftWeek(todayAnchor(now, APP_TZ), offset, APP_TZ), APP_TZ, now)
   const mine = data.items.filter(i => itemMatchesKid(i, kid))
   const overdue = mine.filter(i => i.status === 'overdue').length
-  const missing = mine.filter(i => i.status === 'missing').length
+  const missing = mine.filter(i => i.status === 'missing' || i.status === 'late').length // same set as /missing
   return (
     <>
       {(overdue > 0 || missing > 0) && (
         <p className="cal__backlog" role="note">
           <span aria-hidden="true">!</span> Not on the calendar:{' '}
-          <Link to="/overdue">{overdue} overdue</Link>{' and '}<Link to="/missing">{missing} missing</Link>
+          {overdue > 0 && <Link to="/overdue">{overdue} overdue</Link>}
+          {overdue > 0 && missing > 0 && ' and '}
+          {missing > 0 && <Link to="/missing">{missing} missing</Link>}
         </p>
       )}
       <KidFilter data={data} value={kid} onChange={setKid} />
       <div className="cal__nav">
-        <button type="button" className="btn" onClick={() => setOffset(offset - 1)}>
+        <button type="button" className="btn" onClick={() => setOffset(offset - 1)} disabled={offset <= -MAX_WEEK_OFFSET}>
           <span aria-hidden="true">◀ </span>Previous week
         </button>
         <button type="button" className="btn" onClick={() => setOffset(0)} disabled={offset === 0}>This week</button>
-        <button type="button" className="btn" onClick={() => setOffset(offset + 1)}>
+        <button type="button" className="btn" onClick={() => setOffset(offset + 1)} disabled={offset >= MAX_WEEK_OFFSET}>
           Next week<span aria-hidden="true"> ▶</span>
         </button>
       </div>

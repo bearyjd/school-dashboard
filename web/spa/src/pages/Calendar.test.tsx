@@ -85,8 +85,29 @@ test('kid filter keeps school-wide events and hides other kids', async () => {
   expect(within(day('Sun, Nov 8')).queryByText('Practice')).toBeNull()
 })
 
+test('previous/next are disabled at the +-52 week limits', async () => {
+  mockWidth(true)
+  const { unmount } = renderAt(<Calendar />, '/calendar?week=52', okOverview(FIXTURE))
+  await screen.findByRole('button', { name: /next week/i })
+  expect((screen.getByRole('button', { name: /next week/i }) as HTMLButtonElement).disabled).toBe(true)
+  expect((screen.getByRole('button', { name: /previous week/i }) as HTMLButtonElement).disabled).toBe(false)
+  unmount()
+  renderAt(<Calendar />, '/calendar?week=-52', okOverview(FIXTURE))
+  await screen.findByRole('button', { name: /previous week/i })
+  expect((screen.getByRole('button', { name: /previous week/i }) as HTMLButtonElement).disabled).toBe(true)
+})
+
+test('backlog note hides the side that is zero', async () => {
+  mockWidth(true)
+  const data = { ...FIXTURE, items: FIXTURE.items.filter(i => i.status !== 'missing' && i.status !== 'late') }
+  renderAt(<Calendar />, '/calendar', okOverview(data))
+  await screen.findByRole('region', { name: /Sat, Nov 7/ })
+  expect(screen.getByRole('link', { name: /2 overdue/i })).toBeTruthy()
+  expect(screen.queryByRole('link', { name: /missing/i })).toBeNull()
+})
+
 test('banner links to the overdue and missing lists', async () => {
   await show()
   expect(screen.getByRole('link', { name: /2 overdue/i }).getAttribute('href')).toBe('/overdue')
-  expect(screen.getByRole('link', { name: /2 missing/i }).getAttribute('href')).toBe('/missing')
+  expect(screen.getByRole('link', { name: /3 missing/i }).getAttribute('href')).toBe('/missing')
 })

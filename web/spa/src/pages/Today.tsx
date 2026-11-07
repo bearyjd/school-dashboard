@@ -8,7 +8,7 @@ import { Tile } from '../design/Tile'
 import { useOverview } from '../lib/overview'
 import { useUrlState } from '../lib/urlState'
 import { APP_TZ, eventMatchesKid, formatDay, formatTime, itemMatchesKid, kidIndex, kidParser } from '../lib/view'
-import { localToday, weekDays } from '../lib/week'
+import { localToday, todayAnchor, weekDays } from '../lib/week'
 import './Today.css'
 
 const COMING_UP_LIMIT = 8
@@ -50,11 +50,13 @@ function TodayBody({ data, kid, setKid }: { data: Overview; kid: string; setKid:
   const navigate = useNavigate()
   const [showMissing, setShowMissing] = useState(false)
   const items = data.items.filter(i => itemMatchesKid(i, kid))
-  const today = localToday(new Date(), APP_TZ)
-  const week = new Set(weekDays(new Date(), APP_TZ).map(d => d.date))
+  const now = new Date()
+  const today = localToday(now, APP_TZ)
+  const week = new Set(weekDays(todayAnchor(now, APP_TZ), APP_TZ, now).map(d => d.date))
   const events = data.events.filter(e => week.has(e.date) && eventMatchesKid(e, kid))
   const overdue = byStatus(items, 'overdue')
-  const missing = byStatus(items, 'missing')
+  // Same set as the /missing page: PowerSchool missing plus late (late rows carry a "late" badge).
+  const missing = items.filter(i => i.status === 'missing' || i.status === 'late')
   const tonight = byStatus(items, 'tonight')
   const upcoming = byStatus(items, 'upcoming').filter(i => !i.due || i.due >= today)
   const next = upcoming.find(i => i.due)
@@ -62,9 +64,9 @@ function TodayBody({ data, kid, setKid }: { data: Overview; kid: string; setKid:
   return (
     <>
       <section aria-label="Summary" className="today__tiles">
+        <div className="today__tile today__tile--hero"><Tile label="Due tonight" value={tonight.length} tone="tonight" onClick={go('/tonight')} /></div>
         <div className="today__tile"><Tile label="Overdue" value={overdue.length} tone="overdue" onClick={go('/overdue')} /></div>
         <div className="today__tile"><Tile label="Missing" value={missing.length} tone="missing" onClick={go('/missing')} /></div>
-        <div className="today__tile today__tile--hero"><Tile label="Due tonight" value={tonight.length} tone="tonight" onClick={go('/tonight')} /></div>
         <div className="today__tile"><Tile label="Events this week" value={events.length} tone="ok" onClick={go('/events')} /></div>
       </section>
       <KidFilter data={data} value={kid} onChange={setKid} />

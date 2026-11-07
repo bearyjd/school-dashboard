@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { Overview } from '../api/types'
 import { FIXTURE, NOW, fresh, item, okOverview, renderAt } from '../test-utils'
+import { ListPage } from './ListPage'
 import { Today } from './Today'
 
 beforeEach(() => vi.useFakeTimers({ toFake: ['Date'], now: NOW }))
@@ -24,7 +25,7 @@ test('tile counts and link targets', async () => {
   await show()
   const cases: [RegExp, string, string][] = [
     [/overdue/i, '2', '/overdue'],
-    [/missing/i, '2', '/missing'],
+    [/missing/i, '3', '/missing'],
     [/due tonight/i, '2', '/tonight'],
     [/events this week/i, '3', '/events'],
   ]
@@ -62,12 +63,40 @@ test('?kid= from the URL is honoured and junk is ignored', async () => {
 
 test('missing is collapsed by default and expands', async () => {
   await show()
-  const toggle = screen.getByRole('button', { name: /missing \(2\)/i })
+  const toggle = screen.getByRole('button', { name: /missing \(3\)/i })
   expect(toggle.getAttribute('aria-expanded')).toBe('false')
   expect(screen.queryByText('Quiz 3')).toBeNull()
   fireEvent.click(toggle)
   expect(toggle.getAttribute('aria-expanded')).toBe('true')
   expect(screen.getByText('Quiz 3')).toBeTruthy()
+  // Late items are listed too, badged as late rather than hidden.
+  const late = screen.getByText('Worksheet').closest('.row') as HTMLElement
+  expect(within(late).getByText('late')).toBeTruthy()
+})
+
+test('Missing tile count equals the rows on the /missing page (missing + late)', async () => {
+  const { unmount } = await show()
+  const count = Number(within(tile(/missing/i)).getByText(/^\d+$/).textContent)
+  unmount()
+  renderAt(<ListPage kind="missing" />, '/missing', okOverview(FIXTURE))
+  await screen.findByRole('table')
+  expect(screen.getAllByRole('row').length - 1).toBe(count)
+})
+
+test('this-week window uses the 04:00 rollover (03:30 Sunday is still Saturday)', async () => {
+  vi.setSystemTime(new Date('2026-11-08T07:30:00Z'))
+  const data: Overview = {
+    ...FIXTURE,
+    events: [
+      { ...FIXTURE.events[0], title: 'Saturday game', date: '2026-11-07' },
+      { ...FIXTURE.events[0], title: 'Next Saturday', date: '2026-11-14' },
+    ],
+  }
+  await show(data)
+  const week = screen.getByRole('region', { name: /this week/i })
+  expect(within(week).getByText('Saturday game')).toBeTruthy()
+  expect(within(week).queryByText('Next Saturday')).toBeNull()
+  expect(within(tile(/events this week/i)).getByText('1')).toBeTruthy()
 })
 
 test('stale source shows a banner naming it with age, tags its rows, and the page is not blank', async () => {
@@ -78,6 +107,7 @@ test('stale source shows a banner naming it with age, tags its rows, and the pag
   await show(data)
   const banner = screen.getAllByRole('status').find(el => /IXL/.test(el.textContent ?? ''))
   expect(banner?.textContent).toMatch(/5h ago/)
+  expect(banner?.textContent?.match(/⚠/g)).toHaveLength(1) // one icon, not two
   const row = screen.getByText('IXL: 3 remaining').closest('.row') as HTMLElement
   expect(within(row).getByText(/as of 5h ago/)).toBeTruthy()
   expect(screen.getByText('Essay draft')).toBeTruthy()
@@ -113,7 +143,7 @@ test('error without data shows a retry button', async () => {
 test('error with cached data shows the data and its age', async () => {
   const { client, fetchMock } = renderAt(<Today />, '/', okOverview(FIXTURE))
   await screen.findByText('Essay draft')
-  fetchMock.mockResolvedValue({ ok: false, statusText: 'x', json: async () => ({ error: 'down' }) })
+  fetchMock.mockResolvedValue({ ok: false, status: 500, statusText: 'x', json: async () => ({ error: 'down' }) })
   await client.refetchQueries({ queryKey: ['overview'] })
   await waitFor(() => expect(screen.getByText(/showing saved data/i)).toBeTruthy())
   expect(screen.getByText('Essay draft')).toBeTruthy()

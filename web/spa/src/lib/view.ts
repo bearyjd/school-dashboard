@@ -1,5 +1,7 @@
 import type { Freshness, Overview, OverviewEvent, OverviewItem, OverviewSource } from '../api/types'
 
+// Fixed to the server's schedule zone (TZ=America/New_York in Docker). If the server TZ is ever
+// changed this must follow; a per-family zone is out of scope for v1.
 export const APP_TZ = 'America/New_York'
 
 const SOURCE_LABELS: Record<string, string> = {

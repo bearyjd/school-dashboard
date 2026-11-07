@@ -1,7 +1,7 @@
 .today__tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .today__tile { min-width: 0; display: flex; }
 .today__tile > * { flex: 1; min-width: 0; }
-.today__tile--hero { grid-column: 1 / -1; order: -1; }
+.today__tile--hero { grid-column: 1 / -1; }
 .today__tile--hero .tile { background: var(--hero); color: var(--hero-text); box-shadow: var(--glow), var(--shadow); }
 .today__tile--hero .tile__label { color: var(--hero-text); opacity: 0.85; }
 .today__tile--hero .tile__value { font-size: 52px; }
@@ -23,6 +23,6 @@
 
 @media (min-width: 900px) {
   .today__tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .today__tile--hero { grid-column: auto; order: 0; }
+  .today__tile--hero { grid-column: auto; }
   .today__cols { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); align-items: start; }
 }

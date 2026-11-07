@@ -26,6 +26,11 @@ export function localToday(now: Date, tz: string): string {
   return iso(p.hour < ROLLOVER_HOUR ? addDays(p, -1) : p)
 }
 
+/** Start of the rolling week for `now`: its 04:00-rolled local day as noon UTC (so a DST change cannot shift the date). */
+export function todayAnchor(now: Date, tz: string): Date {
+  return new Date(`${localToday(now, tz)}T12:00:00Z`)
+}
+
 /** Seven rolling days starting on the local day of `start`. `now` decides which one is today. */
 export function weekDays(
   start: Date,

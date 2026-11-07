@@ -3,6 +3,7 @@ import type { UseQueryResult } from '@tanstack/react-query'
 import type { Freshness, Overview } from '../api/types'
 import { Banner } from '../design/Banner'
 import { FreshnessTag } from '../design/FreshnessTag'
+import { formatAge } from '../lib/age'
 import { KidChip } from '../design/KidChip'
 import { ageHoursSince, kidIndex, problemSources, sourceLabel } from '../lib/view'
 import './OverviewFrame.css'
@@ -16,18 +17,17 @@ export function SourceBanners({ freshness }: { freshness: Record<string, Freshne
       {bad.map(([key, f]) => (
         <Banner key={key} tone={f.failing ? 'error' : 'warn'}>
           <strong>{sourceLabel(key)}</strong>{' '}
-          <FreshnessTag ageHours={f.age_hours} stale={f.stale && !f.failing} failing={f.failing} />
+          <FreshnessTag ageHours={f.age_hours} stale={f.stale && !f.failing} failing={f.failing} bare />
         </Banner>
       ))}
     </div>
   )
 }
 
-/** Muted "as of" tag for rows whose source is stale or failing. */
+/** Muted "as of" tag for rows whose source is stale or failing (failing gets its own icon). */
 export function AsOfTag({ freshness }: { freshness: Freshness }) {
-  const h = freshness.age_hours
-  const age = h === null || !Number.isFinite(h) ? 'unknown' : h < 1 ? '<1h ago' : `${Math.floor(h)}h ago`
-  return <span className="as-of"><span aria-hidden="true">{'⚠'}</span> as of {age}</span>
+  const icon = freshness.failing ? '✖' : '⚠'
+  return <span className="as-of"><span aria-hidden="true">{icon}</span> as of {formatAge(freshness.age_hours)}</span>
 }
 
 interface KidFilterProps {
@@ -72,7 +72,7 @@ export function OverviewFrame({ title, query, children }: FrameProps) {
       {data && isError && (
         <div className="frame__error">
           <Banner tone="warn">
-            Could not refresh. Showing saved data, <FreshnessTag ageHours={ageHoursSince(data.generated_at)} />
+            Could not refresh. Showing saved data. <FreshnessTag ageHours={ageHoursSince(data.generated_at)} />
           </Banner>
           <button type="button" className="btn" onClick={() => void refetch()}>Retry</button>
         </div>

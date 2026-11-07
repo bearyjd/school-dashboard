@@ -58,11 +58,14 @@ function Where() {
   return <div data-testid="where">{loc.pathname + loc.search}</div>
 }
 
+export interface FakeResponse { ok: boolean; status?: number; body?: unknown }
+export type Handler = (url: string, init?: RequestInit) => FakeResponse
+
 /** Renders `ui` with a QueryClient, a router at `route`, and fetch stubbed by `handler`. */
-export function renderAt(ui: ReactElement, route: string, handler: (url: string, init?: RequestInit) => unknown) {
+export function renderAt(ui: ReactElement, route: string, handler: Handler) {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-    const out = handler(url, init) as { ok: boolean; status?: number; body?: unknown }
-    return { ok: out.ok, statusText: 'err', json: async () => out.body }
+    const out = handler(url, init)
+    return { ok: out.ok, status: out.status ?? (out.ok ? 200 : 500), statusText: 'err', json: async () => out.body }
   })
   vi.stubGlobal('fetch', fetchMock)
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -74,4 +77,4 @@ export function renderAt(ui: ReactElement, route: string, handler: (url: string,
   return { ...utils, client, fetchMock }
 }
 
-export const okOverview = (data: Overview) => () => ({ ok: true, body: data })
+export const okOverview = (data: Overview): Handler => () => ({ ok: true, body: data })

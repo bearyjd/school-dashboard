@@ -1,5 +1,10 @@
 import { expect, test } from 'vitest'
-import { localToday, shiftWeek, weekDays } from './week'
+import { localToday, shiftWeek, todayAnchor, weekDays } from './week'
+
+test('todayAnchor is the rolled local day at noon UTC', () => {
+  expect(todayAnchor(new Date('2026-11-08T07:30:00Z'), 'America/New_York').toISOString()).toBe('2026-11-07T12:00:00.000Z')
+  expect(todayAnchor(new Date('2026-11-08T09:30:00Z'), 'America/New_York').toISOString()).toBe('2026-11-08T12:00:00.000Z')
+})
 
 const TZ = 'America/New_York'
 
