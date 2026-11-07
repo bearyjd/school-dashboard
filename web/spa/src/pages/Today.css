@@ -1,0 +1,28 @@
+.today__tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.today__tile { min-width: 0; display: flex; }
+.today__tile > * { flex: 1; min-width: 0; }
+.today__tile--hero { grid-column: 1 / -1; order: -1; }
+.today__tile--hero .tile { background: var(--hero); color: var(--hero-text); box-shadow: var(--glow), var(--shadow); }
+.today__tile--hero .tile__label { color: var(--hero-text); opacity: 0.85; }
+.today__tile--hero .tile__value { font-size: 52px; }
+
+.today__cols { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); }
+.today__main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.today__h { font-family: var(--font-head); font-weight: var(--head-weight); font-size: 1.05rem; margin-bottom: 6px; }
+.today__list { list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.today__list li:last-child .row { border-bottom: 0; }
+.today__muted { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+.today__toggle { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 6px 0; min-height: 40px; }
+.today__panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.today__events { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.today__event { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 13px; }
+.today__when { color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+.today__event-title { overflow-wrap: anywhere; min-width: 0; }
+.today__link { color: var(--tonight-text); font-weight: 700; }
+.item-row__trail { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+
+@media (min-width: 900px) {
+  .today__tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .today__tile--hero { grid-column: auto; order: 0; }
+  .today__cols { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); align-items: start; }
+}
