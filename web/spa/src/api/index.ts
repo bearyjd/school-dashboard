@@ -47,7 +47,7 @@ export const deleteItem = (id: number) =>
 // Dashboard
 export const fetchDashboard = () => apiFetch<Dashboard>('/api/dashboard');
 
-export const fetchOverview = () => apiFetch<Overview>('/api/overview');
+export const fetchOverview = (past = false) => apiFetch<Overview>(past ? '/api/overview?past=1' : '/api/overview');
 
 // Sync
 export const fetchSyncStatus = () => apiFetch<SyncStatus>('/api/sync/status');

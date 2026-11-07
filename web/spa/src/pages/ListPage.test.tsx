@@ -266,3 +266,53 @@ test('arrow keys move between tabs and update the url', async () => {
   fireEvent.keyDown(screen.getByRole('tab', { name: 'Overdue' }), { key: 'End' })
   expect(screen.getByTestId('where').textContent).toBe('/events?kid=Alpha')
 })
+
+test('the service-worker offline 503 is not reported as maintenance', async () => {
+  await show('overdue', TWO_MANUAL, '/', server(() => ({ ok: false, status: 503, body: { error: 'offline' } })))
+  fireEvent.click(screen.getByRole('checkbox', { name: /poster/i }))
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toBe("✖You appear to be offline. Try again when you're connected."))
+  await waitFor(() => expect(whatCol()).toContain('Poster'))
+})
+
+test('a network failure shows the offline message', async () => {
+  const handler = server(() => { throw new TypeError('Failed to fetch') })
+  await show('overdue', TWO_MANUAL, '/', handler)
+  fireEvent.click(screen.getByRole('checkbox', { name: /poster/i }))
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/You appear to be offline/))
+})
+
+test('a 503 with another message is a generic failure, not maintenance', async () => {
+  await show('overdue', TWO_MANUAL, '/', server(() => ({ ok: false, status: 503, body: { error: 'busy' } })))
+  fireEvent.click(screen.getByRole('checkbox', { name: /poster/i }))
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/Could not mark "Poster" done/))
+})
+
+const overviewUrls = (fetchMock: { mock: { calls: unknown[][] } }) =>
+  fetchMock.mock.calls.map(c => String(c[0])).filter(u => u.startsWith('/api/overview'))
+
+test('events: past seasons are off by default and the request has no ?past', async () => {
+  const { fetchMock } = await show('events')
+  expect(overviewUrls(fetchMock)).toEqual(['/api/overview'])
+  expect((screen.getByRole('checkbox', { name: /show past seasons/i }) as HTMLInputElement).checked).toBe(false)
+})
+
+test('events: ?past=1 is sent to the api and the checkbox reflects it', async () => {
+  const { fetchMock } = await show('events', FIXTURE, '/events?past=1')
+  expect(overviewUrls(fetchMock)).toEqual(['/api/overview?past=1'])
+  expect((screen.getByRole('checkbox', { name: /show past seasons/i }) as HTMLInputElement).checked).toBe(true)
+})
+
+test('events: ticking Show past seasons updates the url and refetches with past=1', async () => {
+  const { fetchMock } = await show('events')
+  fireEvent.click(screen.getByRole('checkbox', { name: /show past seasons/i }))
+  expect(screen.getByTestId('where').textContent).toBe('/?past=1')
+  await waitFor(() => expect(overviewUrls(fetchMock)).toContain('/api/overview?past=1'))
+  fireEvent.click(screen.getByRole('checkbox', { name: /show past seasons/i }))
+  expect(screen.getByTestId('where').textContent).toBe('/')
+})
+
+test('other lists ignore ?past=1', async () => {
+  const { fetchMock } = await show('overdue', FIXTURE, '/overdue?past=1')
+  expect(overviewUrls(fetchMock)).toEqual(['/api/overview'])
+  expect(screen.queryByRole('checkbox', { name: /show past seasons/i })).toBeNull()
+})

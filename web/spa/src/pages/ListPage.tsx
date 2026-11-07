@@ -78,10 +78,18 @@ function SortHead({ col, label, sort, dir, onSort }: SortHeadProps) {
 }
 
 const MAINTENANCE_MESSAGE = 'Updates are paused for maintenance. Try again later.'
+const OFFLINE_MESSAGE = "You appear to be offline. Try again when you're connected."
+
+/** Server maintenance is a 503 `{error:'maintenance'}`; the service worker's offline reply is a 503 `{error:'offline'}`. */
+function checkOffError(err: unknown, title: string): string {
+  if (err instanceof ApiError && err.status === 503 && err.message === 'maintenance') return MAINTENANCE_MESSAGE
+  if (!(err instanceof ApiError) || (err.status === 503 && err.message === 'offline')) return OFFLINE_MESSAGE
+  return `Could not mark "${title || 'Untitled'}" done. It has been restored.`
+}
 
 /** Set one row's status in the cached overview; other rows (and other in-flight check-offs) are untouched. */
 function setRowStatus(client: QueryClient, id: string, status: OverviewStatus) {
-  client.setQueryData<Overview>(OVERVIEW_KEY, old =>
+  client.setQueriesData<Overview>({ queryKey: OVERVIEW_KEY }, old =>
     old && { ...old, items: old.items.map(i => (i.id === id ? { ...i, status } : i)) })
 }
 
@@ -101,9 +109,7 @@ function useCheckOff({ setError, setAnnounce }: CheckOffMessages) {
     },
     onError: (err, row) => {
       setRowStatus(client, row.id, row.status) // only the failed row comes back
-      setError(err instanceof ApiError && err.status === 503
-        ? MAINTENANCE_MESSAGE
-        : `Could not mark "${row.title || 'Untitled'}" done. It has been restored.`)
+      setError(checkOffError(err, row.title))
     },
     onSuccess: (_data, row) => setAnnounce(`Marked ${row.title || 'Untitled'} done`),
     // Not returned: the mutation must not wait for the refetch (it would delay the focus move on a slow server).
@@ -244,7 +250,12 @@ function ItemsTable({ data, kind, kid, setKid }: TableProps) {
   )
 }
 
-function EventsTable({ data, kid, setKid }: Omit<TableProps, 'kind'>) {
+interface EventsTableProps extends Omit<TableProps, 'kind'> {
+  past: boolean
+  setPast: (past: boolean) => void
+}
+
+function EventsTable({ data, kid, setKid, past, setPast }: EventsTableProps) {
   const [source, setSource] = useUrlState('source', raw => raw ?? '', '')
   const head = useSort(EVENT_SORTS)
   const { sort, dir } = head
@@ -259,7 +270,15 @@ function EventsTable({ data, kid, setKid }: Omit<TableProps, 'kind'>) {
   return (
     <>
       <FilterBar data={data} kid={kid} setKid={setKid} sources={sources} source={source} setSource={setSource}
-        extra={<Link className="list__link" to="/calendar">Week calendar</Link>} />
+        extra={(
+          <>
+            <label className="list__select">
+              <input type="checkbox" checked={past} onChange={e => setPast(e.target.checked)} />
+              Show past seasons
+            </label>
+            <Link className="list__link" to="/calendar">Week calendar</Link>
+          </>
+        )} />
       {rows.length === 0 ? <p className="list__empty">No upcoming events.</p> : (
         <div className="table-scroll">
           <table className="list__table" aria-label="Events">
@@ -311,7 +330,9 @@ function ListTabs({ kind }: { kind: ListKind }) {
 }
 
 export function ListPage({ kind }: { kind: ListKind }) {
-  const query = useOverview()
+  const [pastParam, setPastParam] = useUrlState('past', raw => (raw === '1' ? '1' : ''), '')
+  const past = kind === 'events' && pastParam === '1'
+  const query = useOverview(past)
   const [kid, setKid] = useUrlState('kid', kidParser(query.data), '')
   return (
     <OverviewFrame title={TITLES[kind]} query={query}>
@@ -320,7 +341,7 @@ export function ListPage({ kind }: { kind: ListKind }) {
           <ListTabs kind={kind} />
           <div role="tabpanel" id={`list-panel-${kind}`} aria-labelledby={`list-tab-${kind}`}>
             {kind === 'events'
-              ? <EventsTable data={data} kid={kid} setKid={setKid} />
+              ? <EventsTable data={data} kid={kid} setKid={setKid} past={past} setPast={p => setPastParam(p ? '1' : '')} />
               : <ItemsTable data={data} kind={kind} kid={kid} setKid={setKid} />}
           </div>
         </>
