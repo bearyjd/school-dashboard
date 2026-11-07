@@ -1,0 +1,15 @@
+{
+  "status": "ok",
+  "warnings": [],
+  "errors": [],
+  "totals": {
+    "Math": {"assigned": 4, "done": 1, "in_progress": 2, "not_started": 1, "remaining": 3},
+    "ELA": {"assigned": 2, "done": 1, "in_progress": 1, "not_started": 0, "remaining": 1}
+  },
+  "remaining": [
+    {"id": "SK001", "name": "Sample skill one", "smart_score": 0, "time_spent_min": 0, "questions": 0, "last_practiced": "", "skill_code": "A.1", "category": "Sample category", "suggested": true, "subject": "Math"},
+    {"id": "SK002", "name": "Sample skill two", "smart_score": 45, "time_spent_min": 6.5, "questions": 12, "last_practiced": "2026-11-03", "skill_code": "A.2", "category": "Sample category", "suggested": true, "subject": "Math"},
+    {"id": "SK003", "name": "Sample skill three", "smart_score": 62, "time_spent_min": 9.0, "questions": 20, "last_practiced": "2026-11-04", "skill_code": "A.3", "category": "Sample category", "suggested": true, "subject": "Math"},
+    {"id": "SK004", "name": "Sample skill four", "smart_score": 70, "time_spent_min": 4.25, "questions": 15, "last_practiced": "2026-11-02", "skill_code": "B.1", "category": "Other category", "suggested": true, "subject": "ELA"}
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-11-05T06:05:00.000000",
+  "children": [
+    {"name": "Alpha Tester", "uid": "100001", "building": "Sample Elementary"},
+    {"name": "Beta Tester", "uid": "100002", "building": "Sample Elementary"},
+    {"name": "Gamma Tester", "uid": "100003", "building": "Sample Middle"}
+  ],
+  "per_child": [
+    {
+      "child": {"name": "Alpha Tester", "uid": "100001", "building": "Sample Elementary"},
+      "scrape_confidence": "high",
+      "scrape_stages": {"auth": "ok", "child_switch": "ok", "courses": "ok", "assignments": "ok", "slides": "ok"},
+      "scrape_errors": [],
+      "assignments": [
+        {"title": "Synthetic Worksheet 1", "course": "Sample Math", "due_date": "2026-11-06", "status": "unknown", "link": "/assignment/900001"},
+        {"title": "Sample Reading Log", "course": "Sample ELA", "due_date": "2026-11-09", "status": "Submitted", "link": "/assignment/900002"},
+        {"title": "Practice Set A", "course": "Sample Science", "due_date": "November 12, 2026", "status": "unknown", "link": ""},
+        {"title": "Old Quiz Corrections", "course": "Sample Math", "due_date": "2026-11-02", "status": "missing", "link": "/assignment/900004"},
+        {"title": "Undated Project", "course": "", "due_date": "", "status": "unknown", "link": ""}
+      ],
+      "homework_slides": [
+        {"course": "Sample Homeroom", "title": "Daily Slides", "content": "Synthetic slide text.", "fetched": true, "error": null, "page_url": "https://sgy.example.invalid/page/800001", "embed_urls": []}
+      ],
+      "grades": [
+        {"course": "Sample Math", "grade": "92%", "letter": "A", "items": []},
+        {"course": "Sample ELA", "grade": "78%", "letter": "C", "items": []}
+      ],
+      "announcements": [
+        {"title": "Sample announcement", "body": "Synthetic body text.", "author": "Teacher One", "date": "2026-11-04", "course": "Sample Homeroom"}
+      ],
+      "warnings": []
+    },
+    {
+      "child": {"name": "Beta Tester", "uid": "100002", "building": "Sample Elementary"},
+      "scrape_confidence": "partial",
+      "scrape_stages": {"auth": "ok", "child_switch": "ok", "courses": "ok", "assignments": "partial", "slides": "ok"},
+      "scrape_errors": ["assignments: 1 source error(s)"],
+      "assignments": [
+        {"title": "Beta Graded Task", "course": "Sample Art", "due_date": "2026-11-06", "status": "graded", "link": "/assignment/900101"}
+      ],
+      "homework_slides": [],
+      "grades": [
+        {"course": "Sample Art", "grade": "", "letter": "", "items": []}
+      ],
+      "announcements": [],
+      "warnings": ["calendar_feed: synthetic source error"]
+    },
+    {
+      "child": {"name": "Gamma Tester", "uid": "100003", "building": "Sample Middle"},
+      "scrape_confidence": "failed",
+      "scrape_stages": {"auth": "ok", "child_switch": "ok", "courses": "failed", "assignments": "pending", "slides": "pending"},
+      "scrape_errors": ["courses: no courses found"],
+      "assignments": [],
+      "homework_slides": [],
+      "grades": [],
+      "announcements": [],
+      "warnings": []
+    }
+  ]
+}

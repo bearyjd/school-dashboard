@@ -1,0 +1,38 @@
+{
+  "scraped_at": "2026-11-05T06:00:00",
+  "children": [
+    {
+      "name": "Alpha Tester",
+      "student_id": "900001",
+      "missing": [
+        {"course": "Sample Algebra", "title": "Quiz 4 Corrections", "due": "2026-11-01", "category": "Homework", "score": null}
+      ],
+      "late": [
+        {"course": "Sample English", "title": "Essay Draft", "due": "2026-11-03", "category": "Writing", "score": "7/10"}
+      ],
+      "upcoming": [
+        {"course": "Sample Science", "title": "Lab Report", "due": "2026-11-07", "category": "Lab", "score": null}
+      ],
+      "warnings": []
+    },
+    {
+      "name": "Beta Tester",
+      "student_id": "900002",
+      "missing": [],
+      "late": [],
+      "upcoming": [
+        {"course": "Sample History", "title": "Map Test", "due": "2026-11-06", "category": null, "score": null}
+      ],
+      "warnings": []
+    },
+    {
+      "name": "Gamma Tester",
+      "student_id": "900003",
+      "missing": [],
+      "late": [],
+      "upcoming": [],
+      "warnings": []
+    }
+  ],
+  "warnings": []
+}
