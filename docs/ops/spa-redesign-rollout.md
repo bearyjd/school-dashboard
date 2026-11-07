@@ -49,6 +49,15 @@ calendar attribute a shared team to both kids; with the old label those events s
 never under a kid's filter. The calendar covers this week and next (the data window).
 Restart or wait for the next sync.
 
+## Source banners and the watchdog
+
+The "No successful sync yet" banner (a source that has never synced) depends on the watchdog: it needs
+`first_seen`, which only `school-state watchdog` writes to `state/watchdog.json` (cron 8:30 and 16:30).
+Until the watchdog has run once, a never-synced source shows no banner. The watchdog skips its run, and so
+writes nothing, during maintenance mode and when `WATCHDOG_ENABLED=0`. Sources the watchdog does not monitor
+(`SOURCE_*_ENABLED=0`, unconfigured GameChanger or PowerSchool) are shown as paused: no banner, and their rows
+keep a muted "paused, last data as of ..." tag. Rows are not tagged for a never-synced source (it has none).
+
 ## Rollback
 
 ```

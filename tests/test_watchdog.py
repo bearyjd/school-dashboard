@@ -502,3 +502,24 @@ def test_cli_internal_error_exit_2(env, monkeypatch, capsys):
     with pytest.raises(SystemExit) as exc:
         cli.main()
     assert exc.value.code == 2
+
+
+@pytest.mark.parametrize("raw", [
+    "{not json",                                   # malformed
+    "[]", "null", '"text"', "7",                   # not an object
+    '{"first_seen": "x"}', '{"first_seen": []}',   # first_seen not an object
+    '{"first_seen": null}',
+])
+def test_load_first_seen_tolerates_bad_watchdog_json(state_env, raw):
+    (state_env / "watchdog.json").write_text(raw)
+    assert watchdog.load_first_seen() == {}
+
+
+def test_load_first_seen_missing_file(state_env):
+    assert watchdog.load_first_seen() == {}
+
+
+def test_load_first_seen_keeps_only_parseable_string_values(state_env):
+    (state_env / "watchdog.json").write_text(json.dumps({"first_seen": {
+        "ixl": "2026-11-01T06:00:00+00:00", "sgy": 5, "gc": None, "powerschool": "not a date", "x": ["a"]}}))
+    assert watchdog.load_first_seen() == {"ixl": datetime(2026, 11, 1, 6, 0, tzinfo=timezone.utc)}
