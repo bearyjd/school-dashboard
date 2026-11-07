@@ -31,3 +31,7 @@ due-date logic therefore behaves as in production.
 4. Tests named `test_silent_degradation_*` document unguarded paths; they pass today by design.
    If you add a guard, flip the matching test to assert the new warning.
 5. Update the pin SHAs in the table above.
+
+## Git note
+
+`.gitignore` ignores `*.json` and only exempts `tests/fixtures/*.json`, so these files are tracked via `git add -f`. A new fixture here needs `git add -f` too.
