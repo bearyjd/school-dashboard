@@ -272,8 +272,9 @@ def test_assetlinks_uses_env_package_name(client, monkeypatch):
 
 
 @patch("web.app.subprocess.run")
-def test_run_sync_background_survives_state_command_timeout(mock_sub, tmp_path, monkeypatch):
+def test_run_sync_background_survives_state_command_timeout(mock_sub, tmp_path, monkeypatch, caplog):
     """A TimeoutExpired from `school-state update` is recorded as a clean failure."""
+    import logging
     import subprocess
 
     import web.app as app_module
@@ -293,9 +294,11 @@ def test_run_sync_background_survives_state_command_timeout(mock_sub, tmp_path, 
 
     mock_sub.side_effect = fake_run
     assert app_module._sync_lock.acquire(blocking=False)
-    app_module._run_sync_background("ixl", "none")
+    with caplog.at_level(logging.ERROR):
+        app_module._run_sync_background("ixl", "none")
     assert app_module._sync_status["last_result"] == "error"
-    assert "school-state update" in app_module._sync_status["last_error"]
+    assert app_module._sync_status["last_error"] == app_module.GENERIC_SYNC_ERROR
+    assert "school-state update" in caplog.text  # detail reaches the server log
     assert app_module._sync_status["running"] is False
     state_calls = [c for c in mock_sub.call_args_list if c.args[0][0] == "school-state"]
     assert [c.args[0][1] for c in state_calls] == ["update", "html"]  # html still ran after the timeout

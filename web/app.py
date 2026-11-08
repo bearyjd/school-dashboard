@@ -14,8 +14,9 @@ from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, gc_warnings, powerschool_warnings, scrape_warnings
 from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
-from school_dashboard import maintenance, paths, powerschool
-from school_dashboard.rate_limit import FailureLimiter, client_key
+from school_dashboard import csp, maintenance, paths, powerschool
+from school_dashboard.csp import CSP_REPORT_ONLY  # noqa: F401  (re-exported for tests and docs)
+from school_dashboard.rate_limit import FailureLimiter, client_key, trusted_client_ip, trusted_proxy_count
 from school_dashboard.sources import source_enabled
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta
 
@@ -24,7 +25,9 @@ app = Flask(__name__)
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _MAINTENANCE_RETRY_AFTER = "60"
 # /api/chat only reads state and calls the LLM; it persists nothing.
-_MAINTENANCE_EXEMPT = frozenset({"/api/chat"})
+# /api/csp-report only counts browser reports; it persists nothing.
+_MAINTENANCE_EXEMPT = frozenset({"/api/chat", csp.REPORT_PATH})
+csp.init_app(app)
 
 
 @app.before_request
@@ -634,6 +637,13 @@ _sync_status: dict = {
     "last_sources": [],
     "last_error": None,
 }
+GENERIC_SYNC_ERROR = "Sync failed. See the server log for details."
+
+
+def _record_sync_error(detail: str) -> None:
+    """Clients get generic text via /api/sync/status; the detail goes to the server log only."""
+    app.logger.error("Sync error: %s", detail)
+    _sync_status["last_error"] = GENERIC_SYNC_ERROR
 
 
 def _sync_paused_for_maintenance() -> bool:
@@ -862,10 +872,10 @@ def _run_sync_background(sources: str, digest: str) -> None:
         all_paused = bool(source_list) and not any(source_enabled(s) for s in source_list)
         _sync_status["last_result"] = "error" if errors else "ok (all paused)" if all_paused else "ok"
         if errors:
-            _sync_status["last_error"] = "; ".join(errors)
+            _record_sync_error("; ".join(errors))
     except Exception as exc:
         _sync_status["last_result"] = "error"
-        _sync_status["last_error"] = str(exc)
+        _record_sync_error(str(exc))
     finally:
         _sync_status["running"] = False
         _sync_status["last_run"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -873,7 +883,7 @@ def _run_sync_background(sources: str, digest: str) -> None:
         _sync_lock.release()
 
 
-# Bad X-Sync-Token attempts per client (normalised request.remote_addr; no proxy headers trusted).
+# Bad X-Sync-Token attempts per client (normalised remote_addr; X-Forwarded-For only with TRUSTED_PROXY_COUNT > 0).
 _sync_failures = FailureLimiter(max_failures=10, window=60.0)
 MIN_SYNC_TOKEN_LEN = 32
 _weak_token_logged = False
@@ -898,7 +908,9 @@ def api_sync():
     if not sync_token:
         return jsonify({"error": "SYNC_TOKEN not configured"}), 501
 
-    client = client_key(request.remote_addr)
+    client = client_key(trusted_client_ip(
+        request.remote_addr, ", ".join(request.headers.getlist("X-Forwarded-For")),
+        trusted_proxy_count(os.environ.get("TRUSTED_PROXY_COUNT"))))
     provided = request.headers.get("X-Sync-Token", "")
     if provided and hmac.compare_digest(provided.encode(), sync_token.encode()):
         _sync_failures.reset(client)  # a correct token is never blocked by someone else's failures
