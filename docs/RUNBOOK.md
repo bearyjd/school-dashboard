@@ -20,13 +20,18 @@ populate the `events` table from a calendar PDF.
 
 ### Update
 
+The server is pull-only: CI builds the image from `main` and pushes it to GHCR, and the server never builds.
+
 ```bash
-git pull --recurse-submodules
-docker compose build
+cd /opt/school
+docker compose pull
 docker compose up -d
 ```
 
-Template-only changes (`web/`) don't need a rebuild — the `web/` directory is volume-mounted.
+Everything the app serves (`app.py`, templates, the built SPA) is baked into the image, so a code or template change
+needs a new image (merge to `main`, wait for the "Build and push Docker image" run, then pull). Only `state/`, `config/`
+and the credential directories are mounted from the host. See `docs/ops/spa-redesign-rollout.md` for the full checklist,
+backups and rollback.
 
 ## Health Checks
 
@@ -151,13 +156,13 @@ If session expired, it will re-login automatically on the next attempt.
 
 ### Template Changes Not Appearing
 
-`web/` is volume-mounted — changes should be live. If not, check the mount:
+`web/` is baked into the image, not mounted, so a template edit only appears after a new image is built and pulled
+(see Update above). If a change still does not show, check which image is running and that nothing shadows `/app/web`:
 
 ```bash
-docker compose exec dashboard ls /app/web/templates/
+docker inspect school-dashboard-1 --format '{{.Image}}'
+docker inspect school-dashboard-1 --format '{{range .Mounts}}{{.Destination}}{{"\n"}}{{end}}' | grep -c '^/app/web$'   # expect 0
 ```
-
-If the mount is missing, rebuild and restart: `docker compose build && docker compose up -d`.
 
 ## Auto-Start on Reboot
 

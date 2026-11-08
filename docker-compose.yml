@@ -1,6 +1,7 @@
 services:
   dashboard:
     image: ghcr.io/bearyjd/school-dashboard:latest
+    # `build:` is for local development (`docker compose build`). The server is pull-only and has no build context.
     build: .
     restart: unless-stopped
     ports:

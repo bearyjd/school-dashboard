@@ -11,7 +11,7 @@ theme choice) backed by `GET /api/overview`, with the previous Home/Child views 
 - [ ] Locally (optional but cheap): `npm --prefix web/spa run build && npm --prefix web/spa run e2e`.
 - [ ] Note the running image and tag it so it can be restored:
       `IMG=$(docker inspect --format '{{.Config.Image}}' school-dashboard-1); docker tag "$IMG" "${IMG%%:*}:pre-redesign"`
-- [ ] Check the host compose file has **no** `./web:/app/web` mount (`grep -c '/app/web' /opt/school/docker-compose.yml` prints 0).
+- [ ] Check the host compose file has **no** `./web:/app/web` mount (`! grep -q '/app/web' /opt/school/docker-compose.yml` succeeds; after a deploy, `docker inspect school-dashboard-1 --format '{{range .Mounts}}{{.Destination}}{{"\n"}}{{end}}'` must not list `/app/web`).
       A mount shadows the image's `web/`, so a pull would not update the app. Only `state/` and `config/` are host-mounted.
 - [ ] Take a state backup with `school-state transition backup` if state changes are planned at the same time.
 
@@ -57,7 +57,7 @@ docker tag "$REPO:pre-redesign" "$REPO:latest"          # previous image back as
 docker compose up -d --force-recreate
 ```
 
-Installed PWAs return to the old layout after their service worker updates.
+Do not run `docker compose pull` before rolling back, or `:latest` is overwritten again. The `pre-redesign` image serves the `web/` baked into it, which is not necessarily what the old host `web/` mount was serving at the time. Installed PWAs return to the old layout after their service worker updates.
 
 ## Classic view retirement
 
