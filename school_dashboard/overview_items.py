@@ -14,7 +14,7 @@ from school_dashboard.state import canonical_name
 
 ROLLOVER_HOUR = 4
 MAX_PER_STATUS = 500
-_DONE_STATUSES = frozenset({"submitted", "graded", "complete", "completed", "turned in"})
+DONE_STATUSES = frozenset({"submitted", "graded", "complete", "completed", "turned in"})
 _FREEFORM = re.compile(r"([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})")
 
 
@@ -128,7 +128,7 @@ def _schoology_rows(state: dict, today: date, nxt: date, kids: list[str]) -> lis
     for child, data in _dict_items(state.get("schoology")):
         kid = _kid(child, kids)
         for a in _dict_list(data.get("assignments")):
-            done = str(a.get("status") or "").lower() in _DONE_STATUSES
+            done = str(a.get("status") or "").lower() in DONE_STATUSES
             status = classify(a.get("due_date"), today, nxt, done=done)
             if status is None:
                 continue

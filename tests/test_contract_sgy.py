@@ -306,27 +306,26 @@ def test_renamed_assignment_fields_are_untrusted_for_autoarchive(tmp_path):
     assert trusted["Alpha"] is False
 
 
-def test_inconsistency_status_case_readiness_vs_overview(env):
-    """The scraper emits the page's status text unlowercased ('Submitted'). Overview and the
-    quick check lowercase it; readiness compares case-sensitively and still lists the item."""
+def test_status_case_is_handled_the_same_by_readiness_and_overview(env):
+    """G10 (guarded): the scraper emits the page's status text unlowercased ('Submitted');
+    overview, quick check and readiness all treat it as done."""
     state_env, tmp_path = env
     tomorrow = (TODAY + timedelta(days=1)).isoformat()
     bad = mutate(load("sgy"), lambda d: _alpha(d)["assignments"][1].update(due_date=tomorrow))
     out = consumers(build_state(state_env, tmp_path, sgy=bad))
     assert "Sample Reading Log" not in {i["title"] for i in out["items"]}
-    assert_unguarded("Sample Reading Log" in {i["label"] for i in out["readiness"]["Alpha"]}, "G10")
+    assert "Sample Reading Log" not in {i["label"] for i in out["readiness"]["Alpha"]}
 
 
-def test_inconsistency_freeform_due_date_readiness_vs_overview(env):
-    """'Month D, YYYY' due dates (unparsed page text) are understood by overview but silently
-    skipped by readiness (date.fromisoformat)."""
+def test_freeform_due_date_is_parsed_by_readiness_and_overview(env):
+    """G11 (guarded): 'Month D, YYYY' due dates (unparsed page text) are understood by both."""
     state_env, tmp_path = env
     tomorrow = TODAY + timedelta(days=1)
     freeform = f"{tomorrow:%B} {tomorrow.day}, {tomorrow.year}"
     bad = mutate(load("sgy"), lambda d: _alpha(d)["assignments"][2].update(due_date=freeform))
     out = consumers(build_state(state_env, tmp_path, sgy=bad))
     assert "Practice Set A" in {i["title"] for i in out["items"]}
-    assert_unguarded("Practice Set A" not in {i["label"] for i in out["readiness"]["Alpha"]}, "G11")
+    assert "Practice Set A" in {i["label"] for i in out["readiness"]["Alpha"]}
 
 
 def test_unused_keys_can_vanish_without_effect(env):
@@ -344,14 +343,14 @@ def test_unused_keys_can_vanish_without_effect(env):
         k: len(v["assignments"]) for k, v in base.items()}
 
 
-def test_silent_degradation_readiness_omits_children_without_schoology(env):
-    """UNGUARDED: readiness iterates only state['schoology']; Alpha has IXL data but no
-    schoology entry here, so it gets no checklist at all."""
+def test_readiness_covers_roster_children_without_schoology(env):
+    """G15 (guarded): readiness also walks the roster; Alpha has IXL data but no schoology
+    entry here, and still gets her IXL checklist."""
     state_env, tmp_path = env
     bad = mutate(load("sgy"), lambda d: d["per_child"].pop(0))
     built = build_state(state_env, tmp_path, sgy=bad)
     assert built["state"]["ixl"]["Alpha"]["totals"]
-    assert_unguarded("Alpha" not in consumers(built)["readiness"], "G15")
+    assert any(i["type"] == "ixl" for i in consumers(built)["readiness"]["Alpha"])
 
 
 def test_missing_due_date_alone_makes_a_child_untrusted_for_autoarchive(tmp_path):

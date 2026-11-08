@@ -47,10 +47,10 @@ due-date logic therefore behaves as in production.
 | G7 (closed) | sgy: `title` renamed collapsed action items to one "Unknown"; same guard as G6, and the child is also untrusted for auto-archive |
 | G8 (closed) | sgy: failed child reads as "SGY all done" |
 | G9 (closed) | sgy: auto-archive trusts partial/failed children (no top-level `warnings`). Partial children are deliberately never trusted for archiving and not warned about |
-| G10 | sgy: status case ("Submitted") handled differently by readiness vs overview |
-| G11 | sgy: free-form due dates skipped by readiness, parsed by overview |
+| G10 (closed) | sgy: readiness now lowercases status and shares `overview_items.DONE_STATUSES` (so `Submitted`, `Turned in` count as done everywhere) |
+| G11 (closed) | sgy: readiness uses `overview_items.parse_date`, so `Month D, YYYY` due dates count there too |
 | G12a/b/c (closed) | powerschool: missing `name` / renamed item `due` / missing item `title` now add a `powerschool_meta` warning and keep the child's previous data (a nameless entry is skipped). These warnings reach `/api/dashboard`, not the overview banner |
-| G13 | gc: `schedule` missing for some teams writes empty schedules, exit 0 |
-| G14a/b/c | gc: event `date` / `time` / `type` renamed degrades overview and digest silently |
+| G13 (closed) | gc: a team whose summary has no `schedule` list keeps its previous schedule (or none), gets `schedule_error: missing_schedule` and a banner/digest warning with the last-good date. A genuine `schedule: []` is not flagged. If every team fails the scrape still refuses to overwrite |
+| G14a/b/c (closed) | gc: when a team's events all lack a readable `date`, or the `time` / `type` key is absent from every event, `scrape_meta.gc_warnings` reports it (overview `warnings`, digest DATA WARNINGS block). Present-but-empty values are not flagged |
 | G16 (closed) | ixl: roster child that had IXL data but has no file now (sync deletes a failed child's file) read as "IXL fine"; now `scrape_meta` marks it unavailable (`missing`). A roster child that never had IXL data is not flagged |
-| G15 | readiness only iterates schoology children (IXL/PS-only child omitted) |
+| G15 (closed) | readiness also walks the configured roster, so a child with IXL data but no Schoology entry gets an IXL checklist |
