@@ -11,8 +11,8 @@ theme choice) backed by `GET /api/overview`, with the previous Home/Child views 
 - [ ] Locally (optional but cheap): `npm --prefix web/spa run build && npm --prefix web/spa run e2e`.
 - [ ] Note the running image and tag it so it can be restored:
       `IMG=$(docker inspect --format '{{.Config.Image}}' school-dashboard-1); docker tag "$IMG" "${IMG%%:*}:pre-redesign"`
-- [ ] Back up the host `web/` (it shadows the image, see below):
-      `mkdir -p /root/school-backups && cp -a /opt/school/web /root/school-backups/web-pre-redesign`
+- [ ] Check the host compose file has **no** `./web:/app/web` mount (`! grep -q '/app/web' /opt/school/docker-compose.yml` succeeds; after a deploy, `docker inspect school-dashboard-1 --format '{{range .Mounts}}{{.Destination}}{{"\n"}}{{end}}'` must not list `/app/web`).
+      A mount shadows the image's `web/`, so a pull would not update the app. Only `state/` and `config/` are host-mounted.
 - [ ] Take a state backup with `school-state transition backup` if state changes are planned at the same time.
 
 ## Deploy
@@ -20,17 +20,8 @@ theme choice) backed by `GET /api/overview`, with the previous Home/Child views 
 Run on the Docker host. `IMG` is the image name from `docker-compose.yml` (set it as above).
 
 1. `docker compose pull`
-2. **Refresh the host `web/` copy.** The host directory `/opt/school/web/` shadows the image's
-   `/app/web/`, so a new image alone keeps serving the old SPA and `app.py`. Copy the new image's
-   files over it from a throwaway container:
-   `docker run --rm -v /opt/school/web:/dest --entrypoint cp "$IMG" -a /app/web/. /dest/`
-   (alternative: `docker cp school-dashboard-1:/app/web/. /opt/school/web/` after step 3, then
-   `docker compose restart`). `cp -a` overwrites but never deletes, so old hashed files in
-   `web/spa/dist/assets/` stay behind. They are harmless; to clear them use
-   `rsync -a --delete` into a staging dir instead (copy the image files to `/tmp/web-new` with the
-   command above, then `rsync -a --delete /tmp/web-new/ /opt/school/web/`).
-3. `docker compose up -d`
-4. `scripts/smoke-live.sh --container school-dashboard-1` (with `BASE_URL`, and `SYNC_TOKEN` if set).
+2. `docker compose up -d`
+3. `scripts/smoke-live.sh --container school-dashboard-1` (with `BASE_URL`, and `SYNC_TOKEN` if set).
 
 ## Verify
 
@@ -63,11 +54,10 @@ keep a muted "paused, last data as of ..." tag. Rows are not tagged for a never-
 ```
 IMG=$(docker inspect --format '{{.Config.Image}}' school-dashboard-1); REPO=${IMG%%:*}
 docker tag "$REPO:pre-redesign" "$REPO:latest"          # previous image back as latest
-rm -rf /opt/school/web && cp -a /root/school-backups/web-pre-redesign /opt/school/web   # previous host web/
 docker compose up -d --force-recreate
 ```
 
-Installed PWAs return to the old layout after their service worker updates.
+Do not run `docker compose pull` before rolling back, or `:latest` is overwritten again. The `pre-redesign` image serves the `web/` baked into it, which is not necessarily what the old host `web/` mount was serving at the time. Installed PWAs return to the old layout after their service worker updates.
 
 ## Classic view retirement
 

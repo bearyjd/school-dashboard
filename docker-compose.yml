@@ -1,13 +1,15 @@
 services:
   dashboard:
     image: ghcr.io/bearyjd/school-dashboard:latest
+    # `build:` is for local development (`docker compose build`). The server is pull-only and has no build context.
     build: .
     restart: unless-stopped
     ports:
       - "5000:5000"
     volumes:
       - ./state:/app/state
-      - ./web:/app/web
+      # web/ is deliberately NOT mounted: a host copy would shadow the image's web/ (app.py,
+      # templates, built SPA), so `docker compose pull` would not update the app.
       # config/ holds env and school-dashboard.json (roster); dir mount avoids
       # Docker creating a directory when the roster file is missing
       - ./config:/app/config:ro
