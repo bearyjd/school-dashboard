@@ -47,7 +47,14 @@ def _entries(state: dict, source: str) -> dict:
     entries = block.get("unavailable") if isinstance(block, dict) else None
     if not isinstance(entries, dict):
         return {}
-    return {k: v for k, v in entries.items() if isinstance(v, dict)}
+    skip = _opted_out() if source == "ixl" else set()  # roster `"ixl": false`
+    return {k: v for k, v in entries.items() if isinstance(v, dict) and k not in skip}
+
+
+def _opted_out() -> set:
+    from school_dashboard.state import ixl_opted_out  # state imports this module
+
+    return ixl_opted_out()
 
 
 def set_unavailable(state: dict, source: str, reasons: dict) -> None:
