@@ -324,13 +324,75 @@ def ixl_payload_ok(data: object) -> bool:
     )
 
 
+IXL_TOTALS_KEYS = ("assigned", "done", "remaining")
+ANY_CHILD = "*"
+
+
+def _is_count(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def ixl_totals_problem(data: dict) -> Optional[str]:
+    """Why a (shape-valid) IXL payload cannot be trusted as a count of remaining work, else None.
+
+    `totals` must exist and every subject must carry numeric assigned/done/remaining; an empty
+    `totals` object is a legitimate "nothing assigned".
+    """
+    totals = data.get("totals")
+    if not isinstance(totals, dict):
+        return "totals missing"
+    for subject in totals.values():
+        if not isinstance(subject, dict) or not all(_is_count(subject.get(k)) for k in IXL_TOTALS_KEYS):
+            return "totals incomplete"
+    return None
+
+
+def _scrape_warnings(label: str, unavailable: dict, section: dict) -> list:
+    """Deterministic warning strings for {child or ANY_CHILD: reason}."""
+    warnings = []
+    for name, reason in sorted(unavailable.items()):
+        kept = bool(section) if name == ANY_CHILD else name in section
+        who = label if name == ANY_CHILD else f"{label} {name}"
+        warnings.append(f"{who}: {reason}; {'previous data kept' if kept else 'no previous data'}")
+    return warnings
+
+
+def _set_scrape_meta(state: dict, source: str, unavailable: dict) -> None:
+    """Record which children (or ANY_CHILD) a source could not supply, with warnings."""
+    label = {"ixl": "IXL", "schoology": "Schoology"}[source]
+    meta = dict(state.get("scrape_meta") or {})
+    meta[source] = {"unavailable": dict(unavailable),
+                    "warnings": _scrape_warnings(label, unavailable, state.get(source) or {})}
+    state["scrape_meta"] = meta
+
+
+def unavailable_for(state: dict, source: str, child: str) -> bool:
+    """True when the latest scrape of `source` could not supply data for `child`."""
+    meta = (state.get("scrape_meta") or {}).get(source)
+    unavailable = meta.get("unavailable") if isinstance(meta, dict) else None
+    return isinstance(unavailable, dict) and (child in unavailable or ANY_CHILD in unavailable)
+
+
+def scrape_warnings(state: dict) -> list:
+    """All scrape warnings recorded by the last `update`, for the dashboard/overview."""
+    meta = state.get("scrape_meta")
+    if not isinstance(meta, dict):
+        return []
+    return [str(w) for v in meta.values() if isinstance(v, dict) for w in v.get("warnings") or []]
+
+
 def update_from_ixl_files(state: dict, ixl_dir: str = "/tmp/ixl") -> int:
-    """Read all {name}-assigned.json files from ixl output dir and merge into state."""
+    """Read all {name}-assigned.json files from ixl output dir and merge into state.
+
+    A payload without usable totals leaves that child's previous data untouched and is
+    recorded in state["scrape_meta"]["ixl"].
+    """
     ixl_path = Path(ixl_dir)
     if not ixl_path.is_dir():
         return 0
 
     count = 0
+    unavailable: dict = {}
     for f in ixl_path.glob("*-assigned.json"):
         child_name = _canonicalize(f.stem.replace("-assigned", ""))
         try:
@@ -340,13 +402,24 @@ def update_from_ixl_files(state: dict, ixl_dir: str = "/tmp/ixl") -> int:
         if not ixl_payload_ok(data):
             logger.warning("Skipping %s: empty or error-shaped IXL payload", f.name)
             continue
+        problem = ixl_totals_problem(data)
+        if problem:
+            logger.warning("Not applying %s: IXL %s", f.name, problem)
+            unavailable[child_name] = problem
+            continue
         update_ixl(state, child_name, data)
         count += 1
+    _set_scrape_meta(state, "ixl", unavailable)
     return count
 
 
 def update_from_sgy_file(state: dict, sgy_file: str = "/tmp/schoology-daily.json") -> int:
-    """Read sgy summary --json output and merge into state."""
+    """Read sgy summary --json output and merge into state.
+
+    A child whose scrape_confidence is "failed", a missing/non-list `per_child`, or an empty
+    `per_child` while state already holds schoology data leaves previous data untouched and is
+    recorded in state["scrape_meta"]["schoology"]. None of these raises; `update` still exits 0.
+    """
     p = Path(sgy_file)
     if not p.exists():
         return 0
@@ -356,13 +429,24 @@ def update_from_sgy_file(state: dict, sgy_file: str = "/tmp/schoology-daily.json
     except (json.JSONDecodeError, OSError):
         return 0
 
+    per_child = data.get("per_child")
+    unavailable: dict = {}
+    if not isinstance(per_child, list):
+        unavailable[ANY_CHILD] = "per_child missing"
+        per_child = []
+    elif not per_child and state.get("schoology"):
+        unavailable[ANY_CHILD] = "scrape returned no children"
+
     count = 0
-    for entry in data.get("per_child", []):
+    for entry in per_child:
         child_info = entry.get("child", {})
         raw_name = child_info.get("name", "").split()[0]
         if not raw_name:
             continue
         name = _canonicalize(raw_name)
+        if entry.get("scrape_confidence") == "failed":
+            unavailable[name] = "scrape failed"
+            continue
         update_schoology(state, name, entry)
 
         for assignment in entry.get("assignments", []):
@@ -377,6 +461,7 @@ def update_from_sgy_file(state: dict, sgy_file: str = "/tmp/schoology-daily.json
             )
         count += 1
 
+    _set_scrape_meta(state, "schoology", unavailable)
     return count
 
 
@@ -494,15 +579,20 @@ def summary_text(state: dict) -> str:
         lines.append(f"{name} ({info['grade']}, {info['school']})")
 
         ixl = state.get("ixl", {}).get(name, {})
-        if ixl:
+        if unavailable_for(state, "ixl", name):
+            lines.append("  IXL: unavailable")
+        elif ixl:
             totals = ixl.get("totals", {})
             for subj, t in totals.items():
-                lines.append(f"  IXL {subj}: {t['done']}/{t['assigned']} done, {t['remaining']} remaining")
+                lines.append(f"  IXL {subj}: {t.get('done', '?')}/{t.get('assigned', '?')} done, "
+                             f"{t.get('remaining', '?')} remaining")
         else:
             lines.append("  IXL: no data")
 
         sgy = state.get("schoology", {}).get(name, {})
-        if sgy:
+        if unavailable_for(state, "schoology", name):
+            lines.append("  SGY: unavailable")
+        elif sgy:
             assignments = sgy.get("assignments", [])
             grades = sgy.get("grades", [])
             lines.append(f"  SGY: {len(assignments)} assignments, {len(grades)} courses")

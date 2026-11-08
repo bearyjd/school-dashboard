@@ -11,8 +11,7 @@ Consumers and the keys they read:
 import logging
 
 import pytest
-from contract_support import (assert_unguarded, build_state, consumers, load, mutate, renamed, set_roster,
-                              unguarded_raises, without)
+from contract_support import build_state, consumers, load, mutate, renamed, set_roster, without
 
 from school_dashboard import state
 
@@ -67,34 +66,65 @@ def test_guarded_bad_payload_is_skipped_with_a_warning(env, caplog, mutation):
     assert "empty or error-shaped IXL payload" in caplog.text
 
 
-def test_silent_degradation_inner_remaining_key_renamed(env):
-    """UNGUARDED: `remaining` -> `left` inside totals passes ixl_payload_ok, then every
-    consumer reads 0 remaining. Quick check says "IXL all done"; no warning anywhere."""
+def _ixl_meta(built: dict) -> dict:
+    return built["state"]["scrape_meta"]["ixl"]
+
+
+def _renamed_inner(key: str) -> dict:
+    return mutate(load("ixl"), lambda d: d.update(
+        totals={s: renamed(t, key, "left") for s, t in d["totals"].items()}))
+
+
+def test_inner_remaining_key_renamed_is_unavailable_not_all_done(env):
+    """G1 (guarded): `remaining` -> `left` inside totals must not read as "all done"."""
     state_env, tmp_path = env
-    bad = mutate(load("ixl"), lambda d: d.update(
-        totals={s: renamed(t, "remaining", "left") for s, t in d["totals"].items()}))
-    built = build_state(state_env, tmp_path, ixl=bad)
-    assert "Alpha" in built["state"]["ixl"]
+    built = build_state(state_env, tmp_path, ixl=_renamed_inner("remaining"))
+    assert "Alpha" not in built["state"]["ixl"]
+    assert _ixl_meta(built)["unavailable"] == {"Alpha": "totals incomplete"}
+    assert _ixl_meta(built)["warnings"] == ["IXL Alpha: totals incomplete; no previous data"]
     out = consumers(built)
-    assert_unguarded("Alpha: IXL all done" in out["quick"], "G1")
-    assert_unguarded(not [i for i in out["items"] if i["source"] == "ixl"], "G1")
-    assert_unguarded(not [i for i in out["readiness"].get("Alpha", []) if i["type"] == "ixl"], "G1")
+    assert "Alpha: IXL unavailable" in out["quick"]
+    assert "IXL all done" not in out["quick"].split("\n")[0]
 
 
-def test_silent_degradation_totals_missing_but_remaining_list_present(env):
-    """UNGUARDED: ixl_payload_ok accepts `totals` OR `remaining`; with only the list the
-    child is stored with empty totals and reads as "all done"."""
+def test_bad_payload_keeps_previous_ixl_data_and_clears_on_recovery(env):
+    state_env, tmp_path = env
+    build_state(state_env, tmp_path)
+    built = build_state(state_env, tmp_path, ixl=_renamed_inner("remaining"))
+    assert built["state"]["ixl"]["Alpha"]["totals"]["Math"]["remaining"] == 3
+    assert _ixl_meta(built)["warnings"] == ["IXL Alpha: totals incomplete; previous data kept"]
+    assert "Alpha: IXL unavailable" in consumers(built)["quick"]
+    healed = build_state(state_env, tmp_path)
+    assert _ixl_meta(healed) == {"unavailable": {}, "warnings": []}
+    assert "Alpha: IXL 4 remaining (Math, ELA)" in consumers(healed)["quick"]
+
+
+def test_totals_missing_but_remaining_list_present_is_unavailable(env):
+    """G2 (guarded): a payload with only the `remaining` list is not accepted as "all done"."""
     state_env, tmp_path = env
     built = build_state(state_env, tmp_path, ixl=without(load("ixl"), "totals"))
-    assert_unguarded(built["state"]["ixl"].get("Alpha", {}).get("totals") == {}, "G2")
-    assert_unguarded("Alpha: IXL all done" in consumers(built)["quick"], "G2")
+    assert "Alpha" not in built["state"]["ixl"]
+    assert _ixl_meta(built)["unavailable"] == {"Alpha": "totals missing"}
+    assert "Alpha: IXL unavailable" in consumers(built)["quick"]
 
 
-def test_summary_text_crashes_when_totals_lack_done(env):
-    """UNGUARDED: summary_text indexes t['done'] / t['assigned'] directly -> KeyError."""
+def test_empty_totals_dict_is_a_legitimate_nothing_assigned(env):
+    state_env, tmp_path = env
+    built = build_state(state_env, tmp_path, ixl={**load("ixl"), "totals": {}, "remaining": []})
+    assert built["state"]["ixl"]["Alpha"]["totals"] == {}
+    assert _ixl_meta(built)["unavailable"] == {}
+    assert "Alpha: IXL all done" in consumers(built)["quick"]
+
+
+def test_summary_text_survives_totals_lacking_done(env):
+    """G3 (guarded): the update refuses the payload, and summary_text no longer KeyErrors on a
+    state that already holds incomplete totals."""
     state_env, tmp_path = env
     bad = mutate(load("ixl"), lambda d: d.update(
         totals={s: without(t, "done") for s, t in d["totals"].items()}))
     built = build_state(state_env, tmp_path, ixl=bad)
-    with unguarded_raises(KeyError, "G3"):
-        state.summary_text(built["state"])
+    assert _ixl_meta(built)["unavailable"] == {"Alpha": "totals incomplete"}
+    assert "IXL: unavailable" in state.summary_text(built["state"])
+    legacy = {"action_items": [], "children": {"Alpha": {"grade": "5th", "school": "S"}},
+              "ixl": {"Alpha": {"totals": {"Math": {"remaining": 2}}}}}
+    assert "IXL Math: ?/? done, 2 remaining" in state.summary_text(legacy)

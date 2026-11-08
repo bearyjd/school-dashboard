@@ -11,6 +11,7 @@ from pathlib import Path
 import requests
 
 from school_dashboard import maintenance, powerschool
+from school_dashboard.state import unavailable_for
 from school_dashboard.llm import chat_completion
 
 _log = logging.getLogger(__name__)
@@ -615,6 +616,15 @@ _DEEP_LINKS: dict[str, str] = {
 DASHBOARD_BASE = "https://school.grepon.cc"
 
 
+def _unavailable_names(state: dict) -> list[str]:
+    """Children a source failed to supply (so they still show up in the quick check)."""
+    meta = state.get("scrape_meta")
+    if not isinstance(meta, dict):
+        return []
+    return [name for v in meta.values() if isinstance(v, dict)
+            for name in (v.get("unavailable") or {}) if name != "*"]
+
+
 def build_quick_check(state_path: str, today: str | None = None) -> tuple[str, list]:
     """Fast homework check — no LLM. Returns per-child IXL + SGY summary as plain text."""
     state = _load_state(state_path)
@@ -625,7 +635,8 @@ def build_quick_check(state_path: str, today: str | None = None) -> tuple[str, l
     children = sorted(set(
         list((state.get("ixl") or {}).keys()) +
         list((state.get("schoology") or {}).keys()) +
-        list((state.get("powerschool") or {}).keys())
+        list((state.get("powerschool") or {}).keys()) +
+        _unavailable_names(state)
     ))
     if not children:
         return "No children found in state.", []
@@ -643,13 +654,18 @@ def build_quick_check(state_path: str, today: str | None = None) -> tuple[str, l
             )
         ]
 
-        if ixl_remaining > 0:
+        if unavailable_for(state, "ixl", child):
+            ixl_part = "IXL unavailable"
+        elif ixl_remaining > 0:
             subjects = [s for s, v in ixl_totals.items() if v.get("remaining", 0) > 0]
             ixl_part = f"IXL {ixl_remaining} remaining ({', '.join(subjects)})"
         else:
             ixl_part = "IXL all done"
 
-        sgy_part = f"SGY {len(open_sgy)} open" if open_sgy else "SGY all done"
+        if unavailable_for(state, "schoology", child):
+            sgy_part = "Schoology unavailable"
+        else:
+            sgy_part = f"SGY {len(open_sgy)} open" if open_sgy else "SGY all done"
         lines.append(f"{child}: {ixl_part}, {sgy_part}")
         ps_entry = (state.get("powerschool") or {}).get(child)
         if isinstance(ps_entry, dict):

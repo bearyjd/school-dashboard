@@ -10,7 +10,7 @@ Consumers and the keys they read:
                                    .assignments[].title
 """
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from contract_support import (TODAY, assert_unguarded, build_state, consumers, load, mutate, renamed, set_roster,
@@ -53,7 +53,7 @@ def test_fixture_is_accepted_end_to_end(env):
     state_env, tmp_path = env
     built = build_state(state_env, tmp_path)
     sgy = built["state"]["schoology"]
-    assert {k: len(v["assignments"]) for k, v in sgy.items()} == {"Alpha": 5, "Beta": 1, "Gamma": 0}
+    assert {k: len(v["assignments"]) for k, v in sgy.items()} == {"Alpha": 5, "Beta": 1}
     assert sgy["Alpha"]["grades"] == [
         {"course": "Sample Math", "grade": "92%", "letter": "A"},
         {"course": "Sample ELA", "grade": "78%", "letter": "C"}]
@@ -82,33 +82,94 @@ def test_autoarchive_reads_the_fixture(tmp_path):
     assert digest
 
 
-def test_silent_degradation_failed_and_partial_scrapes_count_as_trusted(tmp_path):
-    """UNGUARDED: `sgy summary` has no top-level `warnings` key (only per-child `warnings` and
-    `scrape_confidence`), but the auto-archive's trust check reads only the top-level one.
-    The partial (Beta) and failed (Gamma) children are therefore trusted scrapes."""
+def test_failed_and_partial_scrapes_are_untrusted_for_autoarchive(tmp_path):
+    """G9 (guarded): `sgy summary` has no top-level `warnings` key, so trust comes from the
+    per-child `scrape_confidence`: partial (Beta) and failed (Gamma) are not trusted."""
     path = tmp_path / "sgy.json"
     path.write_text(json.dumps(load("sgy")))
     _, trusted, _ = schoology_autoarchive.scrape_view(str(path))
     assert "warnings" not in load("sgy")
-    assert_unguarded(trusted == {"Alpha": True, "Beta": True, "Gamma": True}, "G9")
+    assert trusted == {"Alpha": True, "Beta": False, "Gamma": False}
 
 
-def test_silent_degradation_failed_child_reads_as_all_done(env):
-    """UNGUARDED: a child whose scrape failed (scrape_confidence 'failed', assignments [])
-    replaces its schoology entry with empty lists and the quick check says "all done"."""
+def test_failed_child_counts_no_misses_and_archives_nothing(tmp_path):
+    now = datetime(2026, 11, 5, 12, 0, 0)
+    old = (now - timedelta(days=10)).isoformat()
+    item = {"id": "x1", "child": "Gamma", "source": "schoology", "type": "assignment",
+            "summary": "Old", "due": None, "status": "pending", "created": old,
+            "last_seen": old, "missed": 2}
+    st = {"action_items": [item]}
+    path = tmp_path / "sgy.json"
+    path.write_text(json.dumps(load("sgy")))
+    seen, trusted, _ = schoology_autoarchive.scrape_view(str(path))
+    new_state, archived, _ = schoology_autoarchive.plan_autoarchive(st, seen, trusted, now)
+    assert archived == []
+    assert new_state["action_items"][0]["missed"] == 2
+
+
+def _sgy_meta(built: dict) -> dict:
+    return built["state"]["scrape_meta"]["schoology"]
+
+
+def test_failed_child_is_unavailable_not_all_done(env):
+    """G8 (guarded): a failed child (scrape_confidence 'failed') says Schoology unavailable."""
     state_env, tmp_path = env
     built = build_state(state_env, tmp_path)
     assert load("sgy")["per_child"][2]["scrape_confidence"] == "failed"
-    assert_unguarded("Gamma: IXL all done, SGY all done" in consumers(built)["quick"], "G8")
+    assert "Gamma" not in built["state"]["schoology"]
+    assert _sgy_meta(built) == {"unavailable": {"Gamma": "scrape failed"},
+                                "warnings": ["Schoology Gamma: scrape failed; no previous data"]}
+    quick = consumers(built)["quick"]
+    assert "Gamma: IXL all done, Schoology unavailable" in quick
+    assert "Gamma: IXL all done, SGY all done" not in quick
 
 
-def test_per_child_renamed_is_silently_ignored(env, caplog):
-    """UNGUARDED: `per_child` renamed -> 0 children merged, no warning, exit 0."""
+def test_failed_child_keeps_previous_items_and_partial_child_is_merged(env):
+    state_env, tmp_path = env
+    first = mutate(load("sgy"), lambda d: d["per_child"][2].update(
+        scrape_confidence="high", assignments=[{
+            "title": "Gamma Task", "course": "Sample", "due_date": "", "status": "unknown", "link": ""}]))
+    build_state(state_env, tmp_path, sgy=first)
+    built = build_state(state_env, tmp_path)
+    assert [a["title"] for a in built["state"]["schoology"]["Gamma"]["assignments"]] == ["Gamma Task"]
+    assert _sgy_meta(built)["warnings"] == ["Schoology Gamma: scrape failed; previous data kept"]
+    assert len(built["state"]["schoology"]["Beta"]["assignments"]) == 1
+    assert "Gamma Task" in {i["summary"] for i in _pending(built)}
+    assert "Gamma: IXL all done, Schoology unavailable" in consumers(built)["quick"]
+
+
+def test_per_child_renamed_is_flagged_and_keeps_previous_data(env):
+    """G4 (guarded): `per_child` renamed -> a warning, previous schoology section kept."""
+    state_env, tmp_path = env
+    build_state(state_env, tmp_path)
+    built = build_state(state_env, tmp_path, sgy=renamed(load("sgy"), "per_child", "children_data"))
+    assert set(built["state"]["schoology"]) == {"Alpha", "Beta"}
+    assert len(_pending(built)) == 6
+    assert _sgy_meta(built) == {"unavailable": {"*": "per_child missing"},
+                                "warnings": ["Schoology: per_child missing; previous data kept"]}
+    assert "Schoology unavailable" in consumers(built)["quick"]
+
+
+def test_per_child_renamed_without_previous_data_is_flagged(env):
     state_env, tmp_path = env
     built = build_state(state_env, tmp_path, sgy=renamed(load("sgy"), "per_child", "children_data"))
-    assert_unguarded(built["state"]["schoology"] == {}, "G4")
-    assert_unguarded(_pending(built) == [], "G4")
-    assert_unguarded(not [r for r in caplog.records if r.levelname in ("WARNING", "ERROR")], "G4")
+    assert built["state"]["schoology"] == {}
+    assert _sgy_meta(built)["warnings"] == ["Schoology: per_child missing; no previous data"]
+    assert "Alpha: IXL 4 remaining (Math, ELA), Schoology unavailable" in consumers(built)["quick"]
+
+
+def test_empty_per_child_after_data_is_suspicious(env):
+    state_env, tmp_path = env
+    build_state(state_env, tmp_path)
+    built = build_state(state_env, tmp_path, sgy={**load("sgy"), "per_child": []})
+    assert set(built["state"]["schoology"]) == {"Alpha", "Beta"}
+    assert _sgy_meta(built)["warnings"] == ["Schoology: scrape returned no children; previous data kept"]
+
+
+def test_empty_per_child_with_nothing_before_is_not_flagged(env):
+    state_env, tmp_path = env
+    built = build_state(state_env, tmp_path, sgy={**load("sgy"), "per_child": []})
+    assert _sgy_meta(built) == {"unavailable": {}, "warnings": []}
 
 
 def test_child_name_key_missing_crashes_the_update(env):
