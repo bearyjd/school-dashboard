@@ -418,6 +418,33 @@ def update_from_ixl_files(state: dict, ixl_dir: str = "/tmp/ixl") -> int:
     return count
 
 
+def _sgy_child_name(entry: object) -> str:
+    """First name word of a per_child entry, "" when the entry or its name is unusable."""
+    info = entry.get("child") if isinstance(entry, dict) else None
+    name = info.get("name") if isinstance(info, dict) else None
+    parts = name.split() if isinstance(name, str) else []
+    return parts[0] if parts else ""
+
+
+def sgy_assignments_problem(entry: dict) -> Optional[str]:
+    """Why a child's assignments cannot be trusted (a renamed/missing `title` or `due_date` key), else None.
+
+    The scraper always emits both keys on every assignment (`due_date` may be empty). Without
+    `title` every item would collapse into one "Unknown"; without `due_date` dated rows vanish.
+    """
+    assignments = entry.get("assignments", [])
+    if not isinstance(assignments, list):
+        return "assignments is not a list"
+    for a in assignments:
+        if not isinstance(a, dict):
+            return "assignment is not an object"
+        if not isinstance(a.get("title"), str):
+            return "assignment without a title"
+        if "due_date" not in a:
+            return "assignment without a due_date"
+    return None
+
+
 def update_from_sgy_file(state: dict, sgy_file: str = "/tmp/schoology-daily.json") -> int:
     """Read sgy summary --json output and merge into state.
 
@@ -450,13 +477,19 @@ def update_from_sgy_file(state: dict, sgy_file: str = "/tmp/schoology-daily.json
 
     count = 0
     for entry in per_child:
-        child_info = entry.get("child", {})
-        raw_name = child_info.get("name", "").split()[0]
+        raw_name = _sgy_child_name(entry)
         if not raw_name:
+            unavailable[scrape.UNNAMED] = scrape.NONAME
+            logger.warning("Schoology scrape: a child entry has no usable name; skipped")
             continue
         name = _canonicalize(raw_name)
         if entry.get("scrape_confidence") == "failed":
             unavailable[name] = scrape.FAILED
+            continue
+        problem = sgy_assignments_problem(entry)
+        if problem:
+            unavailable[name] = scrape.UNEXPECTED
+            logger.warning("Schoology scrape: not applying a child entry: %s", problem)
             continue
         update_schoology(state, name, entry)
 

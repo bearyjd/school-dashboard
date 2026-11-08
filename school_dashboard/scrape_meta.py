@@ -11,6 +11,7 @@ from typing import Optional
 from school_dashboard.sources import source_enabled
 
 ANY_CHILD = "*"
+UNNAMED = "?"  # a child entry with no usable name: nothing to key the data on
 SOURCES = ("ixl", "schoology")
 _LABELS = {"ixl": "IXL", "schoology": "Schoology"}
 _ENV_NAME = {"ixl": "ixl", "schoology": "sgy"}  # SOURCE_<NAME>_ENABLED
@@ -19,11 +20,13 @@ FAILED = "failed"
 UNEXPECTED = "unexpected"
 EMPTY = "empty"
 MISSING = "missing"
+NONAME = "noname"
 _PHRASES = {
     FAILED: "the last scrape failed",
     UNEXPECTED: "the last scrape returned unexpected data",
     EMPTY: "the last scrape returned nothing",
     MISSING: "no scrape result was found",
+    NONAME: "a child in the last scrape had no name and was skipped",
 }
 
 
@@ -81,7 +84,7 @@ def unavailable_for(state: dict, source: str, child: str) -> bool:
 
 def unavailable_names(state: dict) -> list:
     """Children named (not the whole-source marker) in any source's unavailable entries."""
-    return [k for s in SOURCES for k in _entries(state, s) if k != ANY_CHILD]
+    return [k for s in SOURCES for k in _entries(state, s) if k not in (ANY_CHILD, UNNAMED)]
 
 
 def oldest_since(state: dict, source: str) -> Optional[datetime]:
@@ -129,11 +132,14 @@ def scrape_warnings(state: dict, now: Optional[datetime] = None, clean: bool = F
     for source in SOURCES:
         for key, entry in sorted(_entries(state, source).items()):
             label = key if not clean else _clean(key, NAME_CAP)
-            who = _LABELS[source] if key == ANY_CHILD else f"{_LABELS[source]} {label}"
+            who = _LABELS[source] if key in (ANY_CHILD, UNNAMED) else f"{_LABELS[source]} {label}"
             phrase = _PHRASES.get(entry.get("reason"), _PHRASES[FAILED])
             good = _last_good(state, source, key)
             good = _clean(good, NAME_CAP) if clean and good else good
             tail = f"showing the last good data from {good}" if good else "no earlier data to show"
+            if key == UNNAMED:  # no child to point at, so no "last good" date either
+                out.append(f"{who}: {phrase}{_age(entry, now)}")
+                continue
             out.append(f"{who}: {phrase}; {tail}{_age(entry, now)}")
     return out
 

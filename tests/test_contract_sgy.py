@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from contract_support import (TODAY, assert_unguarded, build_state, consumers, line, load, mutate, reasons, renamed,
-                              run_update, set_roster, unguarded_raises, warnings_of)
+                              run_update, set_roster, warnings_of)
 
 from school_dashboard import schoology_autoarchive, state
 
@@ -224,37 +224,80 @@ def test_bad_scrape_reaches_api_overview_warnings(env, monkeypatch):
     assert "Schoology: the last scrape returned unexpected data; no earlier data to show" in body["warnings"]
 
 
-def test_child_name_key_missing_crashes_the_update(env):
-    """Fails loudly, but as a bare IndexError from `''.split()[0]` in update_from_sgy_file."""
+def test_child_name_key_missing_is_flagged_not_a_crash(env):
+    """G5 (guarded): a child entry without a name no longer raises a bare IndexError; that child
+    is skipped (previous data kept), the others still merge, and a plain warning is recorded."""
     state_env, tmp_path = env
+    build_state(state_env, tmp_path)
     bad = mutate(load("sgy"), lambda d: _alpha(d).update(child=renamed(_alpha(d)["child"], "name", "full_name")))
-    with unguarded_raises(IndexError, "G5"):
-        build_state(state_env, tmp_path, sgy=bad)
+    built = build_state(state_env, tmp_path, sgy=bad)
+    assert set(built["state"]["schoology"]) == {"Alpha", "Beta"}
+    assert len(built["state"]["schoology"]["Alpha"]["assignments"]) == 5
+    assert reasons(built, "schoology") == {"?": "noname", "Gamma": "failed"}
+    assert _sgy_warnings(built) == [
+        "Schoology: a child in the last scrape had no name and was skipped",
+        "Schoology Gamma: the last scrape failed; no earlier data to show"]
+    assert "Schoology unavailable" not in line(consumers(built)["quick"], "Alpha")
 
 
-def test_silent_degradation_due_date_renamed_drops_all_dates(env):
-    """UNGUARDED (the roadmap's example): `due_date` -> `dueDate`. Items still count as
-    open, but overview drops every row (no date) and readiness lists nothing."""
+def test_non_dict_child_entry_is_flagged(env):
     state_env, tmp_path = env
+    bad = mutate(load("sgy"), lambda d: d["per_child"].append("oops"))
+    built = build_state(state_env, tmp_path, sgy=bad)
+    assert reasons(built, "schoology") == {"Gamma": "failed", "?": "noname"}
+
+
+def _alpha_previous_kept(built: dict) -> None:
+    assert len(built["state"]["schoology"]["Alpha"]["assignments"]) == 5
+    assert reasons(built, "schoology") == {"Alpha": "unexpected", "Gamma": "failed"}
+    assert ("Schoology Alpha: the last scrape returned unexpected data; "
+            "showing the last good data from 2026-11-05") in _sgy_warnings(built)
+    assert line(consumers(built)["quick"], "Alpha").endswith("Schoology unavailable")
+
+
+def test_due_date_renamed_is_flagged_and_keeps_previous_data(env):
+    """G6 (guarded): `due_date` -> `dueDate` no longer drops every dated row silently."""
+    state_env, tmp_path = env
+    build_state(state_env, tmp_path)
     bad = mutate(load("sgy"), lambda d: _alpha(d).update(
         assignments=[renamed(a, "due_date", "dueDate") for a in _alpha(d)["assignments"]]))
     built = build_state(state_env, tmp_path, sgy=bad)
-    out = consumers(built)
-    assert_unguarded("SGY 4 open" in out["quick"], "G6")
-    assert_unguarded(not [i for i in out["items"] if i["source"] == "schoology"], "G6")
-    assert_unguarded(not [i for i in out["readiness"].get("Alpha", []) if i["type"] == "assignment"], "G6")
-    assert_unguarded(all(i["due"] is None for i in _pending(built) if i["child"] == "Alpha"), "G6")
+    _alpha_previous_kept(built)
+    assert any(i["due"] for i in _pending(built) if i["child"] == "Alpha")
+    assert [i for i in consumers(built)["items"] if i["source"] == "schoology"]
 
 
-def test_silent_degradation_title_renamed_collapses_action_items(env):
-    """UNGUARDED: `title` renamed -> every assignment is 'Unknown' and the action-id
-    de-duplication merges Alpha's five assignments into one pending item."""
+def test_title_renamed_is_flagged_and_keeps_previous_items(env):
+    """G7 (guarded): `title` renamed no longer collapses Alpha's items into one 'Unknown'."""
+    state_env, tmp_path = env
+    build_state(state_env, tmp_path)
+    bad = mutate(load("sgy"), lambda d: _alpha(d).update(
+        assignments=[renamed(a, "title", "name") for a in _alpha(d)["assignments"]]))
+    built = build_state(state_env, tmp_path, sgy=bad)
+    _alpha_previous_kept(built)
+    alpha_items = [i["summary"] for i in _pending(built) if i["child"] == "Alpha"]
+    assert len(alpha_items) == 5 and "Unknown" not in alpha_items
+
+
+def test_renamed_fields_without_previous_data_are_flagged(env):
     state_env, tmp_path = env
     bad = mutate(load("sgy"), lambda d: _alpha(d).update(
         assignments=[renamed(a, "title", "name") for a in _alpha(d)["assignments"]]))
     built = build_state(state_env, tmp_path, sgy=bad)
-    alpha_items = [i for i in _pending(built) if i["child"] == "Alpha"]
-    assert_unguarded([i["summary"] for i in alpha_items] == ["Unknown"], "G7")
+    assert "Alpha" not in built["state"]["schoology"]
+    assert [i for i in _pending(built) if i["child"] == "Alpha"] == []
+    assert ("Schoology Alpha: the last scrape returned unexpected data; "
+            "no earlier data to show") in _sgy_warnings(built)
+
+
+def test_renamed_assignment_fields_are_untrusted_for_autoarchive(tmp_path):
+    """G7: a collapsed 'Unknown' id set must not count misses against the real items."""
+    bad = mutate(load("sgy"), lambda d: _alpha(d).update(
+        assignments=[renamed(a, "title", "name") for a in _alpha(d)["assignments"]]))
+    path = tmp_path / "sgy.json"
+    path.write_text(json.dumps(bad))
+    _, trusted, _ = schoology_autoarchive.scrape_view(str(path))
+    assert trusted["Alpha"] is False
 
 
 def test_inconsistency_status_case_readiness_vs_overview(env):
