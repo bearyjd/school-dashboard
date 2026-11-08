@@ -27,8 +27,8 @@ Run on the Docker host. `IMG` is the image name from `docker-compose.yml` (set i
 
 - [ ] Load `/app/` on a phone and a desktop: Today shows the kids, freshness tags and the Tonight list.
 - [ ] Settings: switch Midnight / Daylight / System; it applies immediately and survives a reload.
-- [ ] Installed PWA picks up the new service worker: the cache is now `school-v2` (old `school-v1`
-      is deleted on activate). Close and reopen the app once if it still shows the old layout.
+- [ ] Installed PWA picks up the new service worker: the cache name comes from the built `sw.js`
+      (currently `school-v3`; older `school-v*` caches are deleted on activate). Close and reopen the app once if it still shows the old layout.
 - [ ] Check off a manual item on Overdue; it stays done after refresh.
 - [ ] `/app/classic/home` still opens, and the old `/app/home` and `/app/child/<name>` links redirect there.
 
@@ -67,16 +67,32 @@ a minute. The old `/legacy` page has no sync buttons; it points to Sync in `/app
 
 This runbook stays the source of truth; `scripts/deploy.sh` encodes the same steps for the Docker host (run as root there).
 Preview first: `scripts/deploy.sh --dry-run --slug <name>` prints every command and touches nothing (no docker, no network).
-Real run: `scripts/deploy.sh --slug <name> [--smoke]`. It refuses during a sync (`state/sync.running.*`), in maintenance mode,
-with a `/app/web` mount in the compose file, or with less than 25G free; backs up state, env (mode 0600, never printed) and compose
-to `/root/school-backups/pre-<slug>-<UTC stamp>/`; tags the running image `rollback-<UTC stamp>`; pulls and recreates; then checks the
-routes, the `/` redirect, the service-worker cache name, the maintenance gate (exit 10), container-log tracebacks and the watchdog
-(only problems listed in `KNOWN_WATCHDOG_PROBLEMS=source:issue,...` are allowed). Any failed step or gate retags the rollback image to
-`:latest`, recreates the container and re-verifies (exit 1; exit 3 if the rollback itself fails). `--smoke` adds `smoke-live.sh` as a gate,
-so use it only when every source is healthy. Manual rollback: `scripts/deploy.sh --rollback rollback-<stamp>`.
-Settings come from `DEPLOY_DIR`, `CONTAINER`, `BASE_URL`, `BACKUP_ROOT`, `MIN_FREE_GB` (see the script header).
+Real run: `scripts/deploy.sh --slug <name> [--smoke]`.
+
+- Preflight (exit 2, nothing changed): refuses during a sync (`state/sync.running.*`), in maintenance mode, with a `/app/web` mount or a
+  non-`:latest` image tag in the compose file (the rollback retags `:latest`), with less than 25G free on the deploy dir, the Docker root dir
+  or the backup dir, or while another deploy holds `<backup root>/.deploy.lock`. The sync and maintenance checks run again right before the pull.
+- Backup to `/root/school-backups/pre-<slug>-<UTC stamp>/`: state (a symlinked state dir is followed; `school.db` goes through
+  `sqlite3 .backup` when `sqlite3` is installed), env (mode 0600, never printed) and compose. The running image is tagged `rollback-<UTC stamp>`.
+- Baseline: before the pull the script records the running container's `school-state watchdog --dry-run --json` problems. After the deploy only
+  problems not in that baseline fail the gate (the known IXL failure does not); `KNOWN_WATCHDOG_PROBLEMS=source:issue,...` allows more.
+- Gates: the seven routes = 200, `/` -> 302 `/app/`, the cache name in the served `sw.js` equals the one in the image's built `sw.js`
+  (derived from the build, currently `school-v3`; do not hard-code it), maintenance gate exit 10, a readable container log without
+  tracebacks, the watchdog rule above, and with `--smoke` also `smoke-live.sh` (use it only when every source is healthy).
+- Any failed step or gate (and an INT/TERM/HUP after the pull started) retags the rollback image to `:latest`, recreates the container and
+  re-verifies: the gates (without the watchdog) must pass and the container must run exactly the previous image id.
+- Manual rollback: `scripts/deploy.sh --rollback rollback-<stamp>`. It works when the container is gone (the repo comes from the compose file).
+
+| Exit | Meaning |
+|------|---------|
+| 0 | deployed (or rolled back by `--rollback`) and every gate passed |
+| 1 | a step or gate failed; rolled back and verified |
+| 2 | refused or bad arguments, or a backup/tag step failed before the pull; nothing was changed |
+| 3 | the rollback itself failed or could not be verified; manual intervention needed |
+
+Settings come from `DEPLOY_DIR`, `CONTAINER`, `BASE_URL`, `BACKUP_ROOT`, `MIN_FREE_GB`, `READY_TIMEOUT` (see the script header).
 Afterwards, `node scripts/live-check.mjs https://<host>` (needs `npm --prefix web/spa ci` and a Playwright Chromium) checks 375 and 1440 px,
-both themes, saves screenshots and prints counts only.
+both themes, saves screenshots under `web/spa/test-results/live-shots` (ignored by version control; override with `LIVE_SHOTS`) and prints counts only.
 
 ## Source banners and the watchdog
 
