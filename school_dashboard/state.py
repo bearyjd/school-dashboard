@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from school_dashboard import maintenance, paths, powerschool
+from school_dashboard import scrape_meta as scrape
 from school_dashboard.atomic import write_atomic
 
 DEFAULT_CONFIG_PATH = Path("/etc/school-dashboard/config.json")
@@ -324,45 +325,115 @@ def ixl_payload_ok(data: object) -> bool:
     )
 
 
-def update_from_ixl_files(state: dict, ixl_dir: str = "/tmp/ixl") -> int:
-    """Read all {name}-assigned.json files from ixl output dir and merge into state."""
-    ixl_path = Path(ixl_dir)
-    if not ixl_path.is_dir():
-        return 0
+IXL_TOTALS_KEYS = ("assigned", "done", "remaining")
 
+
+def _is_count(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def ixl_totals_problem(data: dict) -> Optional[str]:
+    """Why a (shape-valid) IXL payload cannot be trusted as a count of remaining work, else None.
+
+    `totals` must exist and every subject must carry numeric assigned/done/remaining; an empty
+    `totals` object is a legitimate "nothing assigned".
+    """
+    totals = data.get("totals")
+    if not isinstance(totals, dict):
+        return "totals missing"
+    for subject in totals.values():
+        if not isinstance(subject, dict) or not all(_is_count(subject.get(k)) for k in IXL_TOTALS_KEYS):
+            return "totals incomplete"
+    return None
+
+
+def _read_ixl_file(f: Path) -> tuple:
+    """(payload, reason): reason is a scrape_meta code when the file cannot be used, else None."""
+    try:
+        data = json.loads(f.read_text())
+    except OSError:
+        return None, scrape.FAILED
+    except ValueError:
+        return None, scrape.UNEXPECTED
+    if not ixl_payload_ok(data):
+        logger.warning("Skipping %s: empty or error-shaped IXL payload", f.name)
+        failed = isinstance(data, dict) and (data.get("status") == "error" or data.get("errors"))
+        return None, scrape.FAILED if failed else scrape.UNEXPECTED
+    problem = ixl_totals_problem(data)
+    if problem:
+        logger.warning("Not applying %s: IXL %s", f.name, problem)
+        return None, scrape.UNEXPECTED
+    return data, None
+
+
+def update_from_ixl_files(state: dict, ixl_dir: str = "/tmp/ixl") -> int:
+    """Read all {name}-assigned.json files from ixl output dir and merge into state.
+
+    A file that is unreadable, not JSON, error-shaped, lacks usable totals, or has empty totals
+    after a non-empty entry leaves that child's previous data untouched. A missing directory or
+    no files at all is a whole-source problem. Both are recorded in state["scrape_meta"]["ixl"].
+    """
+    ixl_path = Path(ixl_dir)
+    files = sorted(ixl_path.glob("*-assigned.json")) if ixl_path.is_dir() else []
+    unavailable: dict = {}
     count = 0
-    for f in ixl_path.glob("*-assigned.json"):
+    for f in files:
         child_name = _canonicalize(f.stem.replace("-assigned", ""))
-        try:
-            data = json.loads(f.read_text())
-        except (json.JSONDecodeError, OSError):
-            continue
-        if not ixl_payload_ok(data):
-            logger.warning("Skipping %s: empty or error-shaped IXL payload", f.name)
+        data, reason = _read_ixl_file(f)
+        if data is not None and not data["totals"] and ((state.get("ixl") or {}).get(child_name) or {}).get("totals"):
+            data, reason = None, scrape.EMPTY
+            logger.warning("Not applying %s: IXL totals are empty after earlier data", f.name)
+        if data is None:
+            unavailable[child_name] = reason
             continue
         update_ixl(state, child_name, data)
         count += 1
+    if not files:
+        unavailable[scrape.ANY_CHILD] = scrape.MISSING
+    scrape.set_unavailable(state, "ixl", unavailable)
     return count
 
 
 def update_from_sgy_file(state: dict, sgy_file: str = "/tmp/schoology-daily.json") -> int:
-    """Read sgy summary --json output and merge into state."""
-    p = Path(sgy_file)
-    if not p.exists():
-        return 0
+    """Read sgy summary --json output and merge into state.
 
+    A child whose scrape_confidence is "failed", a missing/non-list `per_child`, or an empty
+    `per_child` while state already holds schoology data leaves previous data untouched and is
+    recorded in state["scrape_meta"]["schoology"]. None of these raises; `update` still exits 0.
+    """
+    p = Path(sgy_file)
+    unavailable: dict = {}
+    per_child: list = []
     try:
         data = json.loads(p.read_text())
-    except (json.JSONDecodeError, OSError):
-        return 0
+    except FileNotFoundError:
+        data = None
+        unavailable[scrape.ANY_CHILD] = scrape.MISSING
+    except OSError:
+        data = None
+        unavailable[scrape.ANY_CHILD] = scrape.FAILED
+    except ValueError:
+        data = None
+        unavailable[scrape.ANY_CHILD] = scrape.UNEXPECTED
+    if data is not None:
+        raw_children = data.get("per_child") if isinstance(data, dict) else None
+        if not isinstance(raw_children, list):
+            unavailable[scrape.ANY_CHILD] = scrape.UNEXPECTED
+        elif not raw_children and state.get("schoology"):
+            unavailable[scrape.ANY_CHILD] = scrape.EMPTY
+        else:
+            per_child = raw_children
 
     count = 0
-    for entry in data.get("per_child", []):
+    for entry in per_child:
         child_info = entry.get("child", {})
         raw_name = child_info.get("name", "").split()[0]
         if not raw_name:
             continue
         name = _canonicalize(raw_name)
+        if entry.get("scrape_confidence") == "failed":
+            unavailable[name] = scrape.FAILED
+            continue
         update_schoology(state, name, entry)
 
         for assignment in entry.get("assignments", []):
@@ -377,6 +448,7 @@ def update_from_sgy_file(state: dict, sgy_file: str = "/tmp/schoology-daily.json
             )
         count += 1
 
+    scrape.set_unavailable(state, "schoology", unavailable)
     return count
 
 
@@ -494,15 +566,20 @@ def summary_text(state: dict) -> str:
         lines.append(f"{name} ({info['grade']}, {info['school']})")
 
         ixl = state.get("ixl", {}).get(name, {})
-        if ixl:
+        if scrape.unavailable_for(state, "ixl", name):
+            lines.append("  IXL: unavailable")
+        elif ixl:
             totals = ixl.get("totals", {})
             for subj, t in totals.items():
-                lines.append(f"  IXL {subj}: {t['done']}/{t['assigned']} done, {t['remaining']} remaining")
+                lines.append(f"  IXL {subj}: {t.get('done', '?')}/{t.get('assigned', '?')} done, "
+                             f"{t.get('remaining', '?')} remaining")
         else:
             lines.append("  IXL: no data")
 
         sgy = state.get("schoology", {}).get(name, {})
-        if sgy:
+        if scrape.unavailable_for(state, "schoology", name):
+            lines.append("  SGY: unavailable")
+        elif sgy:
             assignments = sgy.get("assignments", [])
             grades = sgy.get("grades", [])
             lines.append(f"  SGY: {len(assignments)} assignments, {len(grades)} courses")

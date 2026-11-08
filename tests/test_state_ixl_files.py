@@ -19,6 +19,9 @@ def test_error_shaped_file_is_skipped(tmp_path, caplog):
     assert "ford-assigned.json" in caplog.text
 
 
+MATH = {"math": {"assigned": 3, "done": 1, "remaining": 2}}
+
+
 def test_empty_and_non_dict_files_are_skipped(tmp_path):
     (tmp_path / "ford-assigned.json").write_text("")
     (tmp_path / "jack-assigned.json").write_text("[]")
@@ -31,8 +34,8 @@ def test_empty_and_non_dict_files_are_skipped(tmp_path):
 
 def test_valid_file_is_merged(tmp_path):
     (tmp_path / "ford-assigned.json").write_text(json.dumps(
-        {"status": "ok", "errors": [], "totals": {"math": 2}, "remaining": []}))
+        {"status": "ok", "errors": [], "totals": MATH, "remaining": []}))
     state = _state()
     assert update_from_ixl_files(state, str(tmp_path)) == 1
-    assert state["ixl"]["Ford"]["totals"] == {"math": 2}
+    assert state["ixl"]["Ford"]["totals"] == MATH
     assert state["ixl"]["Ford"]["updated"] != OLD["updated"]

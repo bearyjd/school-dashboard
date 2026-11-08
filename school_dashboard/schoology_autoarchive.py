@@ -75,6 +75,16 @@ def _valid_entry(entry: object) -> bool:
     )
 
 
+def _entry_confident(entry: dict) -> bool:
+    """`sgy summary` has no top-level warnings; a failed or partial child is not a full picture.
+
+    Deliberate: partial children are never trusted here (and are not warned about in the
+    dashboard), so a partial child's stale items cannot reach `missed >= 3` and be archived
+    while its scrape keeps coming back partial.
+    """
+    return entry.get("scrape_confidence") not in ("failed", "partial")
+
+
 def scrape_view(sgy_file: str) -> tuple:
     """(seen: child -> set of item ids, trusted: child -> bool, sha256 of the file bytes).
 
@@ -103,7 +113,7 @@ def scrape_view(sgy_file: str) -> tuple:
         name = state.canonical_name(entry["child"]["name"].split()[0])
         ids = {state._action_id(SOURCE, a.get("title", "Unknown"), name) for a in entry.get("assignments", [])}
         seen[name] = seen.get(name, set()) | ids
-        trusted[name] = clean and trusted.get(name, True)
+        trusted[name] = clean and _entry_confident(entry) and trusted.get(name, True)
     return seen, trusted, digest
 
 

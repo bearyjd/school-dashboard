@@ -49,6 +49,13 @@ writes nothing, during maintenance mode and when `WATCHDOG_ENABLED=0`. Sources t
 (`SOURCE_*_ENABLED=0`, unconfigured GameChanger or PowerSchool) are shown as paused: no banner, and their rows
 keep a muted "paused, last data as of ..." tag. Rows are not tagged for a never-synced source (it has none).
 
+The overview banner also lists scrape problems written by `school-state update` into `scrape_meta`
+(a bad IXL file, a failed Schoology child, an unusable Schoology scrape), for example
+`Schoology: the last scrape returned unexpected data; showing the last good data from 2026-11-07 (unavailable for 2 days)`.
+Once any entry has been unavailable for 24h the watchdog sends one `scrape_degraded` push per source
+(`IXL scrape` / `Schoology scrape`), and a "Recovered" push when it clears. It follows the same switches as the
+other watchdog rules (`WATCHDOG_ENABLED`, maintenance, `SOURCE_*_ENABLED`).
+
 ## Rollback
 
 ```
