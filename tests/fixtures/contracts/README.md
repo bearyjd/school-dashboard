@@ -38,15 +38,15 @@ due-date logic therefore behaves as in production.
 
 | Id | Gap |
 |----|-----|
-| G1 | ixl: `remaining` renamed inside `totals` reads as "all done" |
-| G2 | ixl: payload with only the `remaining` list is accepted with empty totals |
-| G3 | ixl: `summary_text` KeyError when totals lack `done`/`assigned` |
-| G4 | sgy: `per_child` renamed merges nothing, no warning |
+| G1 (closed) | ixl: `remaining` renamed inside `totals` reads as "all done" |
+| G2 (closed) | ixl: payload with only the `remaining` list is accepted with empty totals |
+| G3 (closed) | ixl: `summary_text` KeyError when totals lack `done`/`assigned` |
+| G4 (closed) | sgy: `per_child` renamed merges nothing, no warning |
 | G5 | sgy: missing `child.name` raises a bare IndexError (loud, unhelpful) |
 | G6 | sgy: `due_date` renamed drops every dated row from overview/readiness |
 | G7 | sgy: `title` renamed collapses action items to one "Unknown" |
-| G8 | sgy: failed child reads as "SGY all done" |
-| G9 | sgy: auto-archive trusts partial/failed children (no top-level `warnings`) |
+| G8 (closed) | sgy: failed child reads as "SGY all done" |
+| G9 (closed) | sgy: auto-archive trusts partial/failed children (no top-level `warnings`) |
 | G10 | sgy: status case ("Submitted") handled differently by readiness vs overview |
 | G11 | sgy: free-form due dates skipped by readiness, parsed by overview |
 | G12a/b/c | powerschool: missing `name` / renamed item `due` / missing item `title`, no warning |
