@@ -15,7 +15,7 @@ from school_dashboard.llm import chat_completion
 from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, gc_warnings, powerschool_warnings, scrape_warnings
 from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
 from school_dashboard import maintenance, paths, powerschool
-from school_dashboard.rate_limit import FailureLimiter, client_key
+from school_dashboard.rate_limit import FailureLimiter, client_key, trusted_client_ip, trusted_proxy_count
 from school_dashboard.sources import source_enabled
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta
 
@@ -24,7 +24,41 @@ app = Flask(__name__)
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _MAINTENANCE_RETRY_AFTER = "60"
 # /api/chat only reads state and calls the LLM; it persists nothing.
-_MAINTENANCE_EXEMPT = frozenset({"/api/chat"})
+# /api/csp-report only counts browser reports; it persists nothing.
+_MAINTENANCE_EXEMPT = frozenset({"/api/chat", "/api/csp-report"})
+
+# Report-only: nothing is blocked. 'unsafe-inline' is needed by the SPA's theme bootstrap script, the legacy page's
+# inline scripts/handlers/styles; cdn.jsdelivr.net serves marked + DOMPurify (SRI-pinned) to /legacy.
+CSP_REPORT_ONLY = (
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+    "manifest-src 'self'; worker-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; "
+    "form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report"
+)
+_CSP_PAGES = frozenset({"spa", "legacy_index"})
+_CSP_MAX_REPORT_BYTES = 8192
+_csp_counts = {"received": 0, "oversize": 0}
+_csp_lock = threading.Lock()
+
+
+@app.after_request
+def _add_csp_report_only(resp):
+    if request.endpoint in _CSP_PAGES:
+        resp.headers["Content-Security-Policy-Report-Only"] = CSP_REPORT_ONLY
+    return resp
+
+
+@app.route("/api/csp-report", methods=["POST"])
+def api_csp_report():
+    """Browser CSP violation sink. The body is never read, parsed or logged: counts only."""
+    key = "received" if (request.content_length or 0) <= _CSP_MAX_REPORT_BYTES else "oversize"
+    with _csp_lock:
+        _csp_counts[key] += 1
+        total = _csp_counts["received"] + _csp_counts["oversize"]
+        snapshot = dict(_csp_counts)
+    if total <= 10 or total % 100 == 0:
+        app.logger.info("CSP reports so far: received=%d oversize=%d", snapshot["received"], snapshot["oversize"])
+    return "", 204
 
 
 @app.before_request
@@ -634,6 +668,13 @@ _sync_status: dict = {
     "last_sources": [],
     "last_error": None,
 }
+GENERIC_SYNC_ERROR = "Sync failed. See the server log for details."
+
+
+def _record_sync_error(detail: str) -> None:
+    """Clients get generic text via /api/sync/status; the detail goes to the server log only."""
+    app.logger.error("Sync error: %s", detail)
+    _sync_status["last_error"] = GENERIC_SYNC_ERROR
 
 
 def _sync_paused_for_maintenance() -> bool:
@@ -862,10 +903,10 @@ def _run_sync_background(sources: str, digest: str) -> None:
         all_paused = bool(source_list) and not any(source_enabled(s) for s in source_list)
         _sync_status["last_result"] = "error" if errors else "ok (all paused)" if all_paused else "ok"
         if errors:
-            _sync_status["last_error"] = "; ".join(errors)
+            _record_sync_error("; ".join(errors))
     except Exception as exc:
         _sync_status["last_result"] = "error"
-        _sync_status["last_error"] = str(exc)
+        _record_sync_error(str(exc))
     finally:
         _sync_status["running"] = False
         _sync_status["last_run"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -873,7 +914,7 @@ def _run_sync_background(sources: str, digest: str) -> None:
         _sync_lock.release()
 
 
-# Bad X-Sync-Token attempts per client (normalised request.remote_addr; no proxy headers trusted).
+# Bad X-Sync-Token attempts per client (normalised remote_addr; X-Forwarded-For only with TRUSTED_PROXY_COUNT > 0).
 _sync_failures = FailureLimiter(max_failures=10, window=60.0)
 MIN_SYNC_TOKEN_LEN = 32
 _weak_token_logged = False
@@ -898,7 +939,9 @@ def api_sync():
     if not sync_token:
         return jsonify({"error": "SYNC_TOKEN not configured"}), 501
 
-    client = client_key(request.remote_addr)
+    client = client_key(trusted_client_ip(
+        request.remote_addr, ", ".join(request.headers.getlist("X-Forwarded-For")),
+        trusted_proxy_count(os.environ.get("TRUSTED_PROXY_COUNT"))))
     provided = request.headers.get("X-Sync-Token", "")
     if provided and hmac.compare_digest(provided.encode(), sync_token.encode()):
         _sync_failures.reset(client)  # a correct token is never blocked by someone else's failures

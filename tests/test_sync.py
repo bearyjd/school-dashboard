@@ -295,7 +295,7 @@ def test_run_sync_background_survives_state_command_timeout(mock_sub, tmp_path, 
     assert app_module._sync_lock.acquire(blocking=False)
     app_module._run_sync_background("ixl", "none")
     assert app_module._sync_status["last_result"] == "error"
-    assert "school-state update" in app_module._sync_status["last_error"]
+    assert app_module._sync_status["last_error"] == app_module.GENERIC_SYNC_ERROR
     assert app_module._sync_status["running"] is False
     state_calls = [c for c in mock_sub.call_args_list if c.args[0][0] == "school-state"]
     assert [c.args[0][1] for c in state_calls] == ["update", "html"]  # html still ran after the timeout

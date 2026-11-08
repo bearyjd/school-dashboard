@@ -2,7 +2,7 @@
 
 Keyed by whatever the caller passes (the Flask app passes `client_key(request.remote_addr)`). State is
 per process, so with several workers each keeps its own count. Behind a reverse proxy remote_addr is
-the proxy, so all clients share one bucket; no X-Forwarded-For is trusted here.
+the proxy, so all clients share one bucket unless TRUSTED_PROXY_COUNT opts in to `trusted_client_ip`.
 """
 import ipaddress
 import math
@@ -23,6 +23,38 @@ def client_key(addr: Optional[str]) -> str:
             return str(ip.ipv4_mapped)
         return str(ipaddress.ip_network(f"{ip}/64", strict=False))
     return str(ip)
+
+
+MAX_TRUSTED_PROXIES = 10
+_MAX_XFF_LEN = 1024
+
+
+def trusted_proxy_count(raw: Optional[str]) -> int:
+    """Parse TRUSTED_PROXY_COUNT: an int in 0..MAX_TRUSTED_PROXIES, anything else -> 0 (header ignored)."""
+    try:
+        n = int((raw or "0").strip())
+    except ValueError:
+        return 0
+    return n if 0 <= n <= MAX_TRUSTED_PROXIES else 0
+
+
+def trusted_client_ip(remote_addr: Optional[str], forwarded_for: Optional[str], trusted: int) -> Optional[str]:
+    """Client address given `trusted` proxy hops in front of us.
+
+    With trusted == 0 (default) X-Forwarded-For is ignored. Otherwise the entry `trusted` places from the
+    right is used (each trusted proxy appends the address it saw); entries to its left are client-controlled
+    and never read. Missing, oversize, too-short or unparseable headers fall back to remote_addr.
+    """
+    if trusted <= 0 or not forwarded_for or len(forwarded_for) > _MAX_XFF_LEN:
+        return remote_addr
+    hops = [h.strip() for h in forwarded_for.split(",")]
+    if len(hops) < trusted:
+        return remote_addr
+    candidate = hops[-trusted]
+    try:
+        return str(ipaddress.ip_address(candidate))
+    except ValueError:
+        return remote_addr
 
 
 class FailureLimiter:
