@@ -10,7 +10,7 @@ All-in-one Docker deployment for family school situational awareness. Scrapes IX
 git clone --recurse-submodules https://github.com/bearyjd/school-dashboard
 cd school-dashboard
 cp .env.example config/env        # fill in secrets
-# drop 2025-2026 calendar PDF into state/calendar.pdf
+# (no PDF import; load calendar JSON with `school-state calendar import <file>`)
 gog auth add EMAIL                # one-time Google OAuth setup
 docker compose up -d
 ```
@@ -19,7 +19,7 @@ docker compose up -d
 
 ```
 school_dashboard/       Core Python package
-  db.py                 SQLite: `items`, `digests`, `events` tables (inline migrations in `init_db`).
+  db.py                 SQLite: `items`, `digests`, `events` tables (inline migrations in `init_db`; `events` rows come from `school-state calendar import`).
   digest.py             Build morning digest via LiteLLM. Send to ntfy.sh.
   email.py              Gmail digest fetch + classification via gog CLI.
   state.py              Aggregate IXL + Schoology + PowerSchool JSON into school-state.json.
@@ -109,7 +109,7 @@ All gitignored, stored in `state/`:
 
 | File | Contents |
 |------|----------|
-| `school.db` | SQLite: `events` table (calendar + email-extracted events), `items` table (manual + scraped tasks), `digests` table (carousel history) |
+| `school.db` | SQLite: `events` table (imported school-calendar rows), `items` table (manual + scraped tasks), `digests` table (carousel history) |
 | `facts.json` | Long-term memory: `{subject, fact, source, created_at}` |
 | `school-state.json` | Latest IXL + Schoology + PowerSchool aggregate (`powerschool`: per-child missing/late/upcoming) |
 | `email-digest.json` | Latest classified Gmail digest |
@@ -139,7 +139,7 @@ All gitignored, stored in `state/`:
 
 ## One-off Commands
 
-**There is currently no PDF-calendar-import path in this codebase** (`calendar_import.py` was removed).
+**There is currently no PDF-calendar-import path in this codebase** (`calendar_import.py` was removed). Approved calendar JSON files are loaded with `school-state calendar import <file>`.
 
 ```bash
 # Force a digest (morning/afternoon/night)
@@ -161,7 +161,7 @@ npm --prefix web/spa run dev      # → http://localhost:5173/app/
 
 ## Tests
 
-124 tests across 10 files. All use mocks — no live credentials needed.
+1232 tests (`pytest --collect-only -q tests/`, 2026-11-08; the list below is partial). All use mocks — no live credentials needed.
 
 ```
 tests/test_api_items.py        6 tests  — items API auth + filter combinations

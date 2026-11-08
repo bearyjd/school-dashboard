@@ -117,7 +117,7 @@ Read/written atomically by `school_dashboard/sync_meta.py`. Surfaces at `/api/sy
 ]
 ```
 
-> _Aspirational._ Populated by `intel.py` when present; the file path is honored by `digest.py` and `web/app.py` for chat context regardless.
+> `intel.py` (the former writer) no longer exists, so nothing populates this file automatically; the file path is honored by `digest.py` and `web/app.py` for chat context regardless.
 
 ## Caches
 

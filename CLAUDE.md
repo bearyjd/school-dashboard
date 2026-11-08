@@ -117,9 +117,9 @@ print(text)
 ```
 
 **There is currently no PDF-calendar-import path in this codebase** (`calendar_import.py`
-was removed; nothing recreates the `events` table it used to populate — see the
-`readiness.py` note in Architecture below). If calendar-PDF import is needed again,
-it must be rebuilt, not resurrected from a stale doc reference.
+was removed). The `events` table still exists (`db.py::init_events_table`, called by
+`init_db`) and is populated by `school-state calendar import` (below). If calendar-PDF
+import is needed again, it must be rebuilt, not resurrected from a stale doc reference.
 
 Approved school-calendar JSON files in `config/calendars/` are instead loaded with
 `school-state calendar import <file> [--dry-run] [--json]` (`school_calendar.py`): it
@@ -133,7 +133,7 @@ Non-schoology items, completed items and all other state are left untouched.
 
 ```
 school_dashboard/       Core Python package
-  db.py                 SQLite: `items` table (manual + scraped tasks) + `digests` table (carousel history). No events table (see note below).
+  db.py                 SQLite: `items` table (manual + scraped tasks), `digests` table (carousel history) and `events` table (`init_events_table`; rows come from `school-state calendar import`).
   digest.py             Build morning/afternoon/night/weekly digest text via LiteLLM (build_morning_digest / build_afternoon_digest / build_night_digest / build_weekly_digest). Send to ntfy.sh push. `build_quick_check(state_path)` → no-LLM homework summary (IXL remaining + open SGY assignments per child).
   llm.py                SSE-tolerant OpenAI-compatible chat client (`chat_completion`) shared by digest.py and web/app.py's /api/chat. Every call in this repo's test suite mocks `requests.post` at this boundary — this is the one true "requires an external LLM" seam.
   email.py              Gmail digest fetch + classification.
@@ -149,13 +149,11 @@ school_dashboard/       Core Python package
   (see `CHANGELOG.md`) but were removed later without a changelog entry. `sync/
   school-sync.sh` already guards the intel step with `python3 -c "import
   school_dashboard.intel"` and skips cleanly when it's absent — that guard firing is
-  expected behavior, not a bug to chase. Consequence: nothing in this codebase creates
-  the SQLite `events` table anymore (`calendar_import.py` used to), so
-  `readiness.py::get_checklist`'s `SELECT ... FROM events WHERE type IN ('TEST','QUIZ')`
-  query fails against a real `school.db` and is silently swallowed by a bare
-  `except Exception` — the "tests/quizzes" readiness line item cannot currently
-  populate in a real deployment. Treat this as a known, currently-dead code path
-  (`.agent_native/agent_roadmap.md` item 3), not a mystery to reverse-engineer.
+  expected behavior, not a bug to chase. The `events` table is NOT gone:
+  `db.py::init_db` creates it and `school_calendar.py` (`school-state calendar import`)
+  fills it; `readiness.py`, `digest.py`, `overview_events.py` and `web/app.py` read it.
+  Only the PDF/email-derived writers are missing, so the table holds approved
+  school-calendar rows (and any manual rows) and no email-extracted events.
 
 web/
   app.py                Flask app. Routes: /api/chat, /api/items*, /api/dashboard, /api/readiness, /api/digest/* (carousel), /api/sync, /api/sync/status. **Paths:** every state path resolves per call via `school_dashboard/paths.py` (`SCHOOL_STATE_DIR`, default `/app/state`, plus per-file overrides such as `SCHOOL_DB_PATH`), so `monkeypatch.setenv` works for all routes. Also: `/api/*` writes return 503 while `maintenance.json` is present (`school-state transition maintenance on|off`), except `/api/chat`.
@@ -187,8 +185,8 @@ docker/
 > note above). The two bullets below describe what actually runs today.
 
 - **GameChanger scrape (each sync, non-fatal):** `gc-scrape.sh` calls `gc teams --json`, iterates team IDs, calls `gc summary --json --team ID` per team, writes merged `gc-schedule.json`. Skipped if `GC_TOKEN` and `GC_EMAIL` are both unset.
-- **Morning/afternoon/night/weekly digest (6am/2:30pm/8:30pm/Fri+Sun):** `digest.py`'s `build_morning_digest`/`build_afternoon_digest`/`build_night_digest`/`build_weekly_digest` query IXL+Schoology state + facts.json + gc-schedule.json (no `events` table — see above) → LiteLLM synthesizes → creates `digests` carousel row → ntfy.sh push with deep-link. This is the one genuine LLM-judgment surface in the pipeline: the *prompt wording* was tuned by a human and isn't something an agent should freely rewrite without re-validating tone; the *plumbing* around it (what data gets assembled, formatting, ntfy delivery) is ordinary deterministic code covered by `tests/test_digest.py`.
-- **Readiness checklist (on-demand, `/api/readiness`):** `readiness.py::get_checklist` — pure, deterministic, no LLM. Fully unit-tested. The one caveat: its `events`-table query for tests/quizzes always fails and returns empty (see Architecture note) since nothing creates that table anymore.
+- **Morning/afternoon/night/weekly digest (6am/2:30pm/8:30pm/Fri+Sun):** `digest.py`'s `build_morning_digest`/`build_afternoon_digest`/`build_night_digest`/`build_weekly_digest` query IXL+Schoology state + facts.json + gc-schedule.json (plus `events` rows from the imported school calendar) → LiteLLM synthesizes → creates `digests` carousel row → ntfy.sh push with deep-link. This is the one genuine LLM-judgment surface in the pipeline: the *prompt wording* was tuned by a human and isn't something an agent should freely rewrite without re-validating tone; the *plumbing* around it (what data gets assembled, formatting, ntfy delivery) is ordinary deterministic code covered by `tests/test_digest.py`.
+- **Readiness checklist (on-demand, `/api/readiness`):** `readiness.py::get_checklist` — pure, deterministic, no LLM. Fully unit-tested. Its tests/quizzes line reads `events` rows of type TEST/QUIZ, which only exist if a school calendar was imported or rows were added manually (the table itself is created by `init_db`).
 - **Chat:** `/api/chat` builds system prompt with 30-day events + facts + full state JSON → streams reply from LiteLLM via `school_dashboard/llm.py::chat_completion`.
 
 ## API Endpoints
@@ -218,7 +216,7 @@ docker/
 
 | File | Contents |
 |------|----------|
-| `school.db` | SQLite: `events` table (calendar + email-extracted events), `items` table (manual + scraped tasks), `digests` table (carousel history) |
+| `school.db` | SQLite: `events` table (imported school-calendar rows; no email-extracted events), `items` table (manual + scraped tasks), `digests` table (carousel history) |
 | `facts.json` | Array of `{subject, fact, source, created_at}` — long-term memory |
 | `school-state.json` | Latest IXL + Schoology + PowerSchool aggregate; `powerschool` = `{child: {updated, missing[], late[], upcoming[]}}`, `powerschool_meta` = `{warnings[]}` |
 | `email-digest.json` | Latest classified Gmail digest |
@@ -250,13 +248,7 @@ Roster config (`school-dashboard.json`, `children.<Name>`): optional `"ixl": fal
 
 ## Tests
 
-**1145 tests run by default** (`pytest --collect-only -q tests/` prints `1145/1148`, 2026-11-08; the 3 `live` tests are deselected). The table below lists only the original files and is NOT exhaustive; the next line is the older 2026-07-07 note (124 tests across 10 files; it
-supersedes the older "101 tests / 7 files" figure, which predates several files
-below and referenced two files — `test_db.py`, `test_calendar_import.py`,
-`test_intel.py` — that no longer exist because `db.py`'s events-table schema and
-`calendar_import.py`/`intel.py` themselves were removed). All use mocks/fixtures
-built inline in Python — no live credentials needed, and **no test in this repo
-reads a recorded real-scraper-output fixture** (see the contract-test gap below).
+**1232 tests run by default** (`pytest --collect-only -q tests/` prints `1232/1235`, 2026-11-08; the 3 `live` tests are deselected). The table below lists only some of the files and is NOT exhaustive. `test_db.py`, `test_calendar_import.py` and `test_intel.py` no longer exist (`calendar_import.py`/`intel.py` were removed). No live credentials are needed. Scraper-shape contract tests (`tests/test_contract_*.py`) read synthetic fixtures in `tests/fixtures/contracts/` (see its README).
 
 ```
 tests/test_api_items.py        6 tests — /api/items GET/POST/PATCH/DELETE
@@ -274,11 +266,7 @@ tests/test_sync_orchestration.py 11 tests — runs the real sync/school-sync.sh 
 
 **Verification gaps an agent should know about before trusting "tests pass" as proof
 of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
-- No recorded fixtures of real `sgy`/`ixl`/`gc` `--json` output anywhere in `tests/`
-  — every test hand-builds its input dict. No schema/contract check exists between
-  what the three vendored scrapers actually emit and what `state.py`/`readiness.py`/
-  `digest.py` expect, despite the scrapers living in independently-versioned repos
-  under `vendor/`.
+- The contract fixtures in `tests/fixtures/contracts/` are synthetic and were derived by reading the scrapers' source, not captured from live runs; they pin the shape the dashboard consumes but cannot prove what a live scraper emits (their README lists the closed gap ids).
 - `tests/test_sync_orchestration.py` covers `sync/school-sync.sh` / `gc-scrape.sh` orchestration with fake local CLIs;
   real accounts, real scraper output and the network remain untested and can only be verified by a live run.
 - `.github/workflows/docker.yml` never runs tests; `tests.yml` does (pytest, SPA checks, non-blocking e2e).

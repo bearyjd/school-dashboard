@@ -1,5 +1,20 @@
 # Agent-Native Roadmap — school-dashboard
 
+## Status as of 2026-11-08 (main d0ec166)
+
+The sections below are the original 2026-07-07 audit and are kept as history. Current state:
+
+| Item | Status | Evidence |
+|------|--------|----------|
+| 1. pytest collection at repo root | Closed | `pyproject.toml` sets `testpaths = ["tests"]` |
+| 2. CI test gate | Closed | `.github/workflows/tests.yml` runs `pytest tests/` plus SPA lint/build/vitest/bundle checks and a non-blocking e2e job |
+| 3. Stale `intel.py` / `calendar_import.py` docs | Closed | docs reconciled in the PR "docs: reconcile stale intel/calendar_import statements"; `events` table is created by `db.init_db` (`init_events_table`) and filled by `school-state calendar import` (`school_calendar.py`). `sync/school-sync.sh` still guards a missing `school_dashboard.intel`, which is expected. `CHANGELOG.md` has no "Removed" entry for the two modules (left as a release decision) |
+| 4. Scraper contract tests | Closed (#74) | `tests/test_contract_{ixl,sgy,gc,powerschool}.py` with synthetic fixtures in `tests/fixtures/contracts/`. Fixtures are derived from scraper source, not live captures; the powerschool shape is not derived from a vendored scraper |
+| Contract gaps G1-G16 | All listed as closed | G1-G4, G8, G9 (#77); G5-G7, G12a-c (#80); G10, G11, G13-G15 (#81); G16 listed closed in `tests/fixtures/contracts/README.md` |
+| 5. Inconsistent `DB_PATH` in `web/app.py` | Closed in code, test not verified | `web/app.py` no longer defines a module-level `DB_PATH`; paths resolve per call via `school_dashboard/paths.py`. The specific acceptance test named below (`test_readiness_route_uses_test_db_path`) was not found, so that part stays open |
+| Sync-script orchestration untested | Closed (#84) | `tests/test_sync_orchestration.py` (live accounts and network remain untested) |
+| SPA has no automated tests | Closed | vitest (`npm --prefix web/spa test`) and Playwright/axe e2e exist and run in CI |
+
 **Update 2026-07-07 (executor agent):** Item 3's compounding behavioral bug (missing
 `events` table) is now **FIXED** — `db.py::init_db` creates the `events` table via a
 new `init_events_table()` following the existing `items`/`digests` inline-migration

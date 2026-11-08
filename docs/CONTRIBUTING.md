@@ -33,7 +33,7 @@ All tests use mocks — no live credentials or network needed.
 |------|---------|
 | `school_dashboard/` | Core Python package |
 | `web/` | Flask app + Jinja2 templates |
-| `sync/school-sync.sh` | Cron sync script (IXL → SGY → state → intel → HTML) |
+| `sync/school-sync.sh` | Cron sync script (IXL → SGY → GC → state → email-sync → HTML → digest; the intel step is skipped, `intel.py` no longer exists) |
 | `docker/` | Dockerfile, entrypoint.sh, crontab |
 | `vendor/` | git submodules: ixl-scrape, schoology-scrape |
 | `state/` | Runtime data (gitignored) |
