@@ -13,7 +13,7 @@ theme choice) backed by `GET /api/overview`, with the previous Home/Child views 
       `IMG=$(docker inspect --format '{{.Config.Image}}' school-dashboard-1); docker tag "$IMG" "${IMG%%:*}:pre-redesign"`
 - [ ] Check the host compose file has **no** `./web:/app/web` mount (`! grep -q '/app/web' /opt/school/docker-compose.yml` succeeds; after a deploy, `docker inspect school-dashboard-1 --format '{{range .Mounts}}{{.Destination}}{{"\n"}}{{end}}'` must not list `/app/web`).
       A mount shadows the image's `web/`, so a pull would not update the app. Only `state/` and `config/` are host-mounted.
-- [ ] Take a state backup with `school-state transition backup` if state changes are planned at the same time.
+- [ ] `scripts/deploy.sh` takes the pre-deploy backup itself (`sqlite3 .backup` for `school.db` plus `cp -a` of the rest of `state/`, env and compose). Doing it by hand: the same two commands into a private directory.
 
 ## Deploy
 
@@ -27,8 +27,8 @@ Run on the Docker host. `IMG` is the image name from `docker-compose.yml` (set i
 
 - [ ] Load `/app/` on a phone and a desktop: Today shows the kids, freshness tags and the Tonight list.
 - [ ] Settings: switch Midnight / Daylight / System; it applies immediately and survives a reload.
-- [ ] Installed PWA picks up the new service worker: the cache is now `school-v2` (old `school-v1`
-      is deleted on activate). Close and reopen the app once if it still shows the old layout.
+- [ ] Installed PWA picks up the new service worker: the cache name comes from the built `sw.js`
+      (currently `school-v3`; older `school-v*` caches are deleted on activate). Close and reopen the app once if it still shows the old layout.
 - [ ] Check off a manual item on Overdue; it stays done after refresh.
 - [ ] `/app/classic/home` still opens, and the old `/app/home` and `/app/child/<name>` links redirect there.
 
@@ -62,6 +62,43 @@ After 10 wrong tokens in a minute from one client address it answers 429 with `R
 blocked by that. The counter is per process and keyed on the connecting address (IPv6 by /64); behind a reverse
 proxy all clients share the proxy's address, so one device's typos can slow wrong guesses from the others for up to
 a minute. The old `/legacy` page has no sync buttons; it points to Sync in `/app/`.
+
+## Scripted deploy (`scripts/deploy.sh`)
+
+This runbook stays the source of truth; `scripts/deploy.sh` encodes the same steps for the Docker host (run as root there).
+Preview first: `scripts/deploy.sh --dry-run --slug <name>` prints every command and touches nothing (no docker, no network).
+Real run: `scripts/deploy.sh --slug <name> [--smoke]`.
+
+- Preflight (exit 2, nothing changed): refuses during a sync (`state/sync.running.*`), in maintenance mode, with a `/app/web` mount or a
+  non-`:latest` image tag in the compose file (the rollback retags `:latest`), with less than 25G free on the deploy dir, the Docker root dir
+  or the backup dir, or while another deploy holds `<backup root>/.deploy.lock`. The sync and maintenance checks run again right before the pull.
+- Backup to `/root/school-backups/pre-<slug>-<UTC stamp>/`: state (`cp -a`; a symlinked state dir is followed), env (mode 0600, never printed)
+  and compose. `school.db` is replaced by a `sqlite3 .backup` copy that must pass `PRAGMA integrity_check` (otherwise exit 2 before the pull);
+  without `sqlite3` the script warns and keeps the plain copy including `-wal`/`-shm`. The running image is tagged `rollback-<UTC stamp>`.
+  A `COMPLETE` file is written last: a `pre-*` directory without it is an interrupted backup.
+- Run it in `tmux` or `systemd-run --wait` so a dropped ssh session cannot interrupt it. If SIGHUP/INT/TERM arrives after the pull started the
+  script rolls back, writing to `<backup root>/deploy-<stamp>.log` (mode 0600, no env values) because the terminal may be gone; a rollback
+  in progress ignores further signals and finishes. SIGPIPE is ignored.
+- Baseline: before the pull the script records the running container's `school-state watchdog --dry-run --json` problems. After the deploy only
+  problems not in that baseline fail the gate (the known IXL failure does not); `KNOWN_WATCHDOG_PROBLEMS=source:issue,...` allows more.
+- Gates: the seven routes = 200, `/` -> 302 `/app/`, the cache name in the served `sw.js` equals the one in the image's built `sw.js`
+  (derived from the build, currently `school-v3`; do not hard-code it), maintenance gate exit 10, a readable container log without
+  tracebacks, the watchdog rule above, and with `--smoke` also `smoke-live.sh` (use it only when every source is healthy).
+- Any failed step or gate (and an INT/TERM/HUP after the pull started) retags the rollback image to `:latest`, recreates the container and
+  re-verifies: the gates (without the watchdog) must pass and the container must run exactly the previous image id.
+- Manual rollback: `scripts/deploy.sh --rollback rollback-<stamp>`. It takes the same lock, refuses during a sync or maintenance, first tags the
+  current `:latest` as `rollback-pre-<stamp>` (so the rollback can be undone), and works when the container is gone (the repo comes from the compose file).
+
+| Exit | Meaning |
+|------|---------|
+| 0 | deployed (or rolled back by `--rollback`) and every gate passed |
+| 1 | a step or gate failed; rolled back and verified |
+| 2 | refused or bad arguments, or a backup/tag step failed before the pull; nothing was changed |
+| 3 | the rollback itself failed or could not be verified; manual intervention needed |
+
+Settings come from `DEPLOY_DIR`, `CONTAINER`, `BASE_URL`, `BACKUP_ROOT`, `MIN_FREE_GB`, `READY_TIMEOUT` (see the script header).
+Afterwards, `node scripts/live-check.mjs https://<host>` (needs `npm --prefix web/spa ci` and a Playwright Chromium) checks 375 and 1440 px,
+both themes, saves screenshots under `web/spa/test-results/live-shots` (ignored by version control; override with `LIVE_SHOTS`) and prints counts only.
 
 ## Source banners and the watchdog
 
