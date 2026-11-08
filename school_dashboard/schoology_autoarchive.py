@@ -113,8 +113,8 @@ def scrape_view(sgy_file: str) -> tuple:
         name = state.canonical_name(entry["child"]["name"].split()[0])
         ids = {state._action_id(SOURCE, a.get("title", "Unknown"), name) for a in entry.get("assignments", [])}
         seen[name] = seen.get(name, set()) | ids
-        trusted[name] = (clean and _entry_confident(entry) and not state.sgy_assignments_problem(entry)
-                         and trusted.get(name, True))
+        titled = all("title" in a for a in entry.get("assignments", []))  # else ids collapse to "Unknown"
+        trusted[name] = clean and _entry_confident(entry) and titled and trusted.get(name, True)
     return seen, trusted, digest
 
 

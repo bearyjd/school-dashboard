@@ -156,7 +156,7 @@ def test_scrape_view_trust_rules(tmp_path):
 
 
 def _write_sgy(path, titles, warnings=None, salt=0):
-    data = {"salt": salt, "per_child": [{"child": {"name": "Ford Smith"}, "assignments": [{"title": t} for t in titles]}]}
+    data = {"salt": salt, "per_child": [{"child": {"name": "Ford Smith"}, "assignments": [{"title": t, "due_date": ""} for t in titles]}]}
     if warnings:
         data["warnings"] = warnings
     path.write_text(json.dumps(data))
@@ -362,7 +362,7 @@ def test_aware_and_garbage_fields_do_not_raise():
 ])
 def test_scrape_view_warnings_trust(tmp_path, warnings, clean):
     f = tmp_path / "s.json"
-    data = {"per_child": [{"child": {"name": "Ford"}, "assignments": [{"title": "A"}]}]}
+    data = {"per_child": [{"child": {"name": "Ford"}, "assignments": [{"title": "A", "due_date": ""}]}]}
     if warnings is not None:
         data["warnings"] = warnings
     f.write_text(json.dumps(data))
