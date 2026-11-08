@@ -13,8 +13,8 @@ import json
 from datetime import datetime, timedelta
 
 import pytest
-from contract_support import (TODAY, assert_unguarded, build_state, consumers, load, mutate, renamed, set_roster,
-                              unguarded_raises)
+from contract_support import (TODAY, assert_unguarded, build_state, consumers, line, load, mutate, reasons, renamed,
+                              run_update, set_roster, unguarded_raises, warnings_of)
 
 from school_dashboard import schoology_autoarchive, state
 
@@ -107,8 +107,8 @@ def test_failed_child_counts_no_misses_and_archives_nothing(tmp_path):
     assert new_state["action_items"][0]["missed"] == 2
 
 
-def _sgy_meta(built: dict) -> dict:
-    return built["state"]["scrape_meta"]["schoology"]
+def _sgy_warnings(built: dict) -> list:
+    return warnings_of(built, "Schoology")
 
 
 def test_failed_child_is_unavailable_not_all_done(env):
@@ -117,14 +117,22 @@ def test_failed_child_is_unavailable_not_all_done(env):
     built = build_state(state_env, tmp_path)
     assert load("sgy")["per_child"][2]["scrape_confidence"] == "failed"
     assert "Gamma" not in built["state"]["schoology"]
-    assert _sgy_meta(built) == {"unavailable": {"Gamma": "scrape failed"},
-                                "warnings": ["Schoology Gamma: scrape failed; no previous data"]}
-    quick = consumers(built)["quick"]
-    assert "Gamma: IXL all done, Schoology unavailable" in quick
-    assert "Gamma: IXL all done, SGY all done" not in quick
+    assert reasons(built, "schoology") == {"Gamma": "failed"}
+    assert _sgy_warnings(built) == ["Schoology Gamma: the last scrape failed; no earlier data to show"]
+    assert line(consumers(built)["quick"], "Gamma") == "Gamma: IXL all done, Schoology unavailable"
 
 
-def test_failed_child_keeps_previous_items_and_partial_child_is_merged(env):
+def test_partial_child_is_merged_and_not_warned_about(env):
+    """M2: partial children keep their data in state, show no warning, but are never trusted
+    for auto-archive (see test_failed_and_partial_scrapes_are_untrusted_for_autoarchive)."""
+    state_env, tmp_path = env
+    built = build_state(state_env, tmp_path)
+    assert len(built["state"]["schoology"]["Beta"]["assignments"]) == 1
+    assert "Beta" not in reasons(built, "schoology")
+    assert line(consumers(built)["quick"], "Beta") == "Beta: IXL all done, SGY all done"
+
+
+def test_failed_child_keeps_previous_items(env):
     state_env, tmp_path = env
     first = mutate(load("sgy"), lambda d: d["per_child"][2].update(
         scrape_confidence="high", assignments=[{
@@ -132,10 +140,10 @@ def test_failed_child_keeps_previous_items_and_partial_child_is_merged(env):
     build_state(state_env, tmp_path, sgy=first)
     built = build_state(state_env, tmp_path)
     assert [a["title"] for a in built["state"]["schoology"]["Gamma"]["assignments"]] == ["Gamma Task"]
-    assert _sgy_meta(built)["warnings"] == ["Schoology Gamma: scrape failed; previous data kept"]
-    assert len(built["state"]["schoology"]["Beta"]["assignments"]) == 1
+    assert _sgy_warnings(built) == [
+        "Schoology Gamma: the last scrape failed; showing the last good data from 2026-11-05"]
     assert "Gamma Task" in {i["summary"] for i in _pending(built)}
-    assert "Gamma: IXL all done, Schoology unavailable" in consumers(built)["quick"]
+    assert line(consumers(built)["quick"], "Gamma") == "Gamma: IXL all done, Schoology unavailable"
 
 
 def test_per_child_renamed_is_flagged_and_keeps_previous_data(env):
@@ -145,17 +153,18 @@ def test_per_child_renamed_is_flagged_and_keeps_previous_data(env):
     built = build_state(state_env, tmp_path, sgy=renamed(load("sgy"), "per_child", "children_data"))
     assert set(built["state"]["schoology"]) == {"Alpha", "Beta"}
     assert len(_pending(built)) == 6
-    assert _sgy_meta(built) == {"unavailable": {"*": "per_child missing"},
-                                "warnings": ["Schoology: per_child missing; previous data kept"]}
-    assert "Schoology unavailable" in consumers(built)["quick"]
+    assert reasons(built, "schoology") == {"*": "unexpected"}
+    assert _sgy_warnings(built) == [
+        "Schoology: the last scrape returned unexpected data; showing the last good data from 2026-11-05"]
+    assert line(consumers(built)["quick"], "Alpha").endswith("Schoology unavailable")
 
 
 def test_per_child_renamed_without_previous_data_is_flagged(env):
     state_env, tmp_path = env
     built = build_state(state_env, tmp_path, sgy=renamed(load("sgy"), "per_child", "children_data"))
     assert built["state"]["schoology"] == {}
-    assert _sgy_meta(built)["warnings"] == ["Schoology: per_child missing; no previous data"]
-    assert "Alpha: IXL 4 remaining (Math, ELA), Schoology unavailable" in consumers(built)["quick"]
+    assert _sgy_warnings(built) == ["Schoology: the last scrape returned unexpected data; no earlier data to show"]
+    assert line(consumers(built)["quick"], "Alpha") == "Alpha: IXL 4 remaining (Math, ELA), Schoology unavailable"
 
 
 def test_empty_per_child_after_data_is_suspicious(env):
@@ -163,13 +172,56 @@ def test_empty_per_child_after_data_is_suspicious(env):
     build_state(state_env, tmp_path)
     built = build_state(state_env, tmp_path, sgy={**load("sgy"), "per_child": []})
     assert set(built["state"]["schoology"]) == {"Alpha", "Beta"}
-    assert _sgy_meta(built)["warnings"] == ["Schoology: scrape returned no children; previous data kept"]
+    assert reasons(built, "schoology") == {"*": "empty"}
 
 
 def test_empty_per_child_with_nothing_before_is_not_flagged(env):
     state_env, tmp_path = env
     built = build_state(state_env, tmp_path, sgy={**load("sgy"), "per_child": []})
-    assert _sgy_meta(built) == {"unavailable": {}, "warnings": []}
+    assert reasons(built, "schoology") == {}
+
+
+@pytest.mark.parametrize("content, expected", [
+    pytest.param(None, "missing", id="file-missing"),
+    pytest.param("{not json", "unexpected", id="invalid-json"),
+    pytest.param("[]", "unexpected", id="not-an-object"),
+])
+def test_unusable_sgy_file_is_a_whole_source_problem_and_recovers(env, content, expected):
+    """M3: early-return paths record `*`; the next clean scrape clears it."""
+    state_env, tmp_path = env
+    build_state(state_env, tmp_path)
+    sgy_file = tmp_path / "inputs" / "sgy.json"
+    if content is None:
+        sgy_file.unlink()
+    else:
+        sgy_file.write_text(content)
+    built = run_update(state_env, tmp_path)
+    assert set(built["state"]["schoology"]) == {"Alpha", "Beta"}
+    assert reasons(built, "schoology") == {"*": expected}
+    assert line(consumers(built)["quick"], "Alpha").endswith("Schoology unavailable")
+    sgy_file.write_text(json.dumps(load("sgy")))
+    assert reasons(run_update(state_env, tmp_path), "schoology") == {"Gamma": "failed"}
+
+
+def test_unavailable_names_only_include_roster_children(env):
+    """L1: a stray file for a child outside the roster does not invent a quick-check line."""
+    state_env, tmp_path = env
+    build_state(state_env, tmp_path)
+    (tmp_path / "inputs" / "ixl" / "zed-assigned.json").write_text("{}")
+    built = run_update(state_env, tmp_path)
+    assert reasons(built, "ixl") == {"Zed": "unexpected"}
+    assert not [ln for ln in consumers(built)["quick"].splitlines() if ln.startswith("Zed")]
+
+
+def test_bad_scrape_reaches_api_overview_warnings(env, monkeypatch):
+    """End to end: bad scrape file -> `school-state update` -> /api/overview warning text."""
+    from web.app import app as flask_app
+    state_env, tmp_path = env
+    monkeypatch.setenv("SCHOOL_STATE_PATH", str(state_env / "school-state.json"))
+    build_state(state_env, tmp_path, sgy=renamed(load("sgy"), "per_child", "children_data"))
+    with flask_app.test_client() as c:
+        body = c.get("/api/overview").get_json()
+    assert "Schoology: the last scrape returned unexpected data; no earlier data to show" in body["warnings"]
 
 
 def test_child_name_key_missing_crashes_the_update(env):

@@ -12,7 +12,8 @@ from pathlib import Path
 from flask import Flask, jsonify, redirect, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
-from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok, scrape_warnings
+from school_dashboard.scrape_meta import scrape_warnings
+from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
 from school_dashboard import maintenance, paths, powerschool
 from school_dashboard.sources import source_enabled
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta
@@ -518,7 +519,7 @@ def api_dashboard():
             "ixl": ixl,
             "powerschool": ps,
             "powerschool_warnings": list((state.get("powerschool_meta") or {}).get("warnings") or []),
-            "scrape_warnings": scrape_warnings(state),
+            "scrape_warnings": scrape_warnings(state, datetime.now(timezone.utc)),
             "children": get_roster(),
             "has_data": _has_data_flags(state),
             "email_items": email_items,
@@ -551,7 +552,7 @@ def api_overview():
         state = {}
         warnings.append("school state unavailable")
     else:
-        warnings.extend(scrape_warnings(state))
+        warnings.extend(scrape_warnings(state, now))
     gc_data = load_json(str(paths.gc_path()))
     if not isinstance(gc_data, dict) or "error" in gc_data:
         gc_data = {}

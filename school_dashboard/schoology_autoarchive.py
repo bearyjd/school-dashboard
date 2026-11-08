@@ -76,7 +76,12 @@ def _valid_entry(entry: object) -> bool:
 
 
 def _entry_confident(entry: dict) -> bool:
-    """`sgy summary` has no top-level warnings; a failed or partial child is not a full picture."""
+    """`sgy summary` has no top-level warnings; a failed or partial child is not a full picture.
+
+    Deliberate: partial children are never trusted here (and are not warned about in the
+    dashboard), so a partial child's stale items cannot reach `missed >= 3` and be archived
+    while its scrape keeps coming back partial.
+    """
     return entry.get("scrape_confidence") not in ("failed", "partial")
 
 

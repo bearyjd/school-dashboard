@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
-from school_dashboard import cli, digest, readiness, schoology_autoarchive, state
+from school_dashboard import cli, digest, readiness, schoology_autoarchive, scrape_meta, state
 from school_dashboard.overview_items import build_items
 
 FIXTURES = Path(__file__).parent / "fixtures" / "contracts"
@@ -110,6 +110,19 @@ def set_roster(tmp_path: Path, monkeypatch) -> None:
     state._config_cache = None
 
 
+def run_update(state_env: Path, tmp_path: Path, *, ixl_only: bool = False) -> dict:
+    """Run `school-state update` over whatever is already in tmp_path/inputs."""
+    inputs = tmp_path / "inputs"
+    argv = ["school-state", "update", "--ixl-dir", str(inputs / "ixl"),
+            "--sgy-file", str(inputs / "sgy.json"), "--ps-file", str(inputs / "ps.json")]
+    with (patch.object(sys, "argv", argv),
+          patch.object(state, "datetime", _FrozenDatetime),
+          patch.object(schoology_autoarchive, "datetime", _FrozenDatetime)):
+        cli.main()
+    path = state_env / "school-state.json"
+    return {"state": json.loads(path.read_text()), "path": path}
+
+
 def build_state(state_env: Path, tmp_path: Path, *, ixl: Optional[dict] = None,
                 sgy: Optional[dict] = None, ps: Optional[dict] = None) -> dict:
     """Run `school-state update` over scraper payloads; returns {'state', 'path'}.
@@ -122,14 +135,7 @@ def build_state(state_env: Path, tmp_path: Path, *, ixl: Optional[dict] = None,
     (inputs / "ixl" / "alpha-assigned.json").write_text(json.dumps(ixl or load("ixl")))
     (inputs / "sgy.json").write_text(json.dumps(sgy or load("sgy")))
     (inputs / "ps.json").write_text(json.dumps(ps or load("powerschool")))
-    argv = ["school-state", "update", "--ixl-dir", str(inputs / "ixl"),
-            "--sgy-file", str(inputs / "sgy.json"), "--ps-file", str(inputs / "ps.json")]
-    with (patch.object(sys, "argv", argv),
-          patch.object(state, "datetime", _FrozenDatetime),
-          patch.object(schoology_autoarchive, "datetime", _FrozenDatetime)):
-        cli.main()
-    path = state_env / "school-state.json"
-    return {"state": json.loads(path.read_text()), "path": path}
+    return run_update(state_env, tmp_path)
 
 
 def consumers(built: dict, today: date = TODAY) -> dict:
@@ -149,3 +155,18 @@ def mutate(data: T, fn: Callable[[T], None]) -> T:
     copy = deepcopy(data)
     fn(copy)
     return copy
+
+
+def reasons(built: dict, source: str) -> dict:
+    """{child | '*': reason code} a source could not supply after `school-state update`."""
+    block = (built["state"].get("scrape_meta") or {}).get(source) or {}
+    return {k: v["reason"] for k, v in (block.get("unavailable") or {}).items()}
+
+
+def warnings_of(built: dict, prefix: str = "") -> list:
+    return [w for w in scrape_meta.scrape_warnings(built["state"]) if w.startswith(prefix)]
+
+
+def line(quick: str, child: str) -> str:
+    """The quick-check line that starts with `child:`."""
+    return next(ln for ln in quick.splitlines() if ln.startswith(f"{child}:"))

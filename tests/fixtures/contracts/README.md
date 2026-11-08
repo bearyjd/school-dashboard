@@ -46,7 +46,7 @@ due-date logic therefore behaves as in production.
 | G6 | sgy: `due_date` renamed drops every dated row from overview/readiness |
 | G7 | sgy: `title` renamed collapses action items to one "Unknown" |
 | G8 (closed) | sgy: failed child reads as "SGY all done" |
-| G9 (closed) | sgy: auto-archive trusts partial/failed children (no top-level `warnings`) |
+| G9 (closed) | sgy: auto-archive trusts partial/failed children (no top-level `warnings`). Partial children are deliberately never trusted for archiving and not warned about |
 | G10 | sgy: status case ("Submitted") handled differently by readiness vs overview |
 | G11 | sgy: free-form due dates skipped by readiness, parsed by overview |
 | G12a/b/c | powerschool: missing `name` / renamed item `due` / missing item `title`, no warning |

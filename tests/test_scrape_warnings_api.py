@@ -1,14 +1,16 @@
 """Scrape warnings recorded by `school-state update` reach /api/dashboard and /api/overview."""
 import json
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from school_dashboard import state
+from school_dashboard import scrape_meta, state
 from web.app import app as flask_app
 
-META = {"ixl": {"unavailable": {"Alex": "totals incomplete"},
-                "warnings": ["IXL Alex: totals incomplete; previous data kept"]},
-        "schoology": {"unavailable": {}, "warnings": []}}
+SINCE = (datetime.now(timezone.utc) - timedelta(days=2, hours=1)).isoformat()
+META = {"ixl": {"unavailable": {"Alex": {"reason": "failed", "since": SINCE}}},
+        "schoology": {"unavailable": {}}}
+WARNING = "IXL Alex: the last scrape failed; no earlier data to show"
 
 
 @pytest.fixture(autouse=True)
@@ -25,15 +27,16 @@ def reset(tmp_path, monkeypatch):
 def test_dashboard_exposes_scrape_warnings():
     with flask_app.test_client() as c:
         body = c.get("/api/dashboard").get_json()
-    assert body["scrape_warnings"] == ["IXL Alex: totals incomplete; previous data kept"]
+    assert body["scrape_warnings"] == [WARNING + " (unavailable for 2 days)"]
 
 
 def test_overview_warnings_include_scrape_warnings():
     with flask_app.test_client() as c:
         body = c.get("/api/overview").get_json()
-    assert "IXL Alex: totals incomplete; previous data kept" in body["warnings"]
+    assert WARNING + " (unavailable for 2 days)" in body["warnings"]
 
 
 def test_scrape_warnings_tolerates_garbage_meta():
-    assert state.scrape_warnings({"scrape_meta": "x"}) == []
-    assert state.scrape_warnings({"scrape_meta": {"ixl": {"warnings": None}, "sgy": 3}}) == []
+    assert scrape_meta.scrape_warnings({"scrape_meta": "x"}) == []
+    assert scrape_meta.scrape_warnings({"scrape_meta": {"ixl": {"unavailable": None}, "schoology": 3}}) == []
+    assert scrape_meta.scrape_warnings({"scrape_meta": {"ixl": {"unavailable": {"A": "bad"}}}}) == []

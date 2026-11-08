@@ -11,7 +11,8 @@ from pathlib import Path
 import requests
 
 from school_dashboard import maintenance, powerschool
-from school_dashboard.state import unavailable_for
+from school_dashboard import scrape_meta
+from school_dashboard.state import canonical_name, get_roster
 from school_dashboard.llm import chat_completion
 
 _log = logging.getLogger(__name__)
@@ -617,12 +618,9 @@ DASHBOARD_BASE = "https://school.grepon.cc"
 
 
 def _unavailable_names(state: dict) -> list[str]:
-    """Children a source failed to supply (so they still show up in the quick check)."""
-    meta = state.get("scrape_meta")
-    if not isinstance(meta, dict):
-        return []
-    return [name for v in meta.values() if isinstance(v, dict)
-            for name in (v.get("unavailable") or {}) if name != "*"]
+    """Roster children a source failed to supply (so they still show up in the quick check)."""
+    roster = {canonical_name(r["name"]) for r in get_roster()}
+    return [n for n in scrape_meta.unavailable_names(state) if not roster or n in roster]
 
 
 def build_quick_check(state_path: str, today: str | None = None) -> tuple[str, list]:
@@ -654,7 +652,7 @@ def build_quick_check(state_path: str, today: str | None = None) -> tuple[str, l
             )
         ]
 
-        if unavailable_for(state, "ixl", child):
+        if scrape_meta.unavailable_for(state, "ixl", child):
             ixl_part = "IXL unavailable"
         elif ixl_remaining > 0:
             subjects = [s for s, v in ixl_totals.items() if v.get("remaining", 0) > 0]
@@ -662,7 +660,7 @@ def build_quick_check(state_path: str, today: str | None = None) -> tuple[str, l
         else:
             ixl_part = "IXL all done"
 
-        if unavailable_for(state, "schoology", child):
+        if scrape_meta.unavailable_for(state, "schoology", child):
             sgy_part = "Schoology unavailable"
         else:
             sgy_part = f"SGY {len(open_sgy)} open" if open_sgy else "SGY all done"
