@@ -250,7 +250,7 @@ Roster config (`school-dashboard.json`, `children.<Name>`): optional `"ixl": fal
 
 ## Tests
 
-**124 tests across 10 files** (recounted 2026-07-07 via `pytest --collect-only`;
+**1145 tests run by default** (`pytest --collect-only -q tests/` prints `1145/1148`, 2026-11-08; the 3 `live` tests are deselected). The table below lists only the original files and is NOT exhaustive; the next line is the older 2026-07-07 note (124 tests across 10 files; it
 supersedes the older "101 tests / 7 files" figure, which predates several files
 below and referenced two files — `test_db.py`, `test_calendar_import.py`,
 `test_intel.py` — that no longer exist because `db.py`'s events-table schema and
@@ -268,7 +268,8 @@ tests/test_llm.py             12 tests — school_dashboard.llm SSE-tolerant cha
 tests/test_readiness.py        8 tests — readiness.py checklist scoring (pure, deterministic, no LLM)
 tests/test_sync.py            18 tests — /api/sync auth, concurrency, /api/sync/status, /api/sync/meta, assetlinks, freshness, sync_meta writes
 tests/test_sync_meta.py        8 tests — sync_meta module read/write, env var path
-tests/test_wrapper_scripts.py 11 tests — run-digest.sh / run-weekly.sh LOGDIR logic, bash syntax (does NOT run the full sync scripts — see below)
+tests/test_wrapper_scripts.py 11 tests — run-digest.sh / run-weekly.sh LOGDIR logic, bash syntax
+tests/test_sync_orchestration.py 11 tests — runs the real sync/school-sync.sh (+ gc-refresh.sh, gc-scrape.sh, school-state) against fake ixl/sgy/gc/powerschool CLIs on PATH: all ok, one source failing, all failing, gc failing, gc unconfigured, paused source keeps cached data, maintenance at start and mid-sync, fatal state-update failure, missing gc-refresh.sh aborting the sync, in-flight marker. Characterisation tests pin existing behaviour.
 ```
 
 **Verification gaps an agent should know about before trusting "tests pass" as proof
@@ -278,14 +279,16 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
   what the three vendored scrapers actually emit and what `state.py`/`readiness.py`/
   `digest.py` expect, despite the scrapers living in independently-versioned repos
   under `vendor/`.
-- `tests/test_wrapper_scripts.py` only exercises a `LOGDIR`-derivation bash snippet
-  in isolation, by its own docstring's admission — the real `sync/school-sync.sh`
-  and `sync/gc-scrape.sh` orchestration is untested and can only be verified by a
-  live run against real accounts.
+- `tests/test_sync_orchestration.py` covers `sync/school-sync.sh` / `gc-scrape.sh` orchestration with fake local CLIs;
+  real accounts, real scraper output and the network remain untested and can only be verified by a live run.
 - `.github/workflows/docker.yml` never runs tests; `tests.yml` does (pytest, SPA checks, non-blocking e2e).
 
 ## Sync, Staleness & Vendor Model
 
+- **Known gaps in `school-sync.sh` (pinned by characterisation tests, not endorsed):** (a) there is no lock file, only
+  per-PID `sync.running.$$` markers, so overlapping runs both scrape and merge (state writers are serialised on the
+  state lock); (b) a missing `/app/sync/gc-refresh.sh` aborts the whole sync under `set -e` (exit 127), so later
+  sources and the merge never run. `SYNC_SCRIPT_DIR` (default `/app/sync`) overrides where the sibling scripts live, for tests.
 - **GC token keep-alive:** GC tokens last 1h; a host systemd timer keeps the saved browser session
   fresh, and `sync/gc-refresh.sh` (called by `school-sync.sh`) takes the same `/root/.gc/refresh.lock`.
   Install, verify and failure modes: `docs/ops/gc-keepalive.md`.

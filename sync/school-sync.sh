@@ -35,6 +35,8 @@ IXL_CRON="${IXL_CRON:-}"
 IXL_DIR="${IXL_DIR:-/tmp/ixl}"
 SGY_FILE="${SGY_FILE:-/tmp/schoology-daily.json}"
 PS_FILE="${PS_FILE:-/tmp/powerschool-daily.json}"
+# Where the sibling sync scripts live (override is for tests; default unchanged).
+SYNC_SCRIPT_DIR="${SYNC_SCRIPT_DIR:-/app/sync}"
 
 log() { echo "[$(date '+%H:%M:%S')] $*" >&2; }
 # Fail closed: a step runs only if `check` exits exactly 10 (inactive). Active (0),
@@ -219,10 +221,10 @@ elif command -v gc &>/dev/null && [[ -n "${GC_TOKEN:-}${GC_EMAIL:-}" ]]; then
     # upfront avoids a Playwright launch in the middle of the loop.
     log "Refreshing GC token..."
     # Lock held only around the refresh (shared with the host keep-alive timer).
-    bash /app/sync/gc-refresh.sh
+    bash "$SYNC_SCRIPT_DIR/gc-refresh.sh"
 
     log "Running GameChanger scrape..."
-    if bash /app/sync/gc-scrape.sh; then
+    if bash "$SYNC_SCRIPT_DIR/gc-scrape.sh"; then
         write_sync_meta "gc" "ok"
     else
         log "WARN: GC scrape had errors"
