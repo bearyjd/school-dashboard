@@ -7,6 +7,9 @@ from contextlib import closing
 from datetime import date, timedelta
 from pathlib import Path
 
+from school_dashboard.overview_items import DONE_STATUSES, parse_date
+from school_dashboard.state import get_roster
+
 _log = logging.getLogger(__name__)
 
 _URGENCY_ORDER: dict[str, int] = {"overdue": 0, "tomorrow": 1, "soon": 2, "pending": 3}
@@ -49,19 +52,20 @@ def get_checklist(
 
     result: dict[str, list[dict]] = {}
 
-    for child, child_data in (state.get("schoology") or {}).items():
+    schoology = state.get("schoology") or {}
+    children = list(schoology)
+    children += [c["name"] for c in get_roster() if c["name"] not in schoology]
+
+    for child in children:
+        child_data = schoology.get(child) or {}
         items: list[dict] = []
 
         # Schoology assignments
         for a in child_data.get("assignments") or []:
-            if a.get("status") in ("submitted", "graded", "completed"):
+            if str(a.get("status") or "").lower() in DONE_STATUSES:
                 continue
-            due_str = (a.get("due_date") or "")[:10]
-            if not due_str:
-                continue
-            try:
-                due = date.fromisoformat(due_str)
-            except ValueError:
+            due = parse_date(a.get("due_date"))
+            if due is None:
                 continue
             if due > cutoff:
                 continue
