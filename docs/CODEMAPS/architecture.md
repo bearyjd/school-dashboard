@@ -37,7 +37,7 @@
 | Cron orchestrator | `sync/school-sync.sh` | IXL → SGY → GC → state → email → HTML → digest |
 | GC scraper | `sync/gc-scrape.sh` | GameChanger schedule scrape with empty-data abort |
 
-> _Aspirational modules not currently committed:_ `intel.py` (LLM event extraction from emails), `calendar_import.py` (one-time PDF → events). Referenced in older docs and `school-sync.sh`; both stub out cleanly when missing.
+> _Removed modules (not in the codebase):_ `intel.py` (LLM event extraction from emails), `calendar_import.py` (one-time PDF → events). Referenced in older docs and `school-sync.sh`; both stub out cleanly when missing.
 
 ## Sync Cycle (6am + 2:30pm weekdays)
 
@@ -49,7 +49,7 @@ school-sync.sh
   4. gc-scrape.sh            → state/gc-schedule.json (Layer 2 aborts on all-empty)
   5. school-state update     → school-state.json
   6. school-state email-sync → email-digest.json (when SCHOOL_EMAIL_ACCOUNT set)
-  7. intel.process_digest()  → school.db / facts.json (when intel module present)
+  7. (intel step skipped: `school_dashboard.intel` no longer exists; the guard in school-sync.sh logs and moves on)
   8. school-state html       → dashboard.html
 ```
 
