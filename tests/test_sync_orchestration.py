@@ -49,10 +49,10 @@ class Env:
         today = datetime.now(timezone.utc).date()
         for name in ("ixl", "sgy", "powerschool"):
             (self.data / f"{name}.json").write_text(json.dumps(load(name, today)))
-        # Shifted fixture timestamps can land in the future (earlier hour today); stamp them "now".
+        # Shifted fixture timestamps can land in the future (earlier hour today); stamp them "now" in UTC.
         for name, key in (("sgy", "timestamp"), ("powerschool", "scraped_at")):
             doc = json.loads((self.data / f"{name}.json").read_text())
-            doc[key] = datetime.now().isoformat()
+            doc[key] = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()  # naive UTC, as the TZ=UTC script reads it
             (self.data / f"{name}.json").write_text(json.dumps(doc))
         gc = load("gc", today)
         (self.data / "gc-teams.json").write_text(json.dumps(gc["teams"]))

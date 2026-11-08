@@ -250,7 +250,7 @@ Roster config (`school-dashboard.json`, `children.<Name>`): optional `"ixl": fal
 
 ## Tests
 
-**1145 tests** (`pytest --collect-only -q tests/`, 2026-11-08; 3 more `live` tests are deselected). The table below lists only the original files and is NOT exhaustive; the next line is the older 2026-07-07 note (124 tests across 10 files; it
+**1145 tests run by default** (`pytest --collect-only -q tests/` prints `1145/1148`, 2026-11-08; the 3 `live` tests are deselected). The table below lists only the original files and is NOT exhaustive; the next line is the older 2026-07-07 note (124 tests across 10 files; it
 supersedes the older "101 tests / 7 files" figure, which predates several files
 below and referenced two files — `test_db.py`, `test_calendar_import.py`,
 `test_intel.py` — that no longer exist because `db.py`'s events-table schema and
