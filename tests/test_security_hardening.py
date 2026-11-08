@@ -37,6 +37,20 @@ def test_trusted_client_ip(remote, xff, n, expected):
     assert trusted_client_ip(remote, xff, n) == expected
 
 
+def _cut_mid_entry_header() -> str:
+    """>1024 chars; the 1024-char tail starts with '3.0.113.7', a valid-looking partial of '203.0.113.7'."""
+    body = "3.0.113.7," + " " * (1024 - len("3.0.113.7,") - len("198.51.100.9")) + "198.51.100.9"
+    header = "20" + body
+    assert len(header) > 1024 and header[-1024:] == body
+    return header
+
+
+def test_truncated_first_entry_is_dropped_not_trusted():
+    header = _cut_mid_entry_header()
+    assert trusted_client_ip("10.0.0.1", header, 1) == "198.51.100.9"   # rightmost entry intact
+    assert trusted_client_ip("10.0.0.1", header, 2) == "10.0.0.1"       # partial '3.0.113.7' must not be used
+
+
 def test_zone_id_and_mapped_ipv6_group_like_plain_addresses():
     from school_dashboard.rate_limit import client_key
     assert client_key(trusted_client_ip("10.0.0.1", "fe80::1%eth0", 1)) == "fe80::/64"
