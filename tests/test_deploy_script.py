@@ -16,6 +16,7 @@ IMG_REPO = "ghcr.io/example/school-dashboard"
 # except STICKY=1 (the force-recreate keeps the marker, so the rollback cannot recover).
 DOCKER_SHIM = r"""#!/usr/bin/env bash
 printf 'docker %s\n' "$*" >> "$SHIM_LOG"
+[[ ! -e /proc/self/fd/9 ]] || echo FD9_OPEN >> "$SHIM_LOG"
 NEW="$SHIM_STATE/new"
 case "$1" in
   inspect)
@@ -38,7 +39,7 @@ case "$1" in
     case "$*" in
       *" pull"*) compgen -G "$BACKUP_ROOT/pre-*/env" >/dev/null && echo SAW_BACKUP >> "$SHIM_LOG"
         [[ "${FAKE_FAIL:-}" != pull ]] || exit 1; [[ "${FAKE_HANG:-}" != pull ]] || sleep 2 ;;
-      *"--force-recreate"*) touch "$SHIM_STATE/recreated"; [[ -n "${STICKY:-}" ]] || rm -f "$NEW"; [[ -n "${IMG_STUCK:-}" ]] || rm -f "$SHIM_STATE/img_new" ;;
+      *"--force-recreate"*) [[ "${FAKE_HANG:-}" != recreate ]] || sleep 2; touch "$SHIM_STATE/recreated"; [[ -n "${STICKY:-}" ]] || rm -f "$NEW"; [[ -n "${IMG_STUCK:-}" ]] || rm -f "$SHIM_STATE/img_new" ;;
       *" up -d"*) [[ "${FAKE_FAIL:-}" != up ]] || exit 1; touch "$NEW" "$SHIM_STATE/img_new" ;;
     esac ;;
   exec)
@@ -97,6 +98,19 @@ kb="${FAKE_DF_AVAIL_KB:-104857600}"
 printf 'Filesystem 1024-blocks Used Available Capacity Mounted\nfake 999999999 1 %s 1%% /\n' "$kb"
 """
 
+SQLITE_SHIM = r"""#!/usr/bin/env bash
+printf 'sqlite3 %s\n' "$*" >> "$SHIM_LOG"
+case "$2" in
+  .backup*)
+    [[ "${FAKE_SQLITE:-}" != fail ]] || exit 1
+    dest="${2#.backup \'}"; dest="${dest%\'}"
+    printf 'DB' > "$dest" ;;
+  "PRAGMA integrity_check")
+    if [[ "${FAKE_SQLITE:-}" == bad ]]; then echo "*** in database main ***"; else echo ok; fi ;;
+esac
+exit 0
+"""
+
 SSH_SHIM = '#!/usr/bin/env bash\nprintf \'ssh %s\\n\' "$*" >> "$SHIM_LOG"\nexit 0\n'
 
 SMOKE_OK = "#!/usr/bin/env bash\nexit 0\n"
@@ -112,7 +126,7 @@ def _write(path: Path, text: str, mode: int = 0o755) -> None:
 def env(tmp_path):
     shims = tmp_path / "shims"
     shims.mkdir()
-    for name, body in (("docker", DOCKER_SHIM), ("curl", CURL_SHIM), ("df", DF_SHIM), ("ssh", SSH_SHIM)):
+    for name, body in (("docker", DOCKER_SHIM), ("curl", CURL_SHIM), ("df", DF_SHIM), ("ssh", SSH_SHIM), ("sqlite3", SQLITE_SHIM)):
         _write(shims / name, body)
     deploy = tmp_path / "opt-school"
     (deploy / "state").mkdir(parents=True)
@@ -586,3 +600,151 @@ def test_live_check_prints_summary_and_fails_when_server_down(tmp_path):
     assert p.returncode == 1, p.stdout + p.stderr
     assert re.search(r"live-check: screens=40 failed_screens=40 ", p.stdout)
     assert "LIVE-CHECK: FAIL" in p.stdout
+
+
+# --- review round 2 -----------------------------------------------------------
+
+def _closed_pipe_spawn(env, *args, **extra):
+    proc = _spawn(env, *args, **extra)
+    _wait_for(env, " pull")
+    proc.stdout.close()
+    proc.stderr.close()
+    return proc
+
+
+def test_sighup_with_dead_output_still_rolls_back_and_logs(env):
+    import signal
+
+    proc = _closed_pipe_spawn(env, "--slug", "spa", FAKE_HANG="pull")
+    proc.send_signal(signal.SIGHUP)
+    proc.wait(timeout=30)
+    assert proc.returncode == 1
+    calls = log(env)
+    assert any("up -d --force-recreate" in c for c in calls)
+    (logfile,) = list(Path(env["BACKUP_ROOT"]).glob("deploy-*.log"))
+    assert stat.S_IMODE(logfile.stat().st_mode) == 0o600
+    text = logfile.read_text()
+    assert "ROLLBACK: verified" in text and SECRET not in text
+
+
+def test_sighup_rollback_not_verified_exits_3(env):
+    import signal
+
+    for marker in ("new", "img_new"):
+        (Path(env["SHIM_STATE"]) / marker).write_text("")
+    proc = _closed_pipe_spawn(env, "--slug", "spa", FAKE_HANG="pull", FAKE_FAIL="route:/app/", STICKY="1")
+    proc.send_signal(signal.SIGHUP)
+    proc.wait(timeout=30)
+    assert proc.returncode == 3
+
+
+def test_sigpipe_does_not_kill_the_deploy(env):
+    proc = _closed_pipe_spawn(env, "--slug", "spa", FAKE_HANG="pull")
+    proc.wait(timeout=30)
+    assert proc.returncode == 0
+    assert any("maintenance check" in c for c in log(env))
+
+
+def test_interrupt_during_deploy_rollback_still_completes(env):
+    import signal
+
+    proc = _spawn(env, "--slug", "spa", FAKE_FAIL="logs", FAKE_HANG="recreate")
+    _wait_for(env, "--force-recreate")
+    proc.send_signal(signal.SIGTERM)
+    out, err = proc.communicate(timeout=30)
+    assert proc.returncode == 1, out + err
+    assert "ROLLBACK: verified" in out
+
+
+def test_interrupt_during_manual_rollback_still_completes(env):
+    import signal
+
+    proc = _spawn(env, "--rollback", "rollback-1", FAKE_HANG="recreate")
+    _wait_for(env, "--force-recreate")
+    proc.send_signal(signal.SIGTERM)
+    out, err = proc.communicate(timeout=30)
+    assert proc.returncode == 0, out + err
+    assert "ROLLBACK: verified" in out
+
+
+def _with_db(env, wal=True):
+    state = Path(env["DEPLOY_DIR"]) / "state"
+    (state / "school.db").write_text("live")
+    if wal:
+        (state / "school.db-wal").write_text("wal")
+        (state / "school.db-shm").write_text("shm")
+
+
+def test_sqlite_backup_is_checked_and_replaces_plain_copy(env):
+    _with_db(env)
+    assert run(env, "--slug", "spa").returncode == 0
+    (b,) = backups(env)
+    assert (b / "state" / "school.db").read_text() == "DB"
+    assert not (b / "state" / "school.db-wal").exists() and not (b / "state" / "school.db-shm").exists()
+    assert not list((b / "state").glob("*.tmp"))
+    calls = log(env)
+    assert any(c.startswith("sqlite3") and "integrity_check" in c for c in calls)
+
+
+@pytest.mark.parametrize("mode", ["fail", "bad"])
+def test_sqlite_failure_aborts_before_pull(env, mode):
+    _with_db(env)
+    p = run(env, "--slug", "spa", FAKE_SQLITE=mode)
+    assert p.returncode == 2 and "sqlite" in p.stderr
+    assert not any(" pull" in c for c in log(env))
+    (b,) = backups(env)
+    assert not (b / "COMPLETE").exists()
+
+
+def test_without_sqlite3_warns_and_keeps_wal_copy(env):
+    _with_db(env)
+    p = run(env, "--slug", "spa", SQLITE3="sqlite3-not-installed")
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert "WARN" in p.stdout
+    (b,) = backups(env)
+    assert (b / "state" / "school.db").read_text() == "live"
+    assert (b / "state" / "school.db-wal").read_text() == "wal"
+
+
+def test_complete_marker_written_last(env):
+    assert run(env, "--slug", "spa").returncode == 0
+    (b,) = backups(env)
+    assert (b / "COMPLETE").exists()
+
+
+def test_incomplete_backup_has_no_marker(env):
+    p = run(env, FAKE_FAIL="tag")
+    assert p.returncode == 2
+    (b,) = backups(env)
+    assert not (b / "COMPLETE").exists()
+
+
+def test_lock_fd_not_inherited_by_children(env):
+    assert run(env, "--slug", "spa").returncode == 0
+    assert "FD9_OPEN" not in log(env)
+
+
+def test_manual_rollback_preserves_current_latest_first(env):
+    p = run(env, "--rollback", "rollback-1")
+    assert p.returncode == 0, p.stdout + p.stderr
+    calls = log(env)
+    pre = next(i for i, c in enumerate(calls) if re.fullmatch(
+        rf"docker tag {re.escape(IMG_REPO)}:latest {re.escape(IMG_REPO)}:rollback-pre-\d{{8}}T\d{{6}}Z", c))
+    assert pre < calls.index(f"docker tag {IMG_REPO}:rollback-1 {IMG_REPO}:latest")
+
+
+def test_manual_rollback_refuses_in_maintenance(env):
+    (Path(env["DEPLOY_DIR"]) / "state" / "maintenance.json").write_text("{}")
+    p = run(env, "--rollback", "rollback-1")
+    assert p.returncode == 2 and "maintenance" in p.stderr.lower()
+
+
+def test_manual_rollback_takes_the_lock(env):
+    import fcntl
+
+    root = Path(env["BACKUP_ROOT"])
+    root.mkdir(mode=0o700)
+    with open(root / ".deploy.lock", "w") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        p = run(env, "--rollback", "rollback-1")
+    assert p.returncode == 2 and "another deploy" in p.stderr
