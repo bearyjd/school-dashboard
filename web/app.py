@@ -12,7 +12,7 @@ from pathlib import Path
 from flask import Flask, jsonify, redirect, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
-from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, powerschool_warnings, scrape_warnings
+from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, gc_warnings, powerschool_warnings, scrape_warnings
 from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
 from school_dashboard import maintenance, paths, powerschool
 from school_dashboard.rate_limit import FailureLimiter, client_key
@@ -138,7 +138,8 @@ def build_system_prompt() -> str:
     )
     state_str = json.dumps(state_view, indent=2).replace('"John"', '"Jack"')[:8000]
     # The state JSON is cut at 8000 chars, so scrape problems are stated outside it.
-    warn_block = scrape_data_warnings(state) if isinstance(state, dict) else ""
+    warn_block = (scrape_data_warnings(state, gc_data=load_json(str(paths.gc_path())))
+                  if isinstance(state, dict) else "")
     warn_str = f"{warn_block}\n\n" if warn_block else ""
 
     actionable = []
@@ -561,6 +562,7 @@ def api_overview():
     gc_data = load_json(str(paths.gc_path()))
     if not isinstance(gc_data, dict) or "error" in gc_data:
         gc_data = {}
+    warnings.extend(gc_warnings(gc_data))
     db_file = str(paths.db_path())
     try:
         manual = list_items(db_file)

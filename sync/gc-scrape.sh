@@ -170,11 +170,12 @@ while IFS=$'\t' read -r TEAM_ID TEAM_NAME; do
 import json, sys
 try:
     with open(sys.argv[1]) as f:
-        s = json.load(f).get('schedule') or []
-    print(len(s) if isinstance(s, list) else 0)
+        s = json.load(f).get('schedule')
+    print(len(s) if isinstance(s, list) else -2)  # -2: no schedule list at all (renamed key?)
 except (OSError, ValueError, AttributeError):
     print(-1)
 " "$WORK/team-$N.json" 2>>"$LOGFILE") || API_EVENTS=-1
+            [[ "$API_EVENTS" -eq -2 ]] && log "WARN: gc summary for team ${TEAM_ID:0:8} has no schedule list"
             [[ "$API_EVENTS" -le 0 ]] && REASON=empty
         else
             REASON=failed
@@ -223,7 +224,14 @@ done < "$WORK/team-lines.tsv"
 mkdir -p "$LOGDIR"
 COUNTS=$(python3 -c "
 import json, sys
-work, ts, out = sys.argv[1], sys.argv[2], sys.argv[3]
+work, ts, out, prev_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+try:
+    with open(prev_path) as f:
+        prev = json.load(f)
+    prev_teams = {t['team_id']: t for t in prev['teams'] if isinstance(t, dict)}
+    prev_day = str(prev.get('scraped_at') or '')[:10]
+except (OSError, ValueError, KeyError, TypeError, AttributeError):
+    prev_teams, prev_day = {}, ''
 teams = []
 with open(work + '/manifest.tsv') as m:
     for line in m:
@@ -231,20 +239,32 @@ with open(work + '/manifest.tsv') as m:
             n, tid, name, child, source = line.rstrip('\\n').split('\\t')
             with open(f'{work}/team-{n}.json') as f:
                 summary = json.load(f)
-            schedule = summary.get('schedule') or []
-            if not isinstance(schedule, list):
-                print(f'WARN: non-list schedule for team {tid} — treating as empty', file=sys.stderr)
+            schedule = summary.get('schedule')
+            missing = not isinstance(schedule, list)
+            if missing:
+                print(f'WARN: no schedule list for team {tid[:8]} — recording the failure', file=sys.stderr)
                 schedule = []
         except (OSError, ValueError, AttributeError) as e:
             print(f'WARN: Failed to parse manifest/summary line {line[:40]!r} ({e}) — skipping', file=sys.stderr)
             continue
         name = name or summary.get('team_name') or tid
-        teams.append({'team_id': tid, 'team_name': name, 'child': child or name,
-                      'schedule_source': source, 'schedule': schedule})
+        entry = {'team_id': tid, 'team_name': name, 'child': child or name,
+                 'schedule_source': source, 'schedule': schedule}
+        if missing:
+            # Keep this team's previous schedule (if any) and say so; never a silent empty one.
+            old = prev_teams.get(tid) or {}
+            old_sched = old.get('schedule')
+            entry['schedule_error'] = 'missing_schedule'
+            if isinstance(old_sched, list) and old_sched:
+                entry['schedule'] = old_sched
+                entry['schedule_source'] = old.get('schedule_source') or source
+                entry['schedule_last_good'] = old.get('schedule_last_good') or prev_day
+        teams.append(entry)
 with open(out, 'w') as f:
     print(json.dumps({'scraped_at': ts, 'teams': teams}, indent=2), file=f)
-print(len(teams), sum(len(t['schedule']) for t in teams), sum(t['schedule_source'] == 'ics' for t in teams))
-" "$WORK" "$TS" "$GC_PATH.tmp.$$" 2>>"$LOGFILE") || fail "Failed to write $GC_PATH"
+fresh = [t for t in teams if 'schedule_error' not in t]
+print(len(teams), sum(len(t['schedule']) for t in fresh), sum(t['schedule_source'] == 'ics' for t in teams))
+" "$WORK" "$TS" "$GC_PATH.tmp.$$" "$GC_PATH" 2>>"$LOGFILE") || fail "Failed to write $GC_PATH"
 read -r WRITTEN TOTAL_EVENTS ICS_TEAMS <<< "$COUNTS"
 
 # Every team returning an empty schedule means the gc CLI 401'd silently

@@ -83,9 +83,19 @@ def _call_litellm(prompt: str, litellm_url: str, api_key: str, model: str) -> st
     return chat_completion(prompt, litellm_url, api_key, model, max_tokens=600, timeout=60)
 
 
-def _warning_parts(state: dict, now: datetime | None = None) -> tuple[str, str]:
+def _read_gc_data(gc_path: str | None) -> object:
+    """Parsed gc-schedule.json, or None when absent or unreadable (only used for warnings)."""
+    if not gc_path:
+        return None
+    try:
+        return json.loads(Path(gc_path).read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def _warning_parts(state: dict, now: datetime | None = None, gc_path: str | None = None) -> tuple[str, str]:
     """(block before a following paragraph, block after a preceding one); both "" when healthy."""
-    block = scrape_meta.data_warnings_block(state, now)
+    block = scrape_meta.data_warnings_block(state, now, _read_gc_data(gc_path))
     return (f"{block}\n\n", f"\n\n{block}") if block else ("", "")
 
 
@@ -266,7 +276,7 @@ def build_morning_digest(
     )
 
     ps_section = _powerschool_section(state, today)
-    warn_pre, _ = _warning_parts(state, now)
+    warn_pre, _ = _warning_parts(state, now, gc_path)
 
     prompt = f"""You are a family assistant sending a morning briefing push notification. Be brief, warm, and practical. Max 200 words.
 
@@ -358,7 +368,7 @@ def build_afternoon_digest(
     )
 
     ps_section = _powerschool_section(state, today)
-    warn_pre, _ = _warning_parts(state, now)
+    warn_pre, _ = _warning_parts(state, now, gc_path)
 
     prompt = f"""You are a family assistant sending an afternoon homework check push notification. Be direct. Max 150 words.
 
@@ -453,7 +463,7 @@ def build_night_digest(
         or "None"
     )
 
-    warn_pre, _ = _warning_parts(state, now)
+    warn_pre, _ = _warning_parts(state, now, gc_path)
 
     prompt = f"""You are a family assistant sending a night prep push notification. Be brief and actionable. Max 150 words.
 
@@ -562,7 +572,7 @@ def build_weekly_digest(
         or "None"
     )
 
-    _, warn_post = _warning_parts(state, now)
+    _, warn_post = _warning_parts(state, now, gc_path)
 
     if mode == "friday":
         prompt = f"""You are writing a Friday afternoon school summary for a parent. Summarize the week: what's still outstanding per child, IXL progress, anything that needs attention over the weekend. Be concise — 3-5 bullet points per child max.
