@@ -40,6 +40,17 @@ calendar attribute a shared team to both kids; with the old label those events s
 never under a kid's filter. The calendar covers this week and next (the data window).
 Restart or wait for the next sync.
 
+## Sync token: one-time entry per device
+
+The server no longer puts `SYNC_TOKEN` in any page (`/app/` and `/legacy` are token-free). The secret lives only in
+server config (`config/env`, variable `SYNC_TOKEN`) and is never printed or served. After this deploy every
+device that starts syncs from the SPA must enter it once: open Settings, field "Sync token", Save. It is kept
+in that browser's `localStorage` (`school-sync-token`) only; "Clear" removes it, and clearing site data does too.
+Until entered, the Sync view says "Enter the sync token in Settings". Cron and scripts are unchanged
+(`X-Sync-Token` header). `POST /api/sync` answers 429 with `Retry-After` after 10 wrong tokens in a minute from one
+client address (per process; behind a reverse proxy all clients share the proxy's address, so one device's
+typos can briefly lock out the rest, including cron, for up to a minute). The old `/legacy` page no longer has sync buttons; it points to Sync in `/app/`.
+
 ## Source banners and the watchdog
 
 The "No successful sync yet" banner (a source that has never synced) depends on the watchdog: it needs

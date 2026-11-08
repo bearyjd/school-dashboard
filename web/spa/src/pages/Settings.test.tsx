@@ -76,3 +76,36 @@ test('kid colour legend lists the roster in colour order, with names as text', a
   const rows = within(legend).getAllByRole('listitem')
   expect(rows.map(r => r.textContent)).toEqual(['AAlpha (colour 1)', 'BBeta (colour 2)'])
 })
+
+test('sync token control: labelled password input, save and clear', () => {
+  fakeMedia(true)
+  renderSettings()
+  const input = screen.getByLabelText('Sync token') as HTMLInputElement
+  expect(input.type).toBe('password')
+  const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement
+  const clear = screen.getByRole('button', { name: 'Clear' }) as HTMLButtonElement
+  expect(save.disabled).toBe(true)
+  expect(clear.disabled).toBe(true)
+
+  fireEvent.change(input, { target: { value: ' TESTTOKEN123 ' } })
+  fireEvent.click(save)
+  expect(localStorage.getItem('school-sync-token')).toBe('TESTTOKEN123')
+  expect(input.value).toBe('')
+  expect(screen.getByRole('status').textContent).toBe('Sync token saved on this device')
+  expect(document.body.textContent).not.toContain('TESTTOKEN123')
+  expect(clear.disabled).toBe(false)
+
+  fireEvent.click(clear)
+  expect(localStorage.getItem('school-sync-token')).toBeNull()
+  expect(screen.getByRole('status').textContent).toBe('Sync token cleared')
+})
+
+test('sync token control: save failure is announced as an alert', () => {
+  fakeMedia(true)
+  renderSettings()
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied') })
+  fireEvent.change(screen.getByLabelText('Sync token'), { target: { value: 'abc' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(screen.getByRole('alert').textContent).toMatch(/could not save/i)
+  vi.restoreAllMocks()
+})

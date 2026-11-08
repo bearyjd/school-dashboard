@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useInlineChat } from '../hooks/useInlineChat'
 import { updateItem, createItem, triggerSync } from '../api'
 import type { InlineAgentAction } from '../api/types'
+import { getSyncToken, MSG_NO_TOKEN, syncErrorMessage } from '../lib/syncToken'
 
 interface InlineAgentProps {
   contextType: string
@@ -10,12 +11,11 @@ interface InlineAgentProps {
   suggestions?: string[]
 }
 
-const SYNC_TOKEN = (window as unknown as { __SYNC_TOKEN__?: string }).__SYNC_TOKEN__ ?? ''
-
 export function InlineAgent({ contextType, contextId, suggestions = [] }: InlineAgentProps) {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const { loading, reply, action, error, ask, reset } = useInlineChat(contextType, contextId)
+  const [syncError, setSyncError] = useState<string | null>(null)
   const qc = useQueryClient()
 
   const send = (msg: string) => {
@@ -24,6 +24,21 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
   }
 
   const executeAction = async (act: InlineAgentAction) => {
+    setSyncError(null)
+    if (act.type === 'trigger_sync') {
+      const token = getSyncToken()
+      if (!token) { setSyncError(MSG_NO_TOKEN); return }
+      try {
+        await triggerSync(act.payload.source as string, 'none', token)
+        qc.invalidateQueries({ queryKey: ['syncMeta'] })
+      } catch (e) {
+        setSyncError(syncErrorMessage(e))
+        return
+      }
+      reset()
+      setOpen(false)
+      return
+    }
     try {
       if (act.type === 'mark_item_done') {
         await updateItem(act.payload.id as number, { completed: true })
@@ -40,9 +55,6 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
           due_date: act.payload.due_date as string | undefined,
         })
         qc.invalidateQueries({ queryKey: ['items'] })
-      } else if (act.type === 'trigger_sync' && SYNC_TOKEN) {
-        await triggerSync(act.payload.source as string, 'none', SYNC_TOKEN)
-        qc.invalidateQueries({ queryKey: ['syncMeta'] })
       }
     } catch {
       // action failed; leave UI open so user sees current state
@@ -133,6 +145,10 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
           <button className="btn btn--ghost" style={{ marginLeft: 8, fontSize: '12px' }}
             onClick={() => { reset(); }}>Retry</button>
         </div>
+      )}
+
+      {syncError && (
+        <div role="alert" style={{ fontSize: '13px', color: 'var(--color-error)', marginBottom: 6 }}>{syncError}</div>
       )}
 
       {/* Reply state */}

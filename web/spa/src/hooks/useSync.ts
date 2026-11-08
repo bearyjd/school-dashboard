@@ -1,8 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { triggerSync, fetchSyncStatus } from '../api'
 import type { SyncStatus } from '../api/types'
-
-const SYNC_TOKEN = (window as unknown as { __SYNC_TOKEN__?: string }).__SYNC_TOKEN__ ?? ''
+import { getSyncToken, MSG_NO_TOKEN, syncErrorMessage } from '../lib/syncToken'
 
 export function useSync() {
   const [status, setStatus] = useState<SyncStatus | null>(null)
@@ -22,7 +21,7 @@ export function useSync() {
         setStatus(s)
         if (!s.running) stopPolling()
       } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : 'polling failed')
+        setError(syncErrorMessage(e))
         stopPolling()
       }
     }, 3000)
@@ -31,14 +30,15 @@ export function useSync() {
   useEffect(() => () => stopPolling(), [stopPolling])
 
   const trigger = useCallback(async (sources: string, digest = 'none') => {
-    if (!SYNC_TOKEN) { setError('SYNC_TOKEN not configured'); return }
+    const token = getSyncToken()
+    if (!token) { setError(MSG_NO_TOKEN); return }
     setTriggering(true)
     setError(null)
     try {
-      await triggerSync(sources, digest, SYNC_TOKEN)
+      await triggerSync(sources, digest, token)
       startPolling()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'sync failed')
+      setError(syncErrorMessage(e))
     } finally {
       setTriggering(false)
     }

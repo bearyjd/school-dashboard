@@ -25,3 +25,14 @@
 .settings__label { font-weight: 700; }
 .settings__hint { color: var(--muted); font-size: 13px; }
 .settings__kids { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.settings__token { display: flex; flex-direction: column; gap: 8px; }
+.settings__token input {
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg, var(--surface));
+  color: inherit;
+  font: inherit;
+}
+.settings__token-actions { display: flex; gap: 8px; }

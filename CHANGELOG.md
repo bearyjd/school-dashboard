@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- `SYNC_TOKEN` is no longer served to browsers: removed from the `/app/` page (`window.__SYNC_TOKEN__`) and from `/legacy` (meta tag). Anyone who could load a page could previously start syncs. `POST /api/sync` still needs the `X-Sync-Token` header (cron/scripts unchanged) and now answers 429 with `Retry-After` after 10 wrong tokens per minute from one client address. Each device enters the token once in the SPA Settings ("Sync token", stored in that browser's `localStorage['school-sync-token']`); the Sync view shows "Enter the sync token in Settings", "Wrong token", "Too many attempts, wait N s" or "Syncing is not configured". `/legacy` lost its sync buttons and links to Sync in `/app/`.
+
 ### Changed
 - `/` now redirects (302, query string kept) to the new SPA at `/app/`. The pre-SPA page moved to `/legacy` and goes away with the classic view.
 
