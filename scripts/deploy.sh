@@ -29,10 +29,20 @@ MIN_FREE_GB="${MIN_FREE_GB:-25}"
 READY_TIMEOUT="${READY_TIMEOUT:-90}"
 KNOWN_WATCHDOG_PROBLEMS="${KNOWN_WATCHDOG_PROBLEMS:-}"
 SMOKE_SCRIPT="${SMOKE_SCRIPT:-$SELF_DIR/smoke-live.sh}"
+SQLITE3="${SQLITE3:-sqlite3}"
 
 SLUG="deploy"; SMOKE=0; DRY=0; ROLLBACK_TAG=""; ROLLBACK_SET=0
 
-die() { echo "deploy.sh: $*" >&2; exit 2; }
+# A closed terminal or pipe must never kill a deploy half way (set -e + EPIPE): ignore SIGPIPE and
+# make all output best-effort. Run long deploys in tmux or `systemd-run` anyway (see the runbook).
+trap '' PIPE
+
+die() { echo "deploy.sh: $*" >&2 || true; exit 2; }
+
+# The deploy lock (fd 9) must not leak into docker, curl or the smoke script.
+docker() { command docker "$@" 9>&-; }
+# shellcheck disable=SC2329  # used through the CURL array
+curl() { command curl "$@" 9>&-; }
 
 NAME_RE='^[A-Za-z0-9._-]+$'
 valid_name() { [[ "$1" =~ $NAME_RE && ${#1} -le 100 ]]; }
@@ -58,6 +68,7 @@ if [[ "$ROLLBACK_SET" -eq 1 ]]; then valid_name "$ROLLBACK_TAG" || die "--rollba
 [[ "$KNOWN_WATCHDOG_PROBLEMS" =~ ^[A-Za-z0-9_:.,-]*$ ]] || die "invalid KNOWN_WATCHDOG_PROBLEMS"
 [[ "$DEPLOY_DIR" == /* && "$DEPLOY_DIR" =~ ^[A-Za-z0-9._/-]+$ ]] || die "DEPLOY_DIR must be a plain absolute path"
 [[ "$BACKUP_ROOT" == /* && "$BACKUP_ROOT" =~ ^[A-Za-z0-9._/-]+$ ]] || die "BACKUP_ROOT must be a plain absolute path"
+[[ "$SQLITE3" =~ ^[A-Za-z0-9._/-]+$ ]] || die "invalid SQLITE3"
 BASE_URL="${BASE_URL%/}"
 
 STATE_DIR="$DEPLOY_DIR/state"
@@ -80,10 +91,10 @@ run() {  # print in dry-run, execute otherwise
     if [[ "$DRY" -eq 1 ]]; then
         printf '[dry-run]'; printf ' %q' "$@"; printf '\n'
     else
-        "$@"
+        "$@" 9>&-
     fi
 }
-note() { printf '%s\n' "$*"; }
+note() { printf '%s\n' "$*" || true; }
 dc() { run docker compose -f "$COMPOSE_FILE" --project-directory "$DEPLOY_DIR" "$@"; }
 now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
@@ -93,13 +104,20 @@ trap on_exit EXIT
 
 # shellcheck disable=SC2329  # invoked via trap
 on_signal() {
-    trap '' INT TERM HUP
-    if [[ "$PHASE" == "post" && "$ROLLING" -eq 0 ]]; then
+    trap '' INT TERM HUP PIPE
+    set +e
+    # After SIGHUP (ssh drop) stdout/stderr are dead: keep the record in a private log instead.
+    if [[ "$DRY" -eq 0 && -d "$BACKUP_ROOT" ]]; then exec >>"$BACKUP_ROOT/deploy-$STAMP.log" 2>&1; fi
+    if [[ "$ROLLING" -eq 1 ]]; then
+        note "INTERRUPTED during a rollback: manual intervention needed, check the container and the image tags"
+        exit 3
+    fi
+    if [[ "$PHASE" == "post" ]]; then
         note "INTERRUPTED after the pull started: rolling back"
         if restore_and_verify "$ROLLBACK_REF" "$IMAGE_ID"; then exit 1; fi
         exit 3
     fi
-    echo "deploy.sh: interrupted before anything was changed" >&2
+    note "deploy.sh: interrupted before anything was changed"
     exit 2
 }
 trap on_signal INT TERM HUP
@@ -176,7 +194,7 @@ wait_ready() {
 
 FAILS=0
 gate() {  # name, PASS|FAIL|SKIP
-    printf '  %-4s %s\n' "$2" "$1"
+    printf '  %-4s %s\n' "$2" "$1" || true
     [[ "$2" != FAIL ]] || FAILS=$((FAILS + 1))
 }
 
@@ -252,11 +270,11 @@ run_gates() {  # sets FAILS; $1 = ISO time the (re)start began; $2 = smoke (0|1)
     fi
 
     if [[ "$with_smoke" -eq 1 ]]; then
-        if BASE_URL="$BASE_URL" "$SMOKE_SCRIPT" --container "$CONTAINER" > "$TMP/smoke.out" 2>&1; then
+        if BASE_URL="$BASE_URL" "$SMOKE_SCRIPT" --container "$CONTAINER" > "$TMP/smoke.out" 2>&1 9>&-; then
             gate "smoke-live" PASS
         else
             gate "smoke-live" FAIL
-            tail -n 5 -- "$TMP/smoke.out" | sed 's/^/        smoke: /'
+            tail -n 5 -- "$TMP/smoke.out" | sed 's/^/        smoke: /' || true
         fi
     fi
     [[ "$FAILS" -eq 0 ]]
@@ -284,6 +302,7 @@ resolve_image() {  # sets REPO and IMAGE_ID; $1 = "fallback" lets a missing cont
 
 restore_and_verify() {  # $1 = image ref to restore as :latest; $2 = image id the container must end up running
     ROLLING=1
+    trap '' INT TERM HUP  # a rollback must finish; it is never half-done on purpose
     note "ROLLBACK: restoring $1 as ${REPO}:latest"
     if ! run docker tag "$1" "$REPO:latest"; then
         note "ROLLBACK FAILED: could not retag; the container was NOT recreated"
@@ -314,7 +333,11 @@ restore_and_verify() {  # $1 = image ref to restore as :latest; $2 = image id th
 
 # ---- manual rollback -----------------------------------------------------------
 if [[ "$ROLLBACK_SET" -eq 1 ]]; then
-    [[ "$DRY" -eq 1 ]] || preflight_sync
+    if [[ "$DRY" -eq 1 ]]; then
+        note "[dry-run] preflight: no sync running, maintenance off"
+    else
+        preflight_quiet
+    fi
     take_lock
     resolve_image fallback
     target_id="RUNNING_IMAGE_ID"
@@ -322,6 +345,10 @@ if [[ "$ROLLBACK_SET" -eq 1 ]]; then
         target_id="$(docker image inspect --format '{{.Id}}' "$REPO:$ROLLBACK_TAG" 2>/dev/null)" \
             || die "no such image: $REPO:$ROLLBACK_TAG"
         [[ "$target_id" =~ ^[A-Za-z0-9:]+$ ]] || die "unexpected image id"
+    fi
+    # keep what :latest points at now, so the rollback itself can be undone
+    if [[ "$DRY" -eq 1 ]] || docker image inspect "$REPO:latest" >/dev/null 2>&1; then
+        run docker tag "$REPO:latest" "$REPO:rollback-pre-$STAMP" || die "cannot tag the current :latest as rollback-pre-$STAMP"
     fi
     PHASE="post"
     if restore_and_verify "$REPO:$ROLLBACK_TAG" "$target_id"; then note "ROLLBACK: OK"; exit 0; fi
@@ -345,14 +372,23 @@ run mkdir -m 700 -- "$BACKUP_DIR" || die "cannot create the backup dir"
 run mkdir -m 700 -- "$BACKUP_DIR/state" || die "backup failed (state dir)"
 run cp -a -- "$STATE_DIR/." "$BACKUP_DIR/state/" || die "backup failed (state copy)"
 if [[ "$DRY" -eq 1 ]]; then
-    note "[dry-run] if $STATE_DIR/school.db exists and sqlite3 is installed: sqlite3 school.db '.backup' into the backup (then drop the copied -wal/-shm)"
-elif [[ -f "$STATE_DIR/school.db" ]] && command -v sqlite3 >/dev/null; then
-    sqlite3 "$STATE_DIR/school.db" ".backup '$BACKUP_DIR/state/school.db'" || die "backup failed (sqlite backup)"
-    rm -f -- "$BACKUP_DIR/state/school.db-wal" "$BACKUP_DIR/state/school.db-shm"
+    note "[dry-run] if $STATE_DIR/school.db exists: sqlite3 .backup into the backup, PRAGMA integrity_check must say ok (else exit 2 before the pull)"
+elif [[ -f "$STATE_DIR/school.db" ]]; then
+    if command -v "$SQLITE3" >/dev/null; then
+        # a plain cp of a live database may be torn: replace it with a consistent, verified copy
+        rm -f -- "$BACKUP_DIR/state/school.db" "$BACKUP_DIR/state/school.db-wal" "$BACKUP_DIR/state/school.db-shm"
+        "$SQLITE3" "$STATE_DIR/school.db" ".backup '$BACKUP_DIR/state/school.db.tmp'" 9>&- || die "backup failed (sqlite backup)"
+        check="$("$SQLITE3" "$BACKUP_DIR/state/school.db.tmp" "PRAGMA integrity_check" 9>&-)" || die "backup failed (sqlite integrity check could not run)"
+        [[ "$check" == "ok" ]] || die "backup failed (sqlite integrity check on the copy)"
+        mv -- "$BACKUP_DIR/state/school.db.tmp" "$BACKUP_DIR/state/school.db" || die "backup failed (sqlite)"
+    else
+        note "WARN: $SQLITE3 not found; school.db in the backup is a plain copy of a possibly live file (with its -wal/-shm)"
+    fi
 fi
 run install -m 600 -- "$ENV_FILE" "$BACKUP_DIR/env" || die "backup failed (env)"
 run install -m 600 -- "$COMPOSE_FILE" "$BACKUP_DIR/docker-compose.yml" || die "backup failed (compose)"
 run docker tag "$IMAGE_ID" "$ROLLBACK_REF" || die "cannot tag the running image as $ROLLBACK_REF"
+run touch -- "$BACKUP_DIR/COMPLETE" || die "backup failed (marker)"  # last: a dir without it is an interrupted backup
 
 if [[ "$DRY" -eq 1 ]]; then
     note "[dry-run] re-check: no sync running, maintenance off (immediately before the pull)"
