@@ -63,6 +63,21 @@ blocked by that. The counter is per process and keyed on the connecting address 
 proxy all clients share the proxy's address, so one device's typos can slow wrong guesses from the others for up to
 a minute. The old `/legacy` page has no sync buttons; it points to Sync in `/app/`.
 
+## Scripted deploy (`scripts/deploy.sh`)
+
+This runbook stays the source of truth; `scripts/deploy.sh` encodes the same steps for the Docker host (run as root there).
+Preview first: `scripts/deploy.sh --dry-run --slug <name>` prints every command and touches nothing (no docker, no network).
+Real run: `scripts/deploy.sh --slug <name> [--smoke]`. It refuses during a sync (`state/sync.running.*`), in maintenance mode,
+with a `/app/web` mount in the compose file, or with less than 25G free; backs up state, env (mode 0600, never printed) and compose
+to `/root/school-backups/pre-<slug>-<UTC stamp>/`; tags the running image `rollback-<UTC stamp>`; pulls and recreates; then checks the
+routes, the `/` redirect, the service-worker cache name, the maintenance gate (exit 10), container-log tracebacks and the watchdog
+(only problems listed in `KNOWN_WATCHDOG_PROBLEMS=source:issue,...` are allowed). Any failed step or gate retags the rollback image to
+`:latest`, recreates the container and re-verifies (exit 1; exit 3 if the rollback itself fails). `--smoke` adds `smoke-live.sh` as a gate,
+so use it only when every source is healthy. Manual rollback: `scripts/deploy.sh --rollback rollback-<stamp>`.
+Settings come from `DEPLOY_DIR`, `CONTAINER`, `BASE_URL`, `BACKUP_ROOT`, `MIN_FREE_GB` (see the script header).
+Afterwards, `node scripts/live-check.mjs https://<host>` (needs `npm --prefix web/spa ci` and a Playwright Chromium) checks 375 and 1440 px,
+both themes, saves screenshots and prints counts only.
+
 ## Source banners and the watchdog
 
 The "No successful sync yet" banner (a source that has never synced) depends on the watchdog: it needs
