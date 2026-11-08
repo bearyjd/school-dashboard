@@ -208,8 +208,9 @@ docker/
 | `/api/chat` | POST | Chat with LiteLLM (JSON: `message`, `history`) |
 | `/api/readiness` | GET | Get readiness checklist |
 | `/api/calendar` | GET | Fetch Google Calendar events |
-| `/api/sync` | POST | Trigger on-demand sync (header: `X-Sync-Token`, compared in constant time; the token is **never served** in HTML/JS/JSON; the SPA keeps a user-entered copy in `localStorage['school-sync-token']`; 10 bad tokens/min per client (`remote_addr`, IPv6 by /64) -> 429 + `Retry-After`, a correct token is never blocked; token must be >= 32 chars; JSON: `sources` e.g. `"ixl,sgy,powerschool"` or `"all"`, `digest` e.g. `"quick"/"full"/"none"`) |
-| `/api/sync/status` | GET | Poll sync state (`{running, last_run, last_result, last_sources, last_error}`) |
+| `/api/sync` | POST | Trigger on-demand sync (header: `X-Sync-Token`, compared in constant time; the token is **never served** in HTML/JS/JSON; the SPA keeps a user-entered copy in `localStorage['school-sync-token']`; 10 bad tokens/min per client (`remote_addr`, or the `TRUSTED_PROXY_COUNT`-th `X-Forwarded-For` entry from the right; IPv6 by /64) -> 429 + `Retry-After`, a correct token is never blocked; token must be >= 32 chars; JSON: `sources` e.g. `"ixl,sgy,powerschool"` or `"all"`, `digest` e.g. `"quick"/"full"/"none"`) |
+| `/api/sync/status` | GET | Poll sync state (`{running, last_run, last_result, last_sources, last_error}`); `last_error` is generic text, detail only in the server log |
+| `/api/csp-report` | POST | CSP report sink: 204, no auth, exempt from maintenance 503, body never read or logged (counts only). `/app/*` and `/legacy` send `Content-Security-Policy-Report-Only` (`web/app.py::CSP_REPORT_ONLY`) |
 | `/api/sync/meta` | GET | Per-source sync freshness (`{ixl: {last_run, last_result}, ...}`) |
 | `/.well-known/assetlinks.json` | GET | TWA domain verification (fingerprint from `TWA_CERT_FINGERPRINT` env var) |
 
@@ -238,6 +239,8 @@ Optional GameChanger vars: `GC_TOKEN` (bearer token from browser session — pre
 Optional on-demand sync: `SYNC_TOKEN` — shared secret for `POST /api/sync`. Generate with: `python3 -c "import secrets; print(secrets.token_hex(32))"`. Unset or shorter than 32 characters (a WARNING is logged, never the value), `/api/sync` returns 501. It is never rendered into any page; each device enters it once in the SPA Settings (see `docs/ops/spa-redesign-rollout.md`).
 
 Optional PowerSchool (4th source): `PS_USERNAME`, `PS_PASSWORD`, `PS_BASE_URL` (or `~/.powersched/.env`, which the scraper reads; the sync checks via `school_dashboard.powerschool.skip_reason`). The `powerschool summary --json` CLI is not yet vendored; with it missing or unconfigured the sync logs an INFO line and skips (no alert). Output file: `PS_FILE` (default `/tmp/powerschool-daily.json`), passed to `school-state update --ps-file`.
+
+Optional `TRUSTED_PROXY_COUNT` (default 0): number of trusted reverse proxies in front of Flask; with N > 0 the sync limiter keys on the Nth `X-Forwarded-For` entry from the right. Only set it when the port is reachable solely through the proxy (`docs/ops/spa-redesign-rollout.md`).
 
 Optional per-source toggles: `SOURCE_IXL_ENABLED`, `SOURCE_SGY_ENABLED`, `SOURCE_GC_ENABLED`, `SOURCE_POWERSCHOOL_ENABLED` (default enabled; `0/false/no/off`, case-insensitive, disables). A disabled source is skipped by `school-sync.sh` and `/api/sync` with no failure alert and recorded in `sync_meta` as `last_result: "paused"` Cached data from a paused source stays in state and digests. (helpers: `school_dashboard/sources.py::source_enabled`, shell `source_enabled`).
 

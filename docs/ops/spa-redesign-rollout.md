@@ -105,3 +105,22 @@ Settings links, and the `/home` and `/child/:name` redirects; note it in `CHANGE
 ## Manual gate: Lighthouse
 
 On the deployed `/app/` (mobile profile): performance >= 90, LCP < 2.5 s, CLS < 0.1. Not automated.
+
+## Client address behind a reverse proxy (`TRUSTED_PROXY_COUNT`)
+
+By default the `/api/sync` limiter keys on the TCP peer (`remote_addr`). Behind one reverse proxy that is the proxy, so all
+clients share one bucket. Set `TRUSTED_PROXY_COUNT=1` (two chained proxies: `2`) to key on the `X-Forwarded-For` entry that
+many places from the right instead. Entries further left are client-controlled and ignored; a missing, oversize or unparseable
+header falls back to the peer address. Valid values are 0-10; anything else counts as 0.
+
+Precondition: Flask's port must be reachable only through the proxy. In compose, publish it on the proxy interface
+(for example `127.0.0.1:5000:5000` or the Tailscale/docker-network address), not `0.0.0.0`. Otherwise a client that connects
+directly can send its own `X-Forwarded-For` and pick a fresh limiter bucket per request. The proxy must also append to (not
+trust) the incoming header, which nginx (`$proxy_add_x_forwarded_for`), Caddy and Traefik do by default. This repo does not
+edit any server compose file; make that change on the server first, then set the variable.
+
+## Content-Security-Policy (report-only)
+
+`/app/*` and `/legacy` send `Content-Security-Policy-Report-Only` (policy: `web/app.py::CSP_REPORT_ONLY`; nothing is blocked).
+Browsers post violations to `/api/csp-report`, which only counts them: look for `CSP reports so far:` in the server log.
+Enforcing needs the inline theme script in `web/spa/index.html` and the legacy page's inline scripts to move to nonces or files first.
