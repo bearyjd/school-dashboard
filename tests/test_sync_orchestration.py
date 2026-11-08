@@ -9,7 +9,7 @@ import json
 import os
 import site
 import subprocess
-from datetime import date, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -46,7 +46,7 @@ class Env:
         self.data = tmp_path / "data"
         for d in (self.state, self.bin, self.data, tmp_path / "home" / ".ixl", tmp_path / "ixl"):
             d.mkdir(parents=True, exist_ok=True)
-        today = date.today()
+        today = datetime.now(timezone.utc).date()
         for name in ("ixl", "sgy", "powerschool"):
             (self.data / f"{name}.json").write_text(json.dumps(load(name, today)))
         # Shifted fixture timestamps can land in the future (earlier hour today); stamp them "now".
@@ -129,6 +129,8 @@ def test_one_source_failure_does_not_stop_the_rest(env):
 
 
 def test_all_sources_failing_still_merges_and_exits_zero(env):
+    """Characterisation test: pins existing behaviour (exit 0, merge and "Sync complete." even
+    when every scraper failed); this may legitimately change, e.g. to a non-zero exit."""
     r = env.run(FAKE_IXL_FAIL="1", FAKE_SGY_FAIL="1", FAKE_POWERSCHOOL_FAIL="1")
     assert r.returncode == 0, r.stderr
     assert env.results() == {"ixl": "error", "sgy": "error", "powerschool": "error", "gc": "ok"}
@@ -137,6 +139,7 @@ def test_all_sources_failing_still_merges_and_exits_zero(env):
 
 
 def test_gc_scrape_failure_is_recorded_and_non_fatal(env):
+    """Characterisation test: pins existing behaviour; the gc stub's bad team list stands in for any gc-scrape.sh failure."""
     (env.data / "gc-teams.json").write_text("not json")
     r = env.run()
     assert r.returncode == 0, r.stderr
@@ -147,6 +150,7 @@ def test_gc_scrape_failure_is_recorded_and_non_fatal(env):
 def test_gc_skipped_without_credentials(env):
     r = env.run(GC_TOKEN="", GC_EMAIL="")
     assert r.returncode == 0, r.stderr
+    assert "gc not configured" in r.stderr
     assert "gc" not in env.meta() and "gc" not in env.called()
 
 
@@ -180,6 +184,17 @@ def test_maintenance_turned_on_mid_sync_skips_the_merge(env):
     assert "skipping state update" in r.stderr
     assert not (env.state / "school-state.json").exists()
     assert not (env.state / "school-dashboard.html").exists()
+
+
+def test_missing_gc_refresh_script_aborts_whole_sync(env, tmp_path):
+    """Characterisation test of a KNOWN GAP: pins existing behaviour (missing gc-refresh.sh
+    kills the sync with exit 127 under set -e, so the merge never runs); may legitimately change."""
+    empty = tmp_path / "no-scripts"
+    empty.mkdir()
+    r = env.run(SYNC_SCRIPT_DIR=str(empty))
+    assert r.returncode == 127
+    assert not (env.state / "school-state.json").exists()
+    assert env.results() == {"ixl": "ok", "sgy": "ok", "powerschool": "ok"}
 
 
 def test_failed_state_update_is_fatal(env):
