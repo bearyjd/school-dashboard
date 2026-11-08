@@ -143,3 +143,16 @@ def test_logging_stays_quiet_for_the_valid_fixture(env, caplog):
     with caplog.at_level(logging.WARNING):
         build_state(state_env, tmp_path)
     assert not [r for r in caplog.records if "PowerSchool" in r.getMessage()]
+
+
+def test_item_warnings_reach_the_overview_banner(env, monkeypatch):
+    """G12 follow-up: powerschool_meta warnings show up in /api/overview `warnings`."""
+    from web.app import app as flask_app
+    state_env, tmp_path = env
+    monkeypatch.setenv("SCHOOL_STATE_PATH", str(state_env / "school-state.json"))
+    bad = mutate(load("powerschool"), lambda d: _alpha(d).update(
+        missing=[renamed(i, "title", "name") for i in _alpha(d)["missing"]]))
+    build_state(state_env, tmp_path, ps=bad)
+    with flask_app.test_client() as c:
+        body = c.get("/api/overview").get_json()
+    assert "PowerSchool Alpha: items without a title, no earlier data to show" in body["warnings"]

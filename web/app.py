@@ -12,7 +12,7 @@ from pathlib import Path
 from flask import Flask, jsonify, redirect, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
-from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, scrape_warnings
+from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, powerschool_warnings, scrape_warnings
 from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
 from school_dashboard import maintenance, paths, powerschool
 from school_dashboard.rate_limit import FailureLimiter, client_key
@@ -557,6 +557,7 @@ def api_overview():
         warnings.append("school state unavailable")
     else:
         warnings.extend(scrape_warnings(state, now))
+        warnings.extend(powerschool_warnings(state))
     gc_data = load_json(str(paths.gc_path()))
     if not isinstance(gc_data, dict) or "error" in gc_data:
         gc_data = {}

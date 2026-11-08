@@ -143,7 +143,7 @@ def test_completed_and_non_schoology_untouched():
 
 def test_scrape_view_trust_rules(tmp_path):
     f = tmp_path / "s.json"
-    entry = {"child": {"name": "Ford Smith"}, "assignments": [{"title": "A"}]}
+    entry = {"child": {"name": "Ford Smith"}, "assignments": [{"title": "A", "due_date": ""}]}
     f.write_text(json.dumps({"per_child": [entry, {"child": {}}, "junk"]}))
     seen, trusted, digest = aa.scrape_view(str(f))
     assert len(digest) == 64
@@ -383,8 +383,8 @@ def test_scrape_view_merges_entries_for_same_child_and_aliases(tmp_path, monkeyp
     monkeypatch.setattr(state, "_config_cache", None)
     f = tmp_path / "s.json"
     f.write_text(json.dumps({"per_child": [
-        {"child": {"name": "Pennington Smith"}, "assignments": [{"title": "A"}]},
-        {"child": {"name": "Penn Smith"}, "assignments": [{"title": "B"}]},
+        {"child": {"name": "Pennington Smith"}, "assignments": [{"title": "A", "due_date": ""}]},
+        {"child": {"name": "Penn Smith"}, "assignments": [{"title": "B", "due_date": ""}]},
         {"child": {"name": "Penn X"}, "assignments": "bad"},
     ]}))
     seen, trusted, _ = aa.scrape_view(str(f))

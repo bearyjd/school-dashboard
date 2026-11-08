@@ -9,7 +9,9 @@ Consumers and the keys they read:
   schoology_autoarchive.scrape_view  top-level warnings, per_child[].child.name,
                                    .assignments[].title
 """
+import ast
 import json
+from pathlib import Path
 from datetime import datetime, timedelta
 
 import pytest
@@ -105,6 +107,10 @@ def test_failed_child_counts_no_misses_and_archives_nothing(tmp_path):
     new_state, archived, _ = schoology_autoarchive.plan_autoarchive(st, seen, trusted, now)
     assert archived == []
     assert new_state["action_items"][0]["missed"] == 2
+
+
+NONAME_WARNING = ("Schoology: a child in the last scrape had no name and was skipped; "
+                  "check that the Schoology scraper still reports child names")
 
 
 def _sgy_warnings(built: dict) -> list:
@@ -235,7 +241,7 @@ def test_child_name_key_missing_is_flagged_not_a_crash(env):
     assert len(built["state"]["schoology"]["Alpha"]["assignments"]) == 5
     assert reasons(built, "schoology") == {"?": "noname", "Gamma": "failed"}
     assert _sgy_warnings(built) == [
-        "Schoology: a child in the last scrape had no name and was skipped",
+        NONAME_WARNING,
         "Schoology Gamma: the last scrape failed; no earlier data to show"]
     assert "Schoology unavailable" not in line(consumers(built)["quick"], "Alpha")
 
@@ -346,3 +352,40 @@ def test_silent_degradation_readiness_omits_children_without_schoology(env):
     built = build_state(state_env, tmp_path, sgy=bad)
     assert built["state"]["ixl"]["Alpha"]["totals"]
     assert_unguarded("Alpha" not in consumers(built)["readiness"], "G15")
+
+
+def test_missing_due_date_alone_makes_a_child_untrusted_for_autoarchive(tmp_path):
+    """The auto-archive and the state merge share one predicate (state.sgy_assignments_problem)."""
+    bad = mutate(load("sgy"), lambda d: _alpha(d).update(
+        assignments=[renamed(a, "due_date", "dueDate") for a in _alpha(d)["assignments"]]))
+    path = tmp_path / "sgy.json"
+    path.write_text(json.dumps(bad))
+    _, trusted, _ = schoology_autoarchive.scrape_view(str(path))
+    assert trusted["Alpha"] is False and trusted["Beta"] is False  # Beta is partial, still untrusted
+
+
+def test_unnamed_marker_counts_towards_the_watchdog_age(env):
+    from school_dashboard import scrape_meta
+    state_env, tmp_path = env
+    bad = mutate(load("sgy"), lambda d: _alpha(d).update(child={}))
+    built = build_state(state_env, tmp_path, sgy=bad)
+    assert scrape_meta.oldest_since(built["state"], "schoology") is not None
+    only_unnamed = {"scrape_meta": {"schoology": {"unavailable": {
+        "?": {"reason": "noname", "since": "2026-11-01T00:00:00+00:00"}}}}}
+    assert scrape_meta.oldest_since(only_unnamed, "schoology").day == 1
+    assert scrape_meta.unavailable_names(only_unnamed) == []
+
+
+VENDOR_SGY = Path(__file__).resolve().parent.parent / "vendor" / "schoology-scrape" / "sgy_cli" / "cli.py"
+
+
+@pytest.mark.skipif(not VENDOR_SGY.is_file(), reason="schoology-scrape is not vendored here")
+def test_every_vendored_assignment_builder_emits_title_and_due_date():
+    """The guard in sgy_assignments_problem is only safe if no scraper path omits these keys."""
+    tree = ast.parse(VENDOR_SGY.read_text())
+    builders = [n for n in ast.walk(tree) if isinstance(n, ast.Dict)
+                and {"title", "status", "link"} <= {k.value for k in n.keys if isinstance(k, ast.Constant)}]
+    assert len(builders) >= 5
+    for node in builders:
+        keys = {k.value for k in node.keys if isinstance(k, ast.Constant)}
+        assert {"title", "due_date"} <= keys, f"line {node.lineno}"
