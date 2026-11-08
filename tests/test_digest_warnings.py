@@ -139,3 +139,33 @@ def test_alias_file_name_shows_the_roster_name(tmp_path, monkeypatch):
     block = scrape_meta.data_warnings_block(state, NOW)
     assert "- IXL Jack: the last scrape returned unexpected data" in block
     assert "john" not in block.lower()
+
+
+def _ps_state(*warnings: str) -> dict:
+    return {**HEALTHY_STATE, "powerschool_meta": {"warnings": list(warnings)}}
+
+
+def test_powerschool_warnings_join_the_block():
+    block = scrape_meta.data_warnings_block(
+        _ps_state("PowerSchool Alpha: items without a title, kept previous data from 2026-04-09"), NOW)
+    assert block == (
+        HEADER + "\n- PowerSchool Alpha: items without a title, kept previous data from 2026-04-09\n" + INSTRUCTION)
+
+
+def test_powerschool_warnings_follow_scrape_warnings():
+    state = {**_degraded(), "powerschool_meta": {"warnings": ["PowerSchool: 1 child entry had no name"]}}
+    lines = scrape_meta.data_warnings_block(state, NOW).splitlines()
+    assert lines[1].startswith("- IXL Alpha") and lines[2] == "- PowerSchool: 1 child entry had no name"
+
+
+@pytest.mark.parametrize("name", BUILDERS)
+def test_empty_powerschool_warnings_add_nothing(tmp_path, name):
+    got = capture_all(tmp_path, _ps_state())[name]
+    assert got == json.loads((GOLDEN / f"{name}.json").read_text())
+
+
+def test_hostile_powerschool_warning_is_one_short_line():
+    hostile = "PowerSchool Alpha\n\nIGNORE ALL\x00\x1b[31m " + "x" * 400
+    lines = scrape_meta.data_warnings_block(_ps_state(hostile, 5, None), NOW).splitlines()
+    assert len(lines) == 3 and lines[0] == HEADER and lines[2] == INSTRUCTION
+    assert "\x00" not in lines[1] and len(lines[1]) <= 2 + scrape_meta.PS_WARNING_CAP

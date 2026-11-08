@@ -14,7 +14,7 @@ from school_dashboard import schoology_autoarchive as aa
 T0 = datetime(2026, 10, 1, 8, 0, 0)
 
 
-def _item(title, child="Ford", **kw):
+def _item(title, child="Alpha", **kw):
     base = {"id": state._action_id("schoology", title, child), "child": child, "source": "schoology",
             "type": "assignment", "summary": title, "due": None, "status": "pending",
             "created": T0.isoformat()}
@@ -25,15 +25,15 @@ def _st(*items):
     return {"action_items": list(items)}
 
 
-def _ids(*titles, child="Ford"):
+def _ids(*titles, child="Alpha"):
     return {state._action_id("schoology", t, child) for t in titles}
 
 
-def _run(st, seen, now, trusted=True, child="Ford"):
+def _run(st, seen, now, trusted=True, child="Alpha"):
     return aa.plan_autoarchive(st, {child: seen}, {child: trusted}, now)
 
 
-def _get(st, title, child="Ford"):
+def _get(st, title, child="Alpha"):
     iid = state._action_id("schoology", title, child)
     return next(i for i in st["action_items"] if i["id"] == iid)
 
@@ -93,8 +93,8 @@ def test_empty_scrape_with_few_pending_is_trusted():
 
 
 def test_child_absent_from_scrape_untouched():
-    st = _st(_item("A", child="Jack", missed=2, last_seen=T0.isoformat()))
-    new, archived, _ = aa.plan_autoarchive(st, {"Ford": set()}, {"Ford": True}, T0 + timedelta(days=9))
+    st = _st(_item("A", child="Beta", missed=2, last_seen=T0.isoformat()))
+    new, archived, _ = aa.plan_autoarchive(st, {"Alpha": set()}, {"Alpha": True}, T0 + timedelta(days=9))
     assert new == st and archived == []
 
 
@@ -143,20 +143,20 @@ def test_completed_and_non_schoology_untouched():
 
 def test_scrape_view_trust_rules(tmp_path):
     f = tmp_path / "s.json"
-    entry = {"child": {"name": "Ford Smith"}, "assignments": [{"title": "A"}]}
+    entry = {"child": {"name": "Alpha Smith"}, "assignments": [{"title": "A", "due_date": ""}]}
     f.write_text(json.dumps({"per_child": [entry, {"child": {}}, "junk"]}))
     seen, trusted, digest = aa.scrape_view(str(f))
     assert len(digest) == 64
-    assert seen == {"Ford": _ids("A")} and trusted == {"Ford": True}
+    assert seen == {"Alpha": _ids("A")} and trusted == {"Alpha": True}
     f.write_text(json.dumps({"per_child": [entry], "warnings": ["rate limited"]}))
-    assert aa.scrape_view(str(f))[1] == {"Ford": False}
+    assert aa.scrape_view(str(f))[1] == {"Alpha": False}
     f.write_text("not json")
     assert aa.scrape_view(str(f)) == ({}, {}, None)
     assert aa.scrape_view(str(tmp_path / "missing.json")) == ({}, {}, None)
 
 
 def _write_sgy(path, titles, warnings=None, salt=0):
-    data = {"salt": salt, "per_child": [{"child": {"name": "Ford Smith"}, "assignments": [{"title": t} for t in titles]}]}
+    data = {"salt": salt, "per_child": [{"child": {"name": "Alpha Smith"}, "assignments": [{"title": t, "due_date": ""} for t in titles]}]}
     if warnings:
         data["warnings"] = warnings
     path.write_text(json.dumps(data))
@@ -362,11 +362,11 @@ def test_aware_and_garbage_fields_do_not_raise():
 ])
 def test_scrape_view_warnings_trust(tmp_path, warnings, clean):
     f = tmp_path / "s.json"
-    data = {"per_child": [{"child": {"name": "Ford"}, "assignments": [{"title": "A"}]}]}
+    data = {"per_child": [{"child": {"name": "Alpha"}, "assignments": [{"title": "A", "due_date": ""}]}]}
     if warnings is not None:
         data["warnings"] = warnings
     f.write_text(json.dumps(data))
-    assert aa.scrape_view(str(f))[1] == {"Ford": clean}
+    assert aa.scrape_view(str(f))[1] == {"Alpha": clean}
 
 
 def test_scrape_view_size_cap(tmp_path, monkeypatch):
@@ -378,20 +378,20 @@ def test_scrape_view_size_cap(tmp_path, monkeypatch):
 
 def test_scrape_view_merges_entries_for_same_child_and_aliases(tmp_path, monkeypatch):
     cfg = tmp_path / "cfg.json"
-    cfg.write_text(json.dumps({"children": {}, "name_aliases": {"pennington": "Penn"}}))
+    cfg.write_text(json.dumps({"children": {}, "name_aliases": {"alphonse": "Alpha"}}))
     monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(cfg))
     monkeypatch.setattr(state, "_config_cache", None)
     f = tmp_path / "s.json"
     f.write_text(json.dumps({"per_child": [
-        {"child": {"name": "Pennington Smith"}, "assignments": [{"title": "A"}]},
-        {"child": {"name": "Penn Smith"}, "assignments": [{"title": "B"}]},
-        {"child": {"name": "Penn X"}, "assignments": "bad"},
+        {"child": {"name": "Alphonse Smith"}, "assignments": [{"title": "A", "due_date": ""}]},
+        {"child": {"name": "Alpha Smith"}, "assignments": [{"title": "B", "due_date": ""}]},
+        {"child": {"name": "Alpha X"}, "assignments": "bad"},
     ]}))
     seen, trusted, _ = aa.scrape_view(str(f))
-    assert seen == {"Penn": _ids("A", "B", child="Penn")} and trusted == {"Penn": True}
+    assert seen == {"Alpha": _ids("A", "B", child="Alpha")} and trusted == {"Alpha": True}
     f.write_text(json.dumps({"warnings": ["w"], "per_child": [
-        {"child": {"name": "Penn"}, "assignments": []}, {"child": {"name": "Penn"}, "assignments": []}]}))
-    assert aa.scrape_view(str(f))[1] == {"Penn": False}
+        {"child": {"name": "Alpha"}, "assignments": []}, {"child": {"name": "Alpha"}, "assignments": []}]}))
+    assert aa.scrape_view(str(f))[1] == {"Alpha": False}
     monkeypatch.setattr(state, "_config_cache", None)
 
 
@@ -414,12 +414,12 @@ def test_logs_contain_counts_only(state_env, tmp_path, caplog):
     with caplog.at_level(logging.WARNING):
         aa.run_autoarchive(st, str(sgy), state_env / "school-state.json", T0 + timedelta(days=5))
     assert "mass change" in caplog.text
-    assert "Ford" not in caplog.text and "G0" not in caplog.text and "K0" not in caplog.text
+    assert "Alpha" not in caplog.text and "G0" not in caplog.text and "K0" not in caplog.text
 
 
 # ── archive file I/O ─────────────────────────────────────────────────────────
 
-def _entry(title, child="Ford"):
+def _entry(title, child="Alpha"):
     return {"archived_at": "t", "reason": "r", "item": _item(title, child)}
 
 
@@ -533,7 +533,7 @@ def test_corrupt_state_file_is_never_overwritten(state_env, tmp_path, capsys):
     assert not (state_env / "archive").exists()
     err = capsys.readouterr().err
     assert str(sf) in err and "backups" in err
-    add = argparse.Namespace(state_file=str(sf), child="Ford", summary="x", due=None, source=None, type=None)
+    add = argparse.Namespace(state_file=str(sf), child="Alpha", summary="x", due=None, source=None, type=None)
     with pytest.raises(SystemExit):
         cli.cmd_action_add(add)
     with pytest.raises(SystemExit):
@@ -564,7 +564,7 @@ def test_unwritable_state_dir_exits_cleanly(tmp_path, capsys):
     sf = d / "school-state.json"
     d.chmod(0o500)
     try:
-        add = argparse.Namespace(state_file=str(sf), child="Ford", summary="x", due=None, source=None, type=None)
+        add = argparse.Namespace(state_file=str(sf), child="Alpha", summary="x", due=None, source=None, type=None)
         with pytest.raises(SystemExit) as exc:
             cli.cmd_action_add(add)
         assert exc.value.code == 1
