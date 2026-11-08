@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getStoredTheme, setTheme, type ThemeChoice } from '../design/theme'
 import { KidChip } from '../design/KidChip'
 import { useOverview } from '../lib/overview'
+import { clearSyncToken, getSyncToken, setSyncToken } from '../lib/syncToken'
 import './Settings.css'
 
 const CHOICES: { id: ThemeChoice; label: string; hint: string }[] = [
@@ -13,11 +14,35 @@ const CHOICES: { id: ThemeChoice; label: string; hint: string }[] = [
 
 export function Settings() {
   const [choice, setChoice] = useState<ThemeChoice>(getStoredTheme)
+  const [tokenInput, setTokenInput] = useState('')
+  const [hasToken, setHasToken] = useState(() => getSyncToken() !== '')
+  const [tokenNote, setTokenNote] = useState('')
+  const tokenRef = useRef<HTMLInputElement>(null)
   const kids = useOverview().data?.kids ?? []
 
   const pick = (next: ThemeChoice) => {
     setTheme(next)
     setChoice(next)
+  }
+
+  const saveToken = () => {
+    const result = setSyncToken(tokenInput)
+    setTokenInput('')
+    setHasToken(getSyncToken() !== '')
+    setTokenNote(
+      result === 'saved' ? 'Sync token saved on this device'
+        : result === 'tab' ? 'Sync token kept until you close this tab'
+          : 'Enter the token first',
+    )
+    tokenRef.current?.focus()
+  }
+
+  const removeToken = () => {
+    clearSyncToken()
+    setTokenInput('')
+    setHasToken(getSyncToken() !== '')
+    setTokenNote('Sync token cleared')
+    tokenRef.current?.focus()
   }
 
   return (
@@ -55,6 +80,31 @@ export function Settings() {
           </ul>
         </section>
       )}
+
+      <section className="settings__group">
+        <h2 id="settings-token" className="settings__legend">Sync access</h2>
+        <p className="settings__hint" id="settings-token-help">
+          Needed to start a sync. Kept only in this browser, never sent anywhere except the sync request.
+          Ask the owner for the SYNC_TOKEN value.{hasToken ? ' A token is saved on this device.' : ''}
+        </p>
+        <form className="settings__token" onSubmit={e => { e.preventDefault(); saveToken() }}>
+          <label htmlFor="sync-token-input" className="settings__label">Sync token</label>
+          <input
+            id="sync-token-input"
+            type="password"
+            autoComplete="new-password"
+            ref={tokenRef}
+            value={tokenInput}
+            onChange={e => setTokenInput(e.target.value)}
+            aria-describedby="settings-token-help"
+          />
+          <div className="settings__token-actions">
+            <button type="submit" className="btn btn--primary" disabled={!tokenInput.trim()}>Save</button>
+            <button type="button" className="btn btn--secondary" onClick={removeToken} disabled={!hasToken}>Clear</button>
+          </div>
+        </form>
+        <p role="status" className="settings__hint">{tokenNote}</p>
+      </section>
 
       <section className="settings__group" aria-labelledby="settings-more">
         <h2 id="settings-more" className="settings__legend">More</h2>

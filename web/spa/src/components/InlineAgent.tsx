@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useInlineChat } from '../hooks/useInlineChat'
 import { updateItem, createItem, triggerSync } from '../api'
 import type { InlineAgentAction } from '../api/types'
+import { Link } from 'react-router-dom'
+import { getSyncToken, needsToken, NO_TOKEN, syncErrorMessage, type SyncError } from '../lib/syncToken'
 
 interface InlineAgentProps {
   contextType: string
@@ -10,13 +12,14 @@ interface InlineAgentProps {
   suggestions?: string[]
 }
 
-const SYNC_TOKEN = (window as unknown as { __SYNC_TOKEN__?: string }).__SYNC_TOKEN__ ?? ''
-
 export function InlineAgent({ contextType, contextId, suggestions = [] }: InlineAgentProps) {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const { loading, reply, action, error, ask, reset } = useInlineChat(contextType, contextId)
+  const [syncError, setSyncError] = useState<SyncError | null>(null)
   const qc = useQueryClient()
+
+  const dismiss = () => { setSyncError(null); reset() }
 
   const send = (msg: string) => {
     setInput('')
@@ -24,6 +27,21 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
   }
 
   const executeAction = async (act: InlineAgentAction) => {
+    setSyncError(null)
+    if (act.type === 'trigger_sync') {
+      const token = getSyncToken()
+      if (!token) { setSyncError(NO_TOKEN); return }
+      try {
+        await triggerSync(act.payload.source as string, 'none', token)
+        qc.invalidateQueries({ queryKey: ['syncMeta'] })
+      } catch (e) {
+        setSyncError(syncErrorMessage(e))
+        return
+      }
+      dismiss()
+      setOpen(false)
+      return
+    }
     try {
       if (act.type === 'mark_item_done') {
         await updateItem(act.payload.id as number, { completed: true })
@@ -40,14 +58,11 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
           due_date: act.payload.due_date as string | undefined,
         })
         qc.invalidateQueries({ queryKey: ['items'] })
-      } else if (act.type === 'trigger_sync' && SYNC_TOKEN) {
-        await triggerSync(act.payload.source as string, 'none', SYNC_TOKEN)
-        qc.invalidateQueries({ queryKey: ['syncMeta'] })
       }
     } catch {
       // action failed; leave UI open so user sees current state
     }
-    reset()
+    dismiss()
     setOpen(false)
   }
 
@@ -115,7 +130,7 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
             <button
               className="btn btn--ghost"
               style={{ padding: '6px 10px', fontSize: '13px' }}
-              onClick={() => { setOpen(false); reset() }}
+              onClick={() => { setOpen(false); dismiss() }}
             >✕</button>
           </div>
         </>
@@ -131,7 +146,14 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
         <div style={{ fontSize: '13px', color: 'var(--color-error)' }}>
           {error}
           <button className="btn btn--ghost" style={{ marginLeft: 8, fontSize: '12px' }}
-            onClick={() => { reset(); }}>Retry</button>
+            onClick={() => { dismiss(); }}>Retry</button>
+        </div>
+      )}
+
+      {syncError && (
+        <div role="alert" style={{ fontSize: '13px', color: 'var(--color-error)', marginBottom: 6 }}>
+          {syncError.message}
+          {needsToken(syncError) && <> <Link className="list__link" to="/settings">Open Settings</Link></>}
         </div>
       )}
 
@@ -151,13 +173,13 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
                  action.type === 'trigger_sync' ? '⟳ Sync Now' : 'Do It'}
               </button>
               <button className="btn btn--ghost" style={{ fontSize: '12px', padding: '5px 10px' }}
-                onClick={() => reset()}>Dismiss</button>
+                onClick={() => dismiss()}>Dismiss</button>
             </div>
           )}
           {!action && (
             <button className="btn btn--ghost"
               style={{ fontSize: '12px', padding: '3px 8px', marginTop: 6 }}
-              onClick={() => reset()}>✕ Close</button>
+              onClick={() => dismiss()}>✕ Close</button>
           )}
         </div>
       )}

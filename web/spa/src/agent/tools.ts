@@ -1,5 +1,6 @@
 import { updateItem, createItem, triggerSync } from '../api'
 import type { Item } from '../api/types'
+import { getSyncToken, NO_TOKEN, syncErrorMessage } from '../lib/syncToken'
 
 export interface ToolCall {
   name: string
@@ -54,8 +55,6 @@ export function describeToolCall(tc: ToolCall): string {
   }
 }
 
-const SYNC_TOKEN = (window as unknown as { __SYNC_TOKEN__?: string }).__SYNC_TOKEN__ ?? ''
-
 /** Execute a tool call and return the result string for injecting back into LLM. */
 export async function executeTool(tc: ToolCall): Promise<string> {
   switch (tc.name) {
@@ -72,7 +71,13 @@ export async function executeTool(tc: ToolCall): Promise<string> {
     case 'sync_source': {
       const sources = (tc.args.sources ?? tc.args.source ?? 'ixl,sgy') as string
       const digest = (tc.args.digest ?? 'none') as string
-      await triggerSync(sources, digest, SYNC_TOKEN)
+      const token = getSyncToken()
+      if (!token) return NO_TOKEN.message
+      try {
+        await triggerSync(sources, digest, token)
+      } catch (e) {
+        return syncErrorMessage(e).message
+      }
       return `Sync started for: ${sources}. Check /sync for status.`
     }
     case 'query_items': {

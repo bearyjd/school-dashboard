@@ -52,14 +52,14 @@ async function request(
 }
 
 test('activate deletes every other cache and keeps the current one', async () => {
-  const { handlers, deleted } = load({ keys: ['school-v1', 'school-v2', 'other'] })
+  const { handlers, deleted } = load({ keys: ['school-v1', 'school-v2', 'school-v3', 'other'] })
   let pending: Promise<unknown> = Promise.resolve()
   handlers.activate({ waitUntil: (p: Promise<unknown>) => { pending = p } })
   await pending
-  expect(deleted.sort()).toEqual(['other', 'school-v1'])
+  expect(deleted.sort()).toEqual(['other', 'school-v1', 'school-v2'])
 })
 
-test('install precaches into the school-v2 cache', async () => {
+test('install precaches into the school-v3 cache', async () => {
   const opened: string[] = []
   const handlers: Record<string, Handler> = {}
   const caches = { open: async (n: string) => { opened.push(n); return { addAll: async () => undefined } } }
@@ -70,7 +70,7 @@ test('install precaches into the school-v2 cache', async () => {
   let pending: Promise<unknown> = Promise.resolve()
   handlers.install({ waitUntil: (p: Promise<unknown>) => { pending = p } })
   await pending
-  expect(opened).toEqual(['school-v2'])
+  expect(opened).toEqual(['school-v3'])
 })
 
 test('a successful navigation is served fresh and stored as the shell', async () => {

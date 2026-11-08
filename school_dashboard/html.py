@@ -90,6 +90,17 @@ def _build_urgent_items(children: list[dict]) -> list[dict]:
     return urgent
 
 
+_SCRIPT_UNSAFE = {
+    ord("<"): "\\u003c", ord(">"): "\\u003e", ord("&"): "\\u0026",
+    0x2028: "\\u2028", 0x2029: "\\u2029",
+}
+
+
+def _json_for_script(data: object) -> Markup:
+    """JSON safe to embed in a <script> block: markup characters stay \\u-escaped, so no </script> breakout."""
+    return Markup(json.dumps(data, indent=2).translate(_SCRIPT_UNSAFE))
+
+
 def render(state: dict, output_path: Optional[str] = None) -> Path:
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATE_DIR)),
@@ -128,7 +139,7 @@ def render(state: dict, output_path: Optional[str] = None) -> Path:
         urgent_items=urgent_items,
         last_updated=state.get("last_updated", "never"),
         generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
-        state_json=Markup(json.dumps(state, indent=2)),
+        state_json=_json_for_script(state),
     )
 
     if output_path:

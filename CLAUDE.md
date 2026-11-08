@@ -196,7 +196,7 @@ docker/
 | Route | Method | Purpose |
 |-------|--------|---------|
 | `/` | GET | 302 to `/app/` (query kept); `?digest=<id>` goes to `/legacy` so ntfy digest links still open the carousel |
-| `/legacy` | GET | Pre-SPA dashboard page (retired with the classic view; renders `SYNC_TOKEN` into the page) |
+| `/legacy` | GET | Pre-SPA dashboard page (retired with the classic view; renders no token and has no sync buttons, it links to Sync in `/app/`) |
 | `/api/items` | GET | List items (filter by `?child=NAME`, `?include_completed=1`) |
 | `/api/items` | POST | Create item (JSON: `child`, `title`, `type`, `due_date`, `notes`) |
 | `/api/items/<id>` | PATCH | Update item (partial: `child`, `title`, `type`, `due_date`, `notes`, `completed`) |
@@ -208,7 +208,7 @@ docker/
 | `/api/chat` | POST | Chat with LiteLLM (JSON: `message`, `history`) |
 | `/api/readiness` | GET | Get readiness checklist |
 | `/api/calendar` | GET | Fetch Google Calendar events |
-| `/api/sync` | POST | Trigger on-demand sync (header: `X-Sync-Token`; JSON: `sources` e.g. `"ixl,sgy,powerschool"` or `"all"`, `digest` e.g. `"quick"/"full"/"none"`) |
+| `/api/sync` | POST | Trigger on-demand sync (header: `X-Sync-Token`, compared in constant time; the token is **never served** in HTML/JS/JSON; the SPA keeps a user-entered copy in `localStorage['school-sync-token']`; 10 bad tokens/min per client (`remote_addr`, IPv6 by /64) -> 429 + `Retry-After`, a correct token is never blocked; token must be >= 32 chars; JSON: `sources` e.g. `"ixl,sgy,powerschool"` or `"all"`, `digest` e.g. `"quick"/"full"/"none"`) |
 | `/api/sync/status` | GET | Poll sync state (`{running, last_run, last_result, last_sources, last_error}`) |
 | `/api/sync/meta` | GET | Per-source sync freshness (`{ixl: {last_run, last_result}, ...}`) |
 | `/.well-known/assetlinks.json` | GET | TWA domain verification (fingerprint from `TWA_CERT_FINGERPRINT` env var) |
@@ -235,7 +235,7 @@ Required vars: `LITELLM_URL`, `LITELLM_API_KEY`, `LITELLM_MODEL`, `IXL_EMAIL`, `
 
 Optional GameChanger vars: `GC_TOKEN` (bearer token from browser session — preferred), or `GC_EMAIL`/`GC_PASSWORD` (Playwright login fallback). `GC_TEAM_MAP` maps team IDs to child names: `"teamid:Ford,teamid2:Jack"`. `SCHOOL_GC_PATH` overrides the default gc-schedule.json path (default: `/app/state/gc-schedule.json`). Run `gc teams --json` to discover team IDs.
 
-Optional on-demand sync: `SYNC_TOKEN` — shared secret for `POST /api/sync`. Generate with: `python3 -c "import secrets; print(secrets.token_hex(16))"`. Without it, `/api/sync` returns 501.
+Optional on-demand sync: `SYNC_TOKEN` — shared secret for `POST /api/sync`. Generate with: `python3 -c "import secrets; print(secrets.token_hex(32))"`. Unset or shorter than 32 characters (a WARNING is logged, never the value), `/api/sync` returns 501. It is never rendered into any page; each device enters it once in the SPA Settings (see `docs/ops/spa-redesign-rollout.md`).
 
 Optional PowerSchool (4th source): `PS_USERNAME`, `PS_PASSWORD`, `PS_BASE_URL` (or `~/.powersched/.env`, which the scraper reads; the sync checks via `school_dashboard.powerschool.skip_reason`). The `powerschool summary --json` CLI is not yet vendored; with it missing or unconfigured the sync logs an INFO line and skips (no alert). Output file: `PS_FILE` (default `/tmp/powerschool-daily.json`), passed to `school-state update --ps-file`.
 

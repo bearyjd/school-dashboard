@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { watchSystemTheme } from '../design/theme'
+import { clearSyncToken } from '../lib/syncToken'
 import { FIXTURE } from '../test-utils'
 import { Settings } from './Settings'
 
@@ -32,10 +33,11 @@ function renderSettings() {
   )
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 beforeEach(() => {
   localStorage.clear()
+  clearSyncToken()
   delete document.documentElement.dataset.theme
 })
 
@@ -76,3 +78,43 @@ test('kid colour legend lists the roster in colour order, with names as text', a
   const rows = within(legend).getAllByRole('listitem')
   expect(rows.map(r => r.textContent)).toEqual(['AAlpha (colour 1)', 'BBeta (colour 2)'])
 })
+
+test('sync token control: labelled password input, save and clear, focus returns to the input', () => {
+  fakeMedia(true)
+  renderSettings()
+  const input = screen.getByLabelText('Sync token') as HTMLInputElement
+  expect(input.type).toBe('password')
+  expect(input.autocomplete).toBe('new-password')
+  expect(screen.getByRole('status').textContent).toBe('') // live region exists before it speaks
+  const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement
+  const clear = screen.getByRole('button', { name: 'Clear' }) as HTMLButtonElement
+  expect(save.disabled).toBe(true)
+  expect(clear.disabled).toBe(true)
+
+  fireEvent.change(input, { target: { value: ' TESTTOKEN123 ' } })
+  fireEvent.click(save)
+  expect(localStorage.getItem('school-sync-token')).toBe('TESTTOKEN123')
+  expect(input.value).toBe('')
+  expect(screen.getByRole('status').textContent).toBe('Sync token saved on this device')
+  expect(document.body.textContent).not.toContain('TESTTOKEN123')
+  expect(clear.disabled).toBe(false)
+  expect(document.activeElement).toBe(input)
+
+  fireEvent.click(clear)
+  expect(localStorage.getItem('school-sync-token')).toBeNull()
+  expect(screen.getByRole('status').textContent).toBe('Sync token cleared')
+  expect(clear.disabled).toBe(true)
+  expect(document.activeElement).toBe(input)
+})
+
+test('sync token control: with storage unavailable it says the token is kept until the tab closes', () => {
+  fakeMedia(true)
+  renderSettings()
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('denied') })
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied') })
+  fireEvent.change(screen.getByLabelText('Sync token'), { target: { value: 'abc' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  expect(screen.getByRole('status').textContent).toBe('Sync token kept until you close this tab')
+  expect((screen.getByRole('button', { name: 'Clear' }) as HTMLButtonElement).disabled).toBe(false)
+})
+

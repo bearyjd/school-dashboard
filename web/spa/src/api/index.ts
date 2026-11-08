@@ -5,10 +5,13 @@ const BASE = '';  // same origin — Flask serves both SPA and API
 /** A non-2xx API reply; `status` lets callers tell e.g. maintenance (503) from other failures. */
 export class ApiError extends Error {
   readonly status: number;
-  constructor(message: string, status: number) {
+  /** Seconds from a Retry-After header (429), when the server sent one. */
+  readonly retryAfter?: number;
+  constructor(message: string, status: number, retryAfter?: number) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -16,7 +19,8 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(BASE + path, init);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new ApiError((err as { error?: string }).error || res.statusText, res.status);
+    const retry = Number.parseInt(res.headers?.get('Retry-After') ?? '', 10);
+    throw new ApiError((err as { error?: string }).error || res.statusText, res.status, Number.isFinite(retry) ? retry : undefined);
   }
   return res.json() as Promise<T>;
 }

@@ -1,4 +1,4 @@
-const CACHE = 'school-v2';
+const CACHE = 'school-v3';
 const SHELL = ['/app/', '/app/index.html'];
 
 function remember(key, response) {

@@ -20,7 +20,7 @@ def reset_sync_state():
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("SYNC_TOKEN", "test-secret")
+    monkeypatch.setenv("SYNC_TOKEN", "test-secret-xxxxxxxxxxxxxxxxxxxxxxxxxxxx")
     monkeypatch.setenv("SCHOOL_STATE_PATH", str(tmp_path / "state.json"))
     monkeypatch.setenv("SCHOOL_DB_PATH", str(tmp_path / "school.db"))
     flask_app.config["TESTING"] = True
@@ -59,7 +59,7 @@ def test_sync_wrong_token_returns_401(client):
 def test_sync_valid_token_returns_202(mock_run, client):
     r = client.post("/api/sync",
                     json={"sources": "ixl,sgy", "digest": "none"},
-                    headers={"X-Sync-Token": "test-secret"})
+                    headers={"X-Sync-Token": "test-secret-xxxxxxxxxxxxxxxxxxxxxxxxxxxx"})
     assert r.status_code == 202
     data = r.get_json()
     assert data.get("started") is True
@@ -89,7 +89,7 @@ def test_sync_concurrent_returns_409(mock_run, client):
     try:
         r = client.post("/api/sync",
                         json={"sources": "ixl,sgy"},
-                        headers={"X-Sync-Token": "test-secret"})
+                        headers={"X-Sync-Token": "test-secret-xxxxxxxxxxxxxxxxxxxxxxxxxxxx"})
         assert r.status_code == 409
     finally:
         app_module._sync_lock.release()
@@ -99,7 +99,7 @@ def test_sync_concurrent_returns_409(mock_run, client):
 def test_sync_default_sources_is_ixl_sgy(mock_run, client):
     r = client.post("/api/sync",
                     json={},
-                    headers={"X-Sync-Token": "test-secret"})
+                    headers={"X-Sync-Token": "test-secret-xxxxxxxxxxxxxxxxxxxxxxxxxxxx"})
     assert r.status_code == 202
     call_kwargs = mock_run.call_args
     sources = call_kwargs[0][0] if call_kwargs[0] else call_kwargs[1].get("sources", "")

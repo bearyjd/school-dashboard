@@ -6,7 +6,7 @@
 
 ```
 GET  /                              → legacy dashboard iframe (templates/index.html)
-GET  /app, /app/<path>              → React SPA (web/spa/dist) with __SYNC_TOKEN__ injection
+GET  /app, /app/<path>              → React SPA (web/spa/dist); index.html is served as built, no secrets injected
 GET  /dashboard                     → static dashboard.html from state/
 
 GET  /api/items                     → list items (?child, ?include_completed)

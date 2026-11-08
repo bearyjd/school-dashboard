@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { fetchSyncMeta, fetchDashboard } from '../api'
 import { useSync } from '../hooks/useSync'
 import { InlineAgent } from '../components/InlineAgent'
+import { needsToken } from '../lib/syncToken'
 
 const SOURCES = [
   { key: 'ixl', label: 'IXL', icon: '📚', description: 'Skills + diagnostic scores' },
@@ -38,8 +40,11 @@ export function Sync() {
       <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: 'var(--space-lg)' }}>Sync</h2>
 
       {error && (
-        <div className="card" style={{ background: 'rgba(255,107,107,0.1)', border: '1px solid var(--color-error)', marginBottom: 'var(--space-md)', color: 'var(--color-error)' }}>
-          {error}
+        <div role="alert" className="card" style={{ background: 'rgba(255,107,107,0.1)', border: '1px solid var(--color-error)', marginBottom: 'var(--space-md)', color: 'var(--color-error)' }}>
+          {error.message}
+          {needsToken(error) && (
+            <> <Link className="list__link" to="/settings">Open Settings</Link></>
+          )}
         </div>
       )}
 
