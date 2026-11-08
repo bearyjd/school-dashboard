@@ -12,7 +12,7 @@ from pathlib import Path
 from flask import Flask, jsonify, redirect, render_template, request, Response, send_from_directory
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
-from school_dashboard.scrape_meta import scrape_warnings
+from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, scrape_warnings
 from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
 from school_dashboard import maintenance, paths, powerschool
 from school_dashboard.sources import source_enabled
@@ -131,11 +131,14 @@ def build_system_prompt() -> str:
         f"=== MISSING / LATE / DUE SOON (PowerSchool; {powerschool.UNTRUSTED_NOTE}) ===\n{ps_block}\n\n"
         if ps_block else ""
     )
+    hidden = ("scrape_meta", "powerschool", "powerschool_meta") if ps_block else ("scrape_meta",)
     state_view = (
-        {k: v for k, v in state.items() if k not in ("powerschool", "powerschool_meta")}
-        if ps_block and isinstance(state, dict) else state
+        {k: v for k, v in state.items() if k not in hidden} if isinstance(state, dict) else state
     )
     state_str = json.dumps(state_view, indent=2).replace('"John"', '"Jack"')[:8000]
+    # The state JSON is cut at 8000 chars, so scrape problems are stated outside it.
+    warn_block = scrape_data_warnings(state) if isinstance(state, dict) else ""
+    warn_str = f"{warn_block}\n\n" if warn_block else ""
 
     actionable = []
     if isinstance(emails, dict):
@@ -164,7 +167,7 @@ def build_system_prompt() -> str:
         f"## Data Freshness\n{freshness_str}\n\n"
         f"=== UPCOMING SCHOOL EVENTS (next 30 days) ===\n{events_str}\n\n"
         f"=== KNOWN FACTS ===\n{facts_str}\n\n"
-        f"=== SCHOOL STATE (grades, IXL, assignments) ===\n{state_str}\n\n"
+        f"{warn_str}=== SCHOOL STATE (grades, IXL, assignments) ===\n{state_str}\n\n"
         f"{ps_str}"
         f"=== ACTIONABLE EMAILS ===\n{emails_str}\n"
     )
