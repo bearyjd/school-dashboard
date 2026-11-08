@@ -71,7 +71,7 @@ def test_enable_replaces_corrupt_flag_and_disable_clears_it(state_env):
 
 @pytest.fixture
 def client(state_env, monkeypatch):
-    monkeypatch.setenv("SYNC_TOKEN", "tok")
+    monkeypatch.setenv("SYNC_TOKEN", "tok-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
     from web.app import app
     app.config["TESTING"] = True
     with app.test_client() as c:
@@ -92,7 +92,7 @@ WRITE_ROUTES = [
 def test_flask_write_routes_503_when_active(client, method, path, body):
     maintenance.enable("test")
     kwargs = {"json": body} if body is not None else {}
-    r = getattr(client, method)(path, headers={"X-Sync-Token": "tok"}, **kwargs)
+    r = getattr(client, method)(path, headers={"X-Sync-Token": "tok-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}, **kwargs)
     assert r.status_code == 503
     assert r.get_json() == {"error": "maintenance"}
     assert "test" not in r.get_data(as_text=True)

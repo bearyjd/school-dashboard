@@ -7,7 +7,7 @@ from unittest.mock import patch
 import web.app as app_module
 from web.app import app as flask_app
 
-TOKEN = "TESTTOKEN123"
+TOKEN = "TESTTOKEN123-abcdefghijklmnopqrstuvwxyz"
 
 
 @pytest.fixture(autouse=True)
@@ -15,8 +15,10 @@ def clean_state():
     if app_module._sync_lock.locked():
         app_module._sync_lock.release()
     app_module._sync_failures.clear()
+    app_module._weak_token_logged = False
     yield
     app_module._sync_failures.clear()
+    app_module._weak_token_logged = False
 
 
 @pytest.fixture
@@ -89,10 +91,37 @@ def test_limiter_429_after_ten_bad_attempts(client):
     assert TOKEN not in _everything(r)
 
 
-def test_limiter_blocks_correct_token_while_locked_out(client):
-    _bad(client, 10)
+@patch("web.app._run_sync_background")
+def test_correct_token_is_never_blocked_by_lockout(_mock, client):
+    """Otherwise anyone could lock the owner out by sending 10 bad tokens."""
+    _bad(client, 12)
+    assert _bad(client, 1) == [429]
     r = client.post("/api/sync", json={}, headers={"X-Sync-Token": TOKEN})
-    assert r.status_code == 429
+    assert r.status_code == 202
+    app_module._sync_lock.release()
+    assert _bad(client, 1) == [401]  # success reset the failures
+
+
+def test_short_token_counts_as_not_configured(client, monkeypatch, caplog):
+    short = "short-but-correct"
+    monkeypatch.setenv("SYNC_TOKEN", short)
+    with caplog.at_level("WARNING"):
+        r = client.post("/api/sync", json={}, headers={"X-Sync-Token": short})
+    assert r.status_code == 501
+    assert r.get_json() == {"error": "SYNC_TOKEN not configured"}
+    assert short not in caplog.text and "32" in caplog.text
+
+
+def _bad_from(client, addr, n=1):
+    return [client.post("/api/sync", json={}, headers={"X-Sync-Token": "bad"},
+                        environ_overrides={"REMOTE_ADDR": addr}).status_code for _ in range(n)]
+
+
+def test_ipv6_clients_share_a_64_bucket_and_mapped_v4_is_v4(client):
+    _bad_from(client, "2001:db8:1:2::1", 10)
+    assert _bad_from(client, "2001:db8:1:2:ffff::9") == [429]
+    _bad_from(client, "::ffff:192.0.2.7", 10)
+    assert _bad_from(client, "192.0.2.7") == [429]
 
 
 @patch("web.app._run_sync_background")
@@ -125,5 +154,5 @@ def test_limiter_memory_bounded():
     from school_dashboard.rate_limit import FailureLimiter
     lim = FailureLimiter(max_failures=3, window=60, max_keys=50, clock=lambda: 1.0)
     for i in range(500):
-        lim.record_failure(f"ip{i}")
+        lim.fail(f"ip{i}")
     assert len(lim) <= 50

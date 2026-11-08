@@ -15,7 +15,7 @@ from school_dashboard.llm import chat_completion
 from school_dashboard.scrape_meta import scrape_warnings
 from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
 from school_dashboard import maintenance, paths, powerschool
-from school_dashboard.rate_limit import FailureLimiter
+from school_dashboard.rate_limit import FailureLimiter, client_key
 from school_dashboard.sources import source_enabled
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta
 
@@ -867,29 +867,43 @@ def _run_sync_background(sources: str, digest: str) -> None:
         _sync_lock.release()
 
 
-# Bad X-Sync-Token attempts per client IP (request.remote_addr; no proxy headers trusted).
+# Bad X-Sync-Token attempts per client (normalised request.remote_addr; no proxy headers trusted).
 _sync_failures = FailureLimiter(max_failures=10, window=60.0)
+MIN_SYNC_TOKEN_LEN = 32
+_weak_token_logged = False
+
+
+def _configured_sync_token() -> str:
+    """SYNC_TOKEN, or "" when unset or shorter than MIN_SYNC_TOKEN_LEN (treated as not configured)."""
+    global _weak_token_logged
+    token = os.environ.get("SYNC_TOKEN", "")
+    if token and len(token) < MIN_SYNC_TOKEN_LEN:
+        if not _weak_token_logged:
+            _weak_token_logged = True
+            app.logger.warning("SYNC_TOKEN ignored: it must be at least %d characters; /api/sync is disabled",
+                               MIN_SYNC_TOKEN_LEN)
+        return ""
+    return token
 
 
 @app.route("/api/sync", methods=["POST"])
 def api_sync():
-    sync_token = os.environ.get("SYNC_TOKEN", "")
+    sync_token = _configured_sync_token()
     if not sync_token:
         return jsonify({"error": "SYNC_TOKEN not configured"}), 501
 
-    client_ip = request.remote_addr or "unknown"
-    wait = _sync_failures.retry_after(client_ip)
-    if wait:
-        resp = jsonify({"error": "too many attempts"})
-        resp.status_code = 429
-        resp.headers["Retry-After"] = str(wait)
-        return resp
-
+    client = client_key(request.remote_addr)
     provided = request.headers.get("X-Sync-Token", "")
-    if not provided or not hmac.compare_digest(provided.encode(), sync_token.encode()):
-        _sync_failures.record_failure(client_ip)
+    if provided and hmac.compare_digest(provided.encode(), sync_token.encode()):
+        _sync_failures.reset(client)  # a correct token is never blocked by someone else's failures
+    else:
+        wait = _sync_failures.fail(client)
+        if wait:
+            resp = jsonify({"error": "too many attempts"})
+            resp.status_code = 429
+            resp.headers["Retry-After"] = str(wait)
+            return resp
         return jsonify({"error": "unauthorized"}), 401
-    _sync_failures.reset(client_ip)
 
     data = request.get_json(silent=True) or {}
     raw_sources = data.get("sources") or "ixl,sgy,powerschool"

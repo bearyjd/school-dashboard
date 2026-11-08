@@ -151,29 +151,29 @@ def test_chat_prompt_does_not_duplicate_powerschool_state(tmp_path, monkeypatch)
 
 
 def test_sync_rejects_unknown_source(monkeypatch):
-    monkeypatch.setenv("SYNC_TOKEN", "tok")
+    monkeypatch.setenv("SYNC_TOKEN", "tok-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
     with flask_app.test_client() as c:
-        r = c.post("/api/sync", json={"sources": "ixl,bogus"}, headers={"X-Sync-Token": "tok"})
+        r = c.post("/api/sync", json={"sources": "ixl,bogus"}, headers={"X-Sync-Token": "tok-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"})
     assert r.status_code == 400 and "bogus" in r.get_json()["error"]
     assert not app_module._sync_lock.locked()
 
 
 @patch("web.app._run_sync_background")
 def test_sync_accepts_allowlisted_sources(mock_run, monkeypatch):
-    monkeypatch.setenv("SYNC_TOKEN", "tok")
+    monkeypatch.setenv("SYNC_TOKEN", "tok-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
     with flask_app.test_client() as c:
         for src in ("all", "powerschool", "ixl, sgy ,gc"):
             if app_module._sync_lock.locked():
                 app_module._sync_lock.release()
-            r = c.post("/api/sync", json={"sources": src}, headers={"X-Sync-Token": "tok"})
+            r = c.post("/api/sync", json={"sources": src}, headers={"X-Sync-Token": "tok-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"})
             assert r.status_code == 202, src
 
 
 def test_sync_token_uses_constant_time_compare(monkeypatch):
-    monkeypatch.setenv("SYNC_TOKEN", "tok")
+    monkeypatch.setenv("SYNC_TOKEN", "tok-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
     with patch("web.app.hmac.compare_digest", return_value=False) as cmp:
         with flask_app.test_client() as c:
-            r = c.post("/api/sync", json={"sources": "ixl"}, headers={"X-Sync-Token": "tok"})
+            r = c.post("/api/sync", json={"sources": "ixl"}, headers={"X-Sync-Token": "tok-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"})
     assert r.status_code == 401 and cmp.called
 
 
