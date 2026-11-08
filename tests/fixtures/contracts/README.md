@@ -42,14 +42,14 @@ due-date logic therefore behaves as in production.
 | G2 (closed) | ixl: payload with only the `remaining` list is accepted with empty totals |
 | G3 (closed) | ixl: `summary_text` KeyError when totals lack `done`/`assigned` |
 | G4 (closed) | sgy: `per_child` renamed merges nothing, no warning |
-| G5 | sgy: missing `child.name` raises a bare IndexError (loud, unhelpful) |
-| G6 | sgy: `due_date` renamed drops every dated row from overview/readiness |
-| G7 | sgy: `title` renamed collapses action items to one "Unknown" |
+| G5 (closed) | sgy: missing `child.name` raised a bare IndexError; now that entry is skipped and `scrape_meta` records `?` ("a child in the last scrape had no name") |
+| G6 (closed) | sgy: `due_date` renamed dropped every dated row; a child with an assignment lacking `due_date` now keeps previous data and is marked unavailable (`unexpected`) |
+| G7 (closed) | sgy: `title` renamed collapsed action items to one "Unknown"; same guard as G6, and the child is also untrusted for auto-archive |
 | G8 (closed) | sgy: failed child reads as "SGY all done" |
 | G9 (closed) | sgy: auto-archive trusts partial/failed children (no top-level `warnings`). Partial children are deliberately never trusted for archiving and not warned about |
 | G10 | sgy: status case ("Submitted") handled differently by readiness vs overview |
 | G11 | sgy: free-form due dates skipped by readiness, parsed by overview |
-| G12a/b/c | powerschool: missing `name` / renamed item `due` / missing item `title`, no warning |
+| G12a/b/c (closed) | powerschool: missing `name` / renamed item `due` / missing item `title` now add a `powerschool_meta` warning and keep the child's previous data (a nameless entry is skipped). These warnings reach `/api/dashboard`, not the overview banner |
 | G13 | gc: `schedule` missing for some teams writes empty schedules, exit 0 |
 | G14a/b/c | gc: event `date` / `time` / `type` renamed degrades overview and digest silently |
 | G16 (closed) | ixl: roster child that had IXL data but has no file now (sync deletes a failed child's file) read as "IXL fine"; now `scrape_meta` marks it unavailable (`missing`). A roster child that never had IXL data is not flagged |
