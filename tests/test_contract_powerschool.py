@@ -11,7 +11,7 @@ powerschool.py's documented contract (see the fixtures README).
 import logging
 
 import pytest
-from contract_support import (TODAY, assert_unguarded, build_state, consumers, load, mutate, renamed,
+from contract_support import (TODAY, build_state, consumers, load, mutate, renamed,
                               set_roster)
 
 from school_dashboard import powerschool, state
@@ -81,21 +81,23 @@ def test_guarded_renamed_list_keeps_previous_entry_with_a_warning(env):
     assert len(built["state"]["powerschool"]) == 2
 
 
-def test_silent_degradation_child_name_key_renamed(env):
-    """UNGUARDED: a child entry without `name` is dropped by _ps_names with no warning."""
+def test_child_name_key_renamed_is_flagged(env):
+    """G12a (guarded): a child entry without `name` is skipped with a plain warning."""
     state_env, tmp_path = env
+    build_state(state_env, tmp_path)
     bad = mutate(load("powerschool"), lambda d: d["children"].__setitem__(
         0, renamed(_alpha(d), "name", "student_name")))
     built = build_state(state_env, tmp_path, ps=bad)
-    assert_unguarded("Alpha" not in built["state"]["powerschool"], "G12a")
-    assert_unguarded(built["state"]["powerschool_meta"]["warnings"] == [], "G12a")
+    assert len(built["state"]["powerschool"]["Alpha"]["missing"]) == 1  # previous data kept
+    assert built["state"]["powerschool_meta"]["warnings"] == [
+        "PowerSchool: 1 child entry in the last scrape had no name and was skipped"]
 
 
-def test_silent_degradation_item_due_renamed(env):
-    """UNGUARDED: `due` -> `due_date` on items: clean_assignments yields due=None, no warning.
-    The upcoming row disappears from overview (undated rows are dropped) and the due dates
-    vanish from digest text; missing/late rows survive because their flag outranks the date."""
+def test_item_due_renamed_keeps_previous_data_with_a_warning(env):
+    """G12b (guarded): `due` -> `due_date` on items no longer wipes due dates silently."""
     state_env, tmp_path = env
+    first = build_state(state_env, tmp_path)
+    previous = first["state"]["powerschool"]["Alpha"]["updated"][:10]
 
     def edit(d: dict) -> None:
         for child in d["children"]:
@@ -103,24 +105,37 @@ def test_silent_degradation_item_due_renamed(env):
                 child[key] = [renamed(i, "due", "due_date") for i in child[key]]
 
     built = build_state(state_env, tmp_path, ps=mutate(load("powerschool"), edit))
-    assert_unguarded(built["state"]["powerschool_meta"]["warnings"] == [], "G12b")
-    assert_unguarded(all(i["due"] is None for i in built["state"]["powerschool"]["Alpha"]["late"]), "G12b")
-    ps_status = {i["title"]: i["status"] for i in consumers(built)["items"] if i["source"] == "powerschool"}
-    assert_unguarded(ps_status == {"Quiz 4 Corrections": "missing", "Essay Draft": "late"}, "G12b")
-    assert_unguarded("(due" not in powerschool.format_block(built["state"], today=TODAY), "G12b")
+    assert built["state"]["powerschool_meta"]["warnings"] == [
+        f"PowerSchool Alpha: items without a due field, kept previous data from {previous}",
+        f"PowerSchool Beta: items without a due field, kept previous data from {previous}"]
+    assert built["state"]["powerschool"] == first["state"]["powerschool"]
+    assert "(due" in powerschool.format_block(built["state"], today=TODAY)
 
 
-def test_silent_degradation_item_title_renamed(env):
-    """UNGUARDED: `title` missing -> rendered as 'Untitled' everywhere, no warning."""
+def test_item_title_missing_keeps_previous_data_with_a_warning(env):
+    """G12c (guarded): items without `title` no longer render as 'Untitled' silently."""
     state_env, tmp_path = env
+    first = build_state(state_env, tmp_path)
+    previous = first["state"]["powerschool"]["Alpha"]["updated"][:10]
 
     def edit(d: dict) -> None:
         _alpha(d)["missing"] = [renamed(i, "title", "name") for i in _alpha(d)["missing"]]
 
     built = build_state(state_env, tmp_path, ps=mutate(load("powerschool"), edit))
-    assert_unguarded(built["state"]["powerschool_meta"]["warnings"] == [], "G12c")
+    assert built["state"]["powerschool_meta"]["warnings"] == [
+        f"PowerSchool Alpha: items without a title, kept previous data from {previous}"]
     block = powerschool.format_block(built["state"], today=TODAY)
-    assert_unguarded("Untitled" in block and "Quiz 4 Corrections" not in block, "G12c")
+    assert "Quiz 4 Corrections" in block and "Untitled" not in block
+
+
+def test_item_fields_missing_without_previous_data_say_so(env):
+    state_env, tmp_path = env
+    bad = mutate(load("powerschool"), lambda d: _alpha(d).update(
+        missing=[renamed(i, "title", "name") for i in _alpha(d)["missing"]]))
+    built = build_state(state_env, tmp_path, ps=bad)
+    assert "Alpha" not in built["state"]["powerschool"]
+    assert built["state"]["powerschool_meta"]["warnings"] == [
+        "PowerSchool Alpha: items without a title, no earlier data to show"]
 
 
 def test_logging_stays_quiet_for_the_valid_fixture(env, caplog):

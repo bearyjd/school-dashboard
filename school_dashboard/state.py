@@ -541,24 +541,44 @@ def _ps_child_entry(entry: dict, stamp: datetime) -> Optional[dict]:
     return {"updated": stamp.isoformat(), **{k: powerschool.clean_assignments(entry[k]) for k in keys}}
 
 
-def _ps_names(children: list) -> list:
-    """[(canonical first name, entry)] for well-formed child entries."""
+def _ps_names(children: list) -> tuple:
+    """([(canonical first name, entry)] for well-formed child entries, count of nameless ones)."""
     pairs = []
+    nameless = 0
     for entry in children:
         first = powerschool.first_name(entry.get("name")) if isinstance(entry, dict) else ""
         if first:
             pairs.append((_canonicalize(first), entry))
-    return pairs
+        else:
+            nameless += 1
+    return pairs, nameless
+
+
+def _ps_item_problem(entry: dict) -> Optional[str]:
+    """Why a child's items cannot be trusted (every item must carry `title` and a `due` key), else None.
+
+    The scraper always emits both on each item (`due` may be null). A missing `title` would show as
+    "Untitled" and a missing `due` would silently drop every date.
+    """
+    items = [a for k in ("missing", "late", "upcoming") for a in entry[k] if isinstance(a, dict)]
+    if any(not isinstance(a.get("title"), str) for a in items):
+        return "items without a title"
+    if any("due" not in a for a in items):
+        return "items without a due field"
+    return None
 
 
 def _merge_ps_children(section: dict, children: list, stamp: datetime) -> tuple:
     """Merge trusted child entries into section; returns (count, warnings)."""
-    pairs = _ps_names(children)
+    pairs, nameless = _ps_names(children)
     counts: dict = {}
     for name, _ in pairs:
         counts[name] = counts.get(name, 0) + 1
     roster = {_canonicalize(c["name"]).casefold() for c in get_roster()}
     warnings: list = []
+    if nameless:
+        plural = "entry" if nameless == 1 else "entries"
+        warnings.append(f"PowerSchool: {nameless} child {plural} in the last scrape had no name and was skipped")
     merged = 0
     for name, entry in pairs:
         if roster and name.casefold() not in roster:
@@ -573,6 +593,12 @@ def _merge_ps_children(section: dict, children: list, stamp: datetime) -> tuple:
         new_entry = _ps_child_entry(entry, stamp)
         if new_entry is None:
             warnings.append(f"PowerSchool {name}: malformed lists, kept previous data")
+            continue
+        problem = _ps_item_problem(entry)
+        if problem:
+            good = str((section.get(name) or {}).get("updated") or "")[:10]
+            tail = f"kept previous data from {good}" if good else "no earlier data to show"
+            warnings.append(f"PowerSchool {name}: {problem}, {tail}")
             continue
         section[name] = new_entry
         merged += 1
