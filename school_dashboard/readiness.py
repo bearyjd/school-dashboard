@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from school_dashboard.overview_items import DONE_STATUSES, parse_date
-from school_dashboard.state import get_roster
+from school_dashboard.state import canonical_name, get_roster
 
 _log = logging.getLogger(__name__)
 
@@ -54,7 +54,9 @@ def get_checklist(
 
     schoology = state.get("schoology") or {}
     children = list(schoology)
-    children += [c["name"] for c in get_roster() if c["name"] not in schoology]
+    roster = [canonical_name(c["name"]) for c in get_roster()
+              if isinstance(c, dict) and isinstance(c.get("name"), str)]
+    children += [n for n in dict.fromkeys(roster) if n and n not in schoology]
 
     for child in children:
         child_data = schoology.get(child) or {}

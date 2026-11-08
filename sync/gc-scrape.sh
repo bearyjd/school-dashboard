@@ -170,8 +170,10 @@ while IFS=$'\t' read -r TEAM_ID TEAM_NAME; do
 import json, sys
 try:
     with open(sys.argv[1]) as f:
-        s = json.load(f).get('schedule')
-    print(len(s) if isinstance(s, list) else -2)  # -2: no schedule list at all (renamed key?)
+        d = json.load(f)
+    s = d.get('schedule', 'absent')
+    # null is an empty schedule; -2: the key is absent or not a list (renamed key?)
+    print(0 if s is None else len(s) if isinstance(s, list) else -2)
 except (OSError, ValueError, AttributeError):
     print(-1)
 " "$WORK/team-$N.json" 2>>"$LOGFILE") || API_EVENTS=-1
@@ -223,13 +225,16 @@ done < "$WORK/team-lines.tsv"
 # --- Step 4: Build output from the files (single python call, no argv data) ---
 mkdir -p "$LOGDIR"
 COUNTS=$(python3 -c "
-import json, sys
+import json, os, sys
+from datetime import datetime, timezone
 work, ts, out, prev_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 try:
     with open(prev_path) as f:
         prev = json.load(f)
-    prev_teams = {t['team_id']: t for t in prev['teams'] if isinstance(t, dict)}
+    prev_teams = {t.get('team_id'): t for t in prev['teams'] if isinstance(t, dict)}
     prev_day = str(prev.get('scraped_at') or '')[:10]
+    if not prev_day:  # no stamp in the old file: its modification day is the best date we have
+        prev_day = datetime.fromtimestamp(os.path.getmtime(prev_path), timezone.utc).date().isoformat()
 except (OSError, ValueError, KeyError, TypeError, AttributeError):
     prev_teams, prev_day = {}, ''
 teams = []
@@ -239,7 +244,9 @@ with open(work + '/manifest.tsv') as m:
             n, tid, name, child, source = line.rstrip('\\n').split('\\t')
             with open(f'{work}/team-{n}.json') as f:
                 summary = json.load(f)
-            schedule = summary.get('schedule')
+            schedule = summary.get('schedule', 'absent')
+            if schedule is None:  # null is an empty schedule, as before
+                schedule = []
             missing = not isinstance(schedule, list)
             if missing:
                 print(f'WARN: no schedule list for team {tid[:8]} — recording the failure', file=sys.stderr)
@@ -258,7 +265,7 @@ with open(work + '/manifest.tsv') as m:
             if isinstance(old_sched, list) and old_sched:
                 entry['schedule'] = old_sched
                 entry['schedule_source'] = old.get('schedule_source') or source
-                entry['schedule_last_good'] = old.get('schedule_last_good') or prev_day
+                entry['schedule_last_good'] = old.get('schedule_last_good') or prev_day or str(ts)[:10]
         teams.append(entry)
 with open(out, 'w') as f:
     print(json.dumps({'scraped_at': ts, 'teams': teams}, indent=2), file=f)

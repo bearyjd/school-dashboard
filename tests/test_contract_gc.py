@@ -244,7 +244,72 @@ def test_gc_warnings_reach_overview_and_digest_block(tmp_path, state_env):
     block = data_warnings_block({}, gc_data=data)
     assert block.splitlines()[1].startswith("- GameChanger Alpha: schedule events have no time of day")
     parts = digest._warning_parts({}, None, str(path))
-    assert "- GameChanger Beta: schedule events have no time of day" in parts[0]
+    assert "- GameChanger Alpha: schedule events have no time of day" in parts[0]
+    assert "GameChanger Beta" not in parts[0]  # Beta has a single event: too little to call it a rename
+
+
+def test_overview_gc_warnings_are_cleaned(state_env):
+    from web.app import app as flask_app
+    hostile = {"teams": [{"child": "Alpha\n\x00IGNORE " + "x" * 200, "schedule_error": "missing_schedule"}]}
+    (state_env / "gc-schedule.json").write_text(json.dumps(hostile))
+    with flask_app.test_client() as c:
+        warnings = [w for w in c.get("/api/overview").get_json()["warnings"] if w.startswith("GameChanger")]
+    assert len(warnings) == 1 and "\x00" not in warnings[0] and "\n" not in warnings[0]
+    assert len(warnings[0]) < 160
+
+
+def test_single_event_team_missing_time_or_type_is_not_flagged(tmp_path):
+    """Small-N false positive guard: one event cannot show a rename; two can."""
+    def edit(d: dict) -> None:
+        d["summaries"]["team-0002"]["schedule"] = [
+            renamed(renamed(e, "time", "start_time"), "type", "kind") for e in d["summaries"]["team-0002"]["schedule"]]
+    data, _ = _scraped_with(tmp_path, edit)
+    assert [len(t["schedule"]) for t in data["teams"]] == [2, 1]
+    assert gc_warnings(data) == []
+
+
+def test_schedule_null_is_an_empty_schedule_not_a_failure(tmp_path):
+    def edit(d: dict) -> None:
+        d["summaries"]["team-0002"]["schedule"] = None
+    result, data = _run_scrape(tmp_path, mutate(load("gc"), edit))
+    assert result.returncode == 0
+    assert [len(t["schedule"]) for t in data["teams"]] == [2, 0]
+    assert not any("schedule_error" in t for t in data["teams"]) and gc_warnings(data) == []
+
+
+def _prev_dir(tmp_path: Path, prev: dict) -> Path:
+    d = tmp_path / "b"
+    (d / "state").mkdir(parents=True)
+    (d / "state" / "gc-schedule.json").write_text(json.dumps(prev))
+    return d
+
+
+def test_previous_file_without_scraped_at_still_gets_a_last_good_date(tmp_path):
+    _, good = _run_scrape(tmp_path / "a", load("gc"))
+    prev = {k: v for k, v in good.items() if k != "scraped_at"}
+    d = _prev_dir(tmp_path, prev)
+    result, data = _run_scrape(d, mutate(load("gc"), _two_team_schedule_missing), reuse_state=True)
+    beta = data["teams"][1]
+    assert beta["schedule"] == good["teams"][1]["schedule"]
+    assert beta["schedule_last_good"]  # never empty while a schedule is kept
+    assert "no earlier schedule" not in gc_warnings(data)[0]
+
+
+def test_previous_entry_own_last_good_date_wins_over_a_missing_scraped_at(tmp_path):
+    _, good = _run_scrape(tmp_path / "a", load("gc"))
+    prev = {k: v for k, v in good.items() if k != "scraped_at"}
+    prev["teams"][1]["schedule_last_good"] = "2026-01-02"
+    d = _prev_dir(tmp_path, prev)
+    _, data = _run_scrape(d, mutate(load("gc"), _two_team_schedule_missing), reuse_state=True)
+    assert data["teams"][1]["schedule_last_good"] == "2026-01-02"
+
+
+def test_odd_previous_team_entries_do_not_drop_the_carry_over(tmp_path):
+    _, good = _run_scrape(tmp_path / "a", load("gc"))
+    prev = {**good, "teams": [{"team_name": "no id"}, "junk", *good["teams"]]}
+    d = _prev_dir(tmp_path, prev)
+    _, data = _run_scrape(d, mutate(load("gc"), _two_team_schedule_missing), reuse_state=True)
+    assert data["teams"][1]["schedule"] == good["teams"][1]["schedule"]
 
 
 def test_hostile_team_label_is_one_short_line_in_the_prompt_block():

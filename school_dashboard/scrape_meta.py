@@ -197,6 +197,8 @@ def gc_warnings(gc_data: object, clean: bool = False) -> list:
         if not any(_event_has_date(e) for e in events):
             out.append(f"{who}: {_GC_PHRASES['date']}")
             continue
+        if len(events) < 2:  # one event cannot show that a key was renamed
+            continue
         for key in ("time", "type"):
             if all(key not in e for e in events):
                 out.append(f"{who}: {_GC_PHRASES[key]}")

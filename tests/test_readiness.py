@@ -164,3 +164,65 @@ def test_comma_joined_child_matches_membership(tmp_path):
     result = get_checklist(str(sp), str(dbp))
     has = {c: any(i["label"] == "Shared Test" for i in result.get(c, [])) for c in ("Ford", "Jack", "Penn")}
     assert has == {"Ford": True, "Jack": True, "Penn": False}
+
+
+def _one_assignment_state(tmp_path, due_date, status="not submitted"):
+    p = tmp_path / "one.json"
+    p.write_text(json.dumps({"schoology": {"Alpha": {"assignments": [
+        {"title": "HW", "due_date": due_date, "course": "Math", "status": status}]}}}))
+    return str(p)
+
+
+def _freeform(d: date) -> str:
+    return f"{d:%B} {d.day}, {d.year}"
+
+
+@pytest.mark.parametrize("make, urgency", [
+    (lambda d: d.isoformat(), "tomorrow"),
+    (lambda d: d.isoformat() + "T15:30:00", "tomorrow"),
+    (lambda d: d.isoformat() + "T15:30:00Z", "tomorrow"),
+    (_freeform, "tomorrow"),
+    (lambda d: "TBD", None),
+    (lambda d: "", None),
+])
+def test_due_date_formats_are_bucketed_like_overview(tmp_path, monkeypatch, make, urgency):
+    monkeypatch.setattr("school_dashboard.readiness.get_roster", lambda: [])
+    due = date.today() + timedelta(days=1)
+    result = get_checklist(_one_assignment_state(tmp_path, make(due)))
+    if urgency is None:
+        assert result == {}
+    else:
+        assert [(i["label"], i["urgency"]) for i in result["Alpha"]] == [("HW", urgency)]
+
+
+def test_freeform_overdue_date_is_overdue(tmp_path, monkeypatch):
+    monkeypatch.setattr("school_dashboard.readiness.get_roster", lambda: [])
+    result = get_checklist(_one_assignment_state(tmp_path, _freeform(date.today() - timedelta(days=2))))
+    assert result["Alpha"][0]["urgency"] == "overdue"
+
+
+@pytest.mark.parametrize("status", ["Submitted", "GRADED", "Turned in"])
+def test_done_statuses_ignore_case(tmp_path, monkeypatch, status):
+    monkeypatch.setattr("school_dashboard.readiness.get_roster", lambda: [])
+    assert get_checklist(_one_assignment_state(tmp_path, date.today().isoformat(), status)) == {}
+
+
+def _ixl_only_state(tmp_path, child):
+    p = tmp_path / "ixl.json"
+    p.write_text(json.dumps({"ixl": {child: {"totals": {"math": {"remaining": 2}}}}}))
+    return str(p)
+
+
+def test_roster_alias_does_not_create_a_duplicate_checklist(tmp_path, monkeypatch):
+    """A roster name that is an alias resolves to the canonical key used by the state."""
+    monkeypatch.setattr("school_dashboard.readiness.get_roster", lambda: [{"name": "alpha-alias"}])
+    monkeypatch.setattr("school_dashboard.readiness.canonical_name",
+                        lambda n: "Alpha" if n == "alpha-alias" else (n or "").strip().title())
+    result = get_checklist(_ixl_only_state(tmp_path, "Alpha"))
+    assert list(result) == ["Alpha"]
+
+
+@pytest.mark.parametrize("roster", [[], [{}], [{"name": None}], [{"name": "  "}], [{"name": 5}], ["junk"]])
+def test_empty_or_odd_roster_entries_are_skipped(tmp_path, monkeypatch, roster):
+    monkeypatch.setattr("school_dashboard.readiness.get_roster", lambda: roster)
+    assert get_checklist(_ixl_only_state(tmp_path, "Alpha")) == {}

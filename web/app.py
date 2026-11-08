@@ -562,7 +562,7 @@ def api_overview():
     gc_data = load_json(str(paths.gc_path()))
     if not isinstance(gc_data, dict) or "error" in gc_data:
         gc_data = {}
-    warnings.extend(gc_warnings(gc_data))
+    warnings.extend(gc_warnings(gc_data, clean=True))
     db_file = str(paths.db_path())
     try:
         manual = list_items(db_file)
