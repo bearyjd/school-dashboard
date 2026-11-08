@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from school_dashboard import maintenance, paths
+from school_dashboard import maintenance, paths, scrape_meta
 from school_dashboard.atomic import write_atomic
 from school_dashboard.sources import source_enabled
 from school_dashboard.sync_meta import last_ok_time, read_sync_meta
@@ -31,6 +31,9 @@ SYNC_WEEKDAYS = (0, 1, 2, 3, 4)
 GRACE = timedelta(minutes=90)
 FAILING_AFTER = timedelta(hours=24)
 REALERT_AFTER = timedelta(hours=24)
+DEGRADED_AFTER = timedelta(hours=24)
+# scrape_meta block name -> watched source (for SOURCE_<NAME>_ENABLED)
+SCRAPE_META_SOURCES = {"ixl": "ixl", "schoology": "sgy"}
 ALERT_TITLE = "School: data is stale"
 RECOVERED_TITLE = "School: data recovered"
 WATCHDOG_FILE = "watchdog.json"
@@ -43,7 +46,7 @@ SendFn = Callable[[str, str, str], None]
 @dataclass(frozen=True)
 class Problem:
     source: str
-    issue: str  # never_ok | failing | stale
+    issue: str  # never_ok | failing | stale | scrape_degraded
     age_hours: Optional[float]
 
 
@@ -131,6 +134,21 @@ def evaluate(meta: dict, sources, now: datetime, tz: tzinfo,
     return [p for p in found if p]
 
 
+def check_scrape_degraded(school_state: Any, watched, now: datetime) -> list[Problem]:
+    """One problem per source whose scraper has been unavailable (scrape_meta) for >= 24h.
+
+    The problem's `source` is `<source>_scrape`, so it dedupes separately from stale/failing.
+    """
+    if not isinstance(school_state, dict):
+        return []
+    out = []
+    for meta_key, source in SCRAPE_META_SOURCES.items():
+        since = scrape_meta.oldest_since(school_state, meta_key) if source in watched else None
+        if since is not None and now - since >= DEGRADED_AFTER:
+            out.append(Problem(f"{source}_scrape", "scrape_degraded", _hours(now - since)))
+    return out
+
+
 # ---- alert de-duplication ----
 
 def load_state(path: Path) -> dict:
@@ -168,7 +186,8 @@ def plan_alerts(problems: list[Problem], state: dict, now: datetime):
 
 
 _NAMES = {"sgy": "Schoology", "ixl": "IXL", "gc": "GameChanger",
-          "powerschool": "PowerSchool", STATE_KEY: "school data"}
+          "powerschool": "PowerSchool", STATE_KEY: "school data",
+          "ixl_scrape": "IXL scrape", "sgy_scrape": "Schoology scrape"}
 ALERT_FOOTER = "Dashboard may be showing old info."
 
 
@@ -179,6 +198,8 @@ def _label(source: str) -> str:
 def _describe(p: Problem) -> str:
     if p.age_hours is None:
         return f"{_label(p.source)}: no successful sync on record"
+    if p.issue == "scrape_degraded":
+        return f"{_label(p.source)}: some data unavailable for {p.age_hours:.1f} hours"
     kind = "failing, last success" if p.issue == "failing" else "last success"
     return f"{_label(p.source)}: {kind} {p.age_hours:.1f} hours ago"
 
@@ -291,6 +312,8 @@ def run(now: Optional[datetime] = None, dry_run: bool = False,
     state_problem = check_mtime(STATE_KEY, _state_mtime(), now, tz, first_seen=first_seen[STATE_KEY])
     if state_problem:
         problems.append(state_problem)
+
+    problems.extend(check_scrape_degraded(load_state(paths.state_path()), watched[:-1], now))
 
     old_alerts = stored.get("alerts") if isinstance(stored.get("alerts"), dict) else {}
     alerts, recovered, new_alerts = plan_alerts(problems, old_alerts, now)
