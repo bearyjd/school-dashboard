@@ -1,6 +1,6 @@
 import { updateItem, createItem, triggerSync } from '../api'
 import type { Item } from '../api/types'
-import { getSyncToken, MSG_NO_TOKEN, syncErrorMessage } from '../lib/syncToken'
+import { getSyncToken, NO_TOKEN, syncErrorMessage } from '../lib/syncToken'
 
 export interface ToolCall {
   name: string
@@ -72,11 +72,11 @@ export async function executeTool(tc: ToolCall): Promise<string> {
       const sources = (tc.args.sources ?? tc.args.source ?? 'ixl,sgy') as string
       const digest = (tc.args.digest ?? 'none') as string
       const token = getSyncToken()
-      if (!token) return MSG_NO_TOKEN
+      if (!token) return NO_TOKEN.message
       try {
         await triggerSync(sources, digest, token)
       } catch (e) {
-        return syncErrorMessage(e)
+        return syncErrorMessage(e).message
       }
       return `Sync started for: ${sources}. Check /sync for status.`
     }

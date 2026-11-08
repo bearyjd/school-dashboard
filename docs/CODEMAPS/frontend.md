@@ -45,7 +45,7 @@ src/agent/tools.ts      tool descriptors for the inline-agent prompt
 ## State + auth
 
 - **Server state** lives behind `fetch` wrappers in `api/`; no global store.
-- `__SYNC_TOKEN__` is injected into `index.html` at request time by Flask. The SPA reads it once at boot and stamps `X-Sync-Token` on `/api/sync`.
+- The sync token is never served. The user enters it once per device in Settings; `src/lib/syncToken.ts` keeps it in `localStorage['school-sync-token']` (in memory for the tab if storage is unavailable) and is the only reader. `useSync`, `agent/tools.ts` and `InlineAgent` stamp it as `X-Sync-Token` on `/api/sync` only.
 - Source freshness comes from `/api/sync/meta` and is polled while a sync is in-flight.
 
 ## PWA / TWA

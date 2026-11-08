@@ -3,38 +3,55 @@ import { ApiError } from '../api'
 /**
  * The sync token is a server secret the server never sends to the browser. The user types it once per
  * device and it lives only in this browser's localStorage (this origin); clearing site data removes it.
+ * When storage is unavailable (private mode) it is kept in memory until the tab closes.
  * Everything that calls POST /api/sync reads it through here. Never log it or put it in a URL or message.
  */
 export const SYNC_TOKEN_KEY = 'school-sync-token'
 
-export const MSG_NO_TOKEN = 'Enter the sync token in Settings'
-export const MSG_WRONG_TOKEN = 'Wrong token'
-export const MSG_NOT_CONFIGURED = 'Syncing is not configured'
-export const MSG_RUNNING = 'A sync is already running'
-export const MSG_FAILED = 'Sync failed'
+export type SyncErrorCode =
+  | 'no_token' | 'wrong_token' | 'rate_limited' | 'not_configured' | 'running' | 'failed' | 'status_failed'
+
+export interface SyncError {
+  code: SyncErrorCode
+  message: string
+}
+
+export const NO_TOKEN: SyncError = { code: 'no_token', message: 'Enter the sync token in Settings' }
+export const STATUS_FAILED: SyncError = { code: 'status_failed', message: 'Could not check sync status' }
 const DEFAULT_WAIT_S = 60
+
+/** Errors whose fix is to (re-)enter the token in Settings. */
+export const needsToken = (e: SyncError | null): boolean => e?.code === 'no_token' || e?.code === 'wrong_token'
+
+let memoryToken = ''
 
 export function getSyncToken(): string {
   try {
-    return (localStorage.getItem(SYNC_TOKEN_KEY) ?? '').trim()
+    const stored = (localStorage.getItem(SYNC_TOKEN_KEY) ?? '').trim()
+    if (stored) return stored
   } catch {
-    return ''
+    // storage unavailable: fall through to the in-memory copy
   }
+  return memoryToken
 }
 
-/** Saves the trimmed token; false when it is empty or storage is unavailable. */
-export function setSyncToken(value: string): boolean {
+export type SaveResult = 'saved' | 'tab' | 'empty'
+
+/** 'saved' = in localStorage; 'tab' = storage unavailable, kept in memory until the tab closes. */
+export function setSyncToken(value: string): SaveResult {
   const token = value.trim()
-  if (!token) return false
+  if (!token) return 'empty'
+  memoryToken = token
   try {
     localStorage.setItem(SYNC_TOKEN_KEY, token)
-    return true
+    return 'saved'
   } catch {
-    return false
+    return 'tab'
   }
 }
 
 export function clearSyncToken(): void {
+  memoryToken = ''
   try {
     localStorage.removeItem(SYNC_TOKEN_KEY)
   } catch {
@@ -42,14 +59,14 @@ export function clearSyncToken(): void {
   }
 }
 
-/** A short, user-facing sentence for a failed sync call; never the raw error. */
-export function syncErrorMessage(e: unknown): string {
-  if (!(e instanceof ApiError)) return MSG_FAILED
+/** A short, user-facing error for a failed sync call; never the raw error. */
+export function syncErrorMessage(e: unknown): SyncError {
+  if (!(e instanceof ApiError)) return { code: 'failed', message: 'Sync failed' }
   switch (e.status) {
-    case 401: return MSG_WRONG_TOKEN
-    case 429: return `Too many attempts, wait ${e.retryAfter ?? DEFAULT_WAIT_S} s`
-    case 501: return MSG_NOT_CONFIGURED
-    case 409: return MSG_RUNNING
-    default: return MSG_FAILED
+    case 401: return { code: 'wrong_token', message: 'Wrong token' }
+    case 429: return { code: 'rate_limited', message: `Too many attempts, wait ${e.retryAfter ?? DEFAULT_WAIT_S} s` }
+    case 501: return { code: 'not_configured', message: 'Syncing is not configured' }
+    case 409: return { code: 'running', message: 'A sync is already running' }
+    default: return { code: 'failed', message: 'Sync failed' }
   }
 }

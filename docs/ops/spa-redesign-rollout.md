@@ -40,16 +40,28 @@ calendar attribute a shared team to both kids; with the old label those events s
 never under a kid's filter. The calendar covers this week and next (the data window).
 Restart or wait for the next sync.
 
-## Sync token: one-time entry per device
+## Sync token: rotate it, then enter it once per device
 
-The server no longer puts `SYNC_TOKEN` in any page (`/app/` and `/legacy` are token-free). The secret lives only in
-server config (`config/env`, variable `SYNC_TOKEN`) and is never printed or served. After this deploy every
-device that starts syncs from the SPA must enter it once: open Settings, field "Sync token", Save. It is kept
-in that browser's `localStorage` (`school-sync-token`) only; "Clear" removes it, and clearing site data does too.
-Until entered, the Sync view says "Enter the sync token in Settings". Cron and scripts are unchanged
-(`X-Sync-Token` header). `POST /api/sync` answers 429 with `Retry-After` after 10 wrong tokens in a minute from one
-client address (per process; behind a reverse proxy all clients share the proxy's address, so one device's
-typos can briefly lock out the rest, including cron, for up to a minute). The old `/legacy` page no longer has sync buttons; it points to Sync in `/app/`.
+Before this change the server put `SYNC_TOKEN` in every `/app/` and `/legacy` page, and installed PWAs cached that
+page (service-worker cache `school-v2`). Treat the old token as compromised and **rotate it as part of this deploy**:
+
+1. Generate a new one: `python3 -c "import secrets; print(secrets.token_hex(32))"`.
+2. Put it in the server config as `SYNC_TOKEN=<value>` (`config/env`). Never paste it into chat, tickets or logs.
+   The server ignores a `SYNC_TOKEN` shorter than 32 characters (`/api/sync` answers 501 and a WARNING is logged).
+3. `docker compose up -d` to apply it. The new service worker (`school-v3`) deletes the old cached pages.
+4. On each device that starts syncs from the app: Settings, field "Sync token", Save. Once per device.
+
+Where it lives: the server keeps it only in `config/env`; it is never printed or served. A browser keeps its copy
+only in that browser's `localStorage` (`school-sync-token`); "Clear" removes it, as does clearing site data. If the
+browser blocks storage the token is kept in memory until the tab closes. The Android TWA install is a separate
+browser profile and needs its own entry. Until entered, the Sync view says "Enter the sync token in Settings".
+
+`POST /api/sync` still takes the `X-Sync-Token` header. Nothing in this repo's cron or `school-sync.sh` calls it
+(they run the scrapers directly), so rotation affects only the app and any script you wrote yourself.
+After 10 wrong tokens in a minute from one client address it answers 429 with `Retry-After`; a correct token is never
+blocked by that. The counter is per process and keyed on the connecting address (IPv6 by /64); behind a reverse
+proxy all clients share the proxy's address, so one device's typos can slow wrong guesses from the others for up to
+a minute. The old `/legacy` page has no sync buttons; it points to Sync in `/app/`.
 
 ## Source banners and the watchdog
 

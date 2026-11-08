@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { fetchSyncMeta, fetchDashboard } from '../api'
 import { useSync } from '../hooks/useSync'
 import { InlineAgent } from '../components/InlineAgent'
-import { MSG_NO_TOKEN, MSG_WRONG_TOKEN } from '../lib/syncToken'
+import { needsToken } from '../lib/syncToken'
 
 const SOURCES = [
   { key: 'ixl', label: 'IXL', icon: '📚', description: 'Skills + diagnostic scores' },
@@ -41,8 +41,8 @@ export function Sync() {
 
       {error && (
         <div role="alert" className="card" style={{ background: 'rgba(255,107,107,0.1)', border: '1px solid var(--color-error)', marginBottom: 'var(--space-md)', color: 'var(--color-error)' }}>
-          {error}
-          {(error === MSG_NO_TOKEN || error === MSG_WRONG_TOKEN) && (
+          {error.message}
+          {needsToken(error) && (
             <> <Link className="list__link" to="/settings">Open Settings</Link></>
           )}
         </div>

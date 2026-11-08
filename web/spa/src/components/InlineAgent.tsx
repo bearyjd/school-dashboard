@@ -3,7 +3,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useInlineChat } from '../hooks/useInlineChat'
 import { updateItem, createItem, triggerSync } from '../api'
 import type { InlineAgentAction } from '../api/types'
-import { getSyncToken, MSG_NO_TOKEN, syncErrorMessage } from '../lib/syncToken'
+import { Link } from 'react-router-dom'
+import { getSyncToken, needsToken, NO_TOKEN, syncErrorMessage, type SyncError } from '../lib/syncToken'
 
 interface InlineAgentProps {
   contextType: string
@@ -15,8 +16,10 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const { loading, reply, action, error, ask, reset } = useInlineChat(contextType, contextId)
-  const [syncError, setSyncError] = useState<string | null>(null)
+  const [syncError, setSyncError] = useState<SyncError | null>(null)
   const qc = useQueryClient()
+
+  const dismiss = () => { setSyncError(null); reset() }
 
   const send = (msg: string) => {
     setInput('')
@@ -27,7 +30,7 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
     setSyncError(null)
     if (act.type === 'trigger_sync') {
       const token = getSyncToken()
-      if (!token) { setSyncError(MSG_NO_TOKEN); return }
+      if (!token) { setSyncError(NO_TOKEN); return }
       try {
         await triggerSync(act.payload.source as string, 'none', token)
         qc.invalidateQueries({ queryKey: ['syncMeta'] })
@@ -35,7 +38,7 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
         setSyncError(syncErrorMessage(e))
         return
       }
-      reset()
+      dismiss()
       setOpen(false)
       return
     }
@@ -59,7 +62,7 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
     } catch {
       // action failed; leave UI open so user sees current state
     }
-    reset()
+    dismiss()
     setOpen(false)
   }
 
@@ -127,7 +130,7 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
             <button
               className="btn btn--ghost"
               style={{ padding: '6px 10px', fontSize: '13px' }}
-              onClick={() => { setOpen(false); reset() }}
+              onClick={() => { setOpen(false); dismiss() }}
             >✕</button>
           </div>
         </>
@@ -143,12 +146,15 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
         <div style={{ fontSize: '13px', color: 'var(--color-error)' }}>
           {error}
           <button className="btn btn--ghost" style={{ marginLeft: 8, fontSize: '12px' }}
-            onClick={() => { reset(); }}>Retry</button>
+            onClick={() => { dismiss(); }}>Retry</button>
         </div>
       )}
 
       {syncError && (
-        <div role="alert" style={{ fontSize: '13px', color: 'var(--color-error)', marginBottom: 6 }}>{syncError}</div>
+        <div role="alert" style={{ fontSize: '13px', color: 'var(--color-error)', marginBottom: 6 }}>
+          {syncError.message}
+          {needsToken(syncError) && <> <Link className="list__link" to="/settings">Open Settings</Link></>}
+        </div>
       )}
 
       {/* Reply state */}
@@ -167,13 +173,13 @@ export function InlineAgent({ contextType, contextId, suggestions = [] }: Inline
                  action.type === 'trigger_sync' ? '⟳ Sync Now' : 'Do It'}
               </button>
               <button className="btn btn--ghost" style={{ fontSize: '12px', padding: '5px 10px' }}
-                onClick={() => reset()}>Dismiss</button>
+                onClick={() => dismiss()}>Dismiss</button>
             </div>
           )}
           {!action && (
             <button className="btn btn--ghost"
               style={{ fontSize: '12px', padding: '3px 8px', marginTop: 6 }}
-              onClick={() => reset()}>✕ Close</button>
+              onClick={() => dismiss()}>✕ Close</button>
           )}
         </div>
       )}

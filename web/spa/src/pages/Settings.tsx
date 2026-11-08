@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getStoredTheme, setTheme, type ThemeChoice } from '../design/theme'
 import { KidChip } from '../design/KidChip'
@@ -16,7 +16,8 @@ export function Settings() {
   const [choice, setChoice] = useState<ThemeChoice>(getStoredTheme)
   const [tokenInput, setTokenInput] = useState('')
   const [hasToken, setHasToken] = useState(() => getSyncToken() !== '')
-  const [tokenNote, setTokenNote] = useState<{ text: string; error: boolean } | null>(null)
+  const [tokenNote, setTokenNote] = useState('')
+  const tokenRef = useRef<HTMLInputElement>(null)
   const kids = useOverview().data?.kids ?? []
 
   const pick = (next: ThemeChoice) => {
@@ -25,18 +26,23 @@ export function Settings() {
   }
 
   const saveToken = () => {
-    const ok = setSyncToken(tokenInput)
+    const result = setSyncToken(tokenInput)
     setTokenInput('')
-    setHasToken(ok)
-    setTokenNote(ok ? { text: 'Sync token saved on this device', error: false }
-      : { text: 'Could not save the token. Enter it again', error: true })
+    setHasToken(getSyncToken() !== '')
+    setTokenNote(
+      result === 'saved' ? 'Sync token saved on this device'
+        : result === 'tab' ? 'Sync token kept until you close this tab'
+          : 'Enter the token first',
+    )
+    tokenRef.current?.focus()
   }
 
   const removeToken = () => {
     clearSyncToken()
     setTokenInput('')
-    setHasToken(false)
-    setTokenNote({ text: 'Sync token cleared', error: false })
+    setHasToken(getSyncToken() !== '')
+    setTokenNote('Sync token cleared')
+    tokenRef.current?.focus()
   }
 
   return (
@@ -76,7 +82,7 @@ export function Settings() {
       )}
 
       <section className="settings__group">
-        <h2 id="settings-token" className="settings__legend">Sync token</h2>
+        <h2 id="settings-token" className="settings__legend">Sync access</h2>
         <p className="settings__hint" id="settings-token-help">
           Needed to start a sync. Kept only in this browser, never sent anywhere except the sync request.
           Ask the owner for the SYNC_TOKEN value.{hasToken ? ' A token is saved on this device.' : ''}
@@ -86,7 +92,8 @@ export function Settings() {
           <input
             id="sync-token-input"
             type="password"
-            autoComplete="off"
+            autoComplete="new-password"
+            ref={tokenRef}
             value={tokenInput}
             onChange={e => setTokenInput(e.target.value)}
             aria-describedby="settings-token-help"
@@ -96,9 +103,7 @@ export function Settings() {
             <button type="button" className="btn btn--secondary" onClick={removeToken} disabled={!hasToken}>Clear</button>
           </div>
         </form>
-        {tokenNote && (
-          <p role={tokenNote.error ? 'alert' : 'status'} className="settings__hint">{tokenNote.text}</p>
-        )}
+        <p role="status" className="settings__hint">{tokenNote}</p>
       </section>
 
       <section className="settings__group" aria-labelledby="settings-more">
