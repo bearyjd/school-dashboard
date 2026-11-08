@@ -56,6 +56,13 @@ Once any entry has been unavailable for 24h the watchdog sends one `scrape_degra
 (`IXL scrape` / `Schoology scrape`), and a "Recovered" push when it clears. It follows the same switches as the
 other watchdog rules (`WATCHDOG_ENABLED`, maintenance, `SOURCE_*_ENABLED`).
 
+A roster child who had IXL data but whose IXL file is missing on the next update is recorded as `IXL <child>:
+no scrape result was found`, and stays flagged until a good file arrives (it never expires, so a real long
+outage keeps paging). When a child leaves IXL for good, set `"ixl": false` on that child in the roster config
+(`school-dashboard.json`, `children.<Name>`); the flag must be `true` or `false` (anything else is ignored with a
+warning). That child is then ignored by the quick check, digests, overview banner and the `scrape_degraded` rule.
+The old `ixl` entry in `school-state.json` may stay. A child who never had IXL data is never flagged.
+
 ## Rollback
 
 ```

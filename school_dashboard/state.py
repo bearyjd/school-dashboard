@@ -113,6 +113,21 @@ def get_roster() -> list:
     return roster
 
 
+def ixl_opted_out() -> set:
+    """Canonical names of roster children configured with `"ixl": false` (left IXL).
+
+    Only a real bool counts; anything else is warned about and treated as the default (true).
+    """
+    out: set = set()
+    for name, entry in get_children().items():
+        flag = entry.get("ixl", True)
+        if not isinstance(flag, bool):
+            logger.warning("Config child %r: 'ixl' must be true or false; ignoring %r", name, flag)
+        elif not flag:
+            out.add(canonical_name(name))
+    return out
+
+
 # Built-in default alias (lowercase key). Config `name_aliases` entries override it.
 _DEFAULT_NAME_ALIASES: dict = {"john": "Jack"}
 
@@ -390,6 +405,15 @@ def update_from_ixl_files(state: dict, ixl_dir: str = "/tmp/ixl") -> int:
         count += 1
     if not files:
         unavailable[scrape.ANY_CHILD] = scrape.MISSING
+    else:
+        # school-sync.sh deletes a failed child's file: a roster child that had data but has no
+        # file now is unavailable. One that never had IXL data is not (no account, no alarm).
+        seen = {_canonicalize(f.stem.replace("-assigned", "")) for f in files}
+        opted_out = ixl_opted_out()
+        for r in get_roster():
+            name = _canonicalize(r["name"])
+            if name not in seen and name not in opted_out and (state.get("ixl") or {}).get(name):
+                unavailable[name] = scrape.MISSING
     scrape.set_unavailable(state, "ixl", unavailable)
     return count
 

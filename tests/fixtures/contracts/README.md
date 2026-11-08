@@ -52,4 +52,5 @@ due-date logic therefore behaves as in production.
 | G12a/b/c | powerschool: missing `name` / renamed item `due` / missing item `title`, no warning |
 | G13 | gc: `schedule` missing for some teams writes empty schedules, exit 0 |
 | G14a/b/c | gc: event `date` / `time` / `type` renamed degrades overview and digest silently |
+| G16 (closed) | ixl: roster child that had IXL data but has no file now (sync deletes a failed child's file) read as "IXL fine"; now `scrape_meta` marks it unavailable (`missing`). A roster child that never had IXL data is not flagged |
 | G15 | readiness only iterates schoology children (IXL/PS-only child omitted) |

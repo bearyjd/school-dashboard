@@ -1,0 +1,6 @@
+[
+ {
+  "role": "user",
+  "content": "You are a family assistant sending a night prep push notification. Be brief and actionable. Max 150 words.\n\nTomorrow: 2026-04-11\n\nSchool calendar events tomorrow:\nNone\n\nFamily calendar tomorrow (Google Calendar):\nNone\n\nAssignments due tomorrow:\n- Alpha: Essay (ELA)\n\nAction items due tomorrow:\nNone\n\nExtracurricular events tomorrow:\nNone\n\nKnown facts (recurring activities):\n- [Alpha] Soccer on Tuesdays\n\nWrite a brief night summary: what do we need to have ready for tomorrow? Mention gear, forms, early wake-ups, or anything to prepare tonight."
+ }
+]
