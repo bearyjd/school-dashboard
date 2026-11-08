@@ -37,15 +37,21 @@ if (!/^https?:\/\/[A-Za-z0-9.:_-]+$/.test(base)) {
 const shots = process.env.LIVE_SHOTS ?? fileURLToPath(new URL('../web/spa/test-results/live-shots', import.meta.url))
 
 const spaRequire = createRequire(new URL('../web/spa/package.json', import.meta.url))
-const { chromium } = spaRequire('@playwright/test')
+let chromium
+try {
+  ;({ chromium } = spaRequire('@playwright/test'))
+} catch {
+  console.error('live-check: Playwright missing; run `npm --prefix web/spa ci`')
+  process.exit(2)
+}
 
-const totals = { screens: 0, failedScreens: 0, console: 0, page: 0, requestFailed: 0, http: 0, overflow: 0, timeout: 0 }
+const totals = { screens: 0, failedScreens: 0, console: 0, page: 0, requestFailed: 0, http: 0, theme: 0, overflow: 0, timeout: 0 }
 
 async function checkScreen(browser, theme, width, route) {
   const context = await browser.newContext({ viewport: { width, height: 900 }, serviceWorkers: 'block', baseURL: base })
   const page = await context.newPage()
   await page.addInitScript(t => localStorage.setItem('school-theme', t), theme)
-  const c = { console: 0, page: 0, requestFailed: 0, http: 0, overflow: 0, timeout: 0 }
+  const c = { console: 0, page: 0, requestFailed: 0, http: 0, theme: 0, overflow: 0, timeout: 0 }
   page.on('console', m => { if (m.type() === 'error') c.console++ })
   page.on('pageerror', () => { c.page++ })
   page.on('requestfailed', () => { c.requestFailed++ })
@@ -57,12 +63,15 @@ async function checkScreen(browser, theme, width, route) {
     const response = route.api
       ? page.waitForResponse(r => new URL(r.url()).pathname === route.api && r.ok(), { timeout: 30_000 })
       : null
+    response?.catch(() => {})
     await page.goto(`/app/${route.path}`, { waitUntil: 'load', timeout: 30_000 })
     await response
     await page.locator(route.ready).first().waitFor({ timeout: 30_000 })
+    const applied = await page.evaluate(() => document.documentElement.dataset.theme)
+    if (applied !== theme) c.theme++
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
     if (over > 0) c.overflow++
-    mkdirSync(shots, { recursive: true })
+    mkdirSync(shots, { recursive: true, mode: 0o700 })
     await page.screenshot({ path: `${shots}/${route.path.replace('/', '-') || 'today'}-${theme}-${width}.png`, fullPage: true })
   } catch {
     c.timeout++
@@ -71,14 +80,20 @@ async function checkScreen(browser, theme, width, route) {
   return c
 }
 
-const browser = await chromium.launch()
+let browser
+try {
+  browser = await chromium.launch()
+} catch {
+  console.error('live-check: cannot start Chromium; run `npx --prefix web/spa playwright install chromium`')
+  process.exit(2)
+}
 try {
   for (const theme of THEMES) {
     for (const width of WIDTHS) {
       for (const route of ROUTES) {
         const c = await checkScreen(browser, theme, width, route)
         totals.screens++
-        for (const k of Object.keys(c)) totals[k === 'console' ? 'console' : k] += c[k]
+        for (const k of Object.keys(c)) totals[k] += c[k]
         if (Object.values(c).some(n => n > 0)) totals.failedScreens++
       }
     }
@@ -87,11 +102,11 @@ try {
   await browser.close()
 }
 
-const problems = totals.console + totals.page + totals.requestFailed + totals.http + totals.overflow + totals.timeout
+const problems = totals.console + totals.page + totals.requestFailed + totals.http + totals.theme + totals.overflow + totals.timeout
 console.log(
-  `live-check: screens=${totals.screens} failed_screens=${totals.failedScreens} console_errors=${totals.console} `
-  `page_errors=${totals.page} request_failures=${totals.requestFailed} http_4xx_5xx=${totals.http} `
-  `overflow=${totals.overflow} load_timeouts=${totals.timeout}`,
+  `live-check: screens=${totals.screens} failed_screens=${totals.failedScreens} console_errors=${totals.console} ` +
+  `page_errors=${totals.page} request_failures=${totals.requestFailed} http_4xx_5xx=${totals.http} ` +
+  `theme_mismatch=${totals.theme} overflow=${totals.overflow} load_timeouts=${totals.timeout}`,
 )
 console.log(problems === 0 ? 'LIVE-CHECK: PASS' : 'LIVE-CHECK: FAIL')
 process.exit(problems === 0 ? 0 : 1)
