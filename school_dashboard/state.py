@@ -390,6 +390,14 @@ def update_from_ixl_files(state: dict, ixl_dir: str = "/tmp/ixl") -> int:
         count += 1
     if not files:
         unavailable[scrape.ANY_CHILD] = scrape.MISSING
+    else:
+        # school-sync.sh deletes a failed child's file: a roster child that had data but has no
+        # file now is unavailable. One that never had IXL data is not (no account, no alarm).
+        seen = {_canonicalize(f.stem.replace("-assigned", "")) for f in files}
+        for r in get_roster():
+            name = _canonicalize(r["name"])
+            if name not in seen and (state.get("ixl") or {}).get(name):
+                unavailable[name] = scrape.MISSING
     scrape.set_unavailable(state, "ixl", unavailable)
     return count
 
