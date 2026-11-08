@@ -113,6 +113,7 @@ clients share one bucket. Set `TRUSTED_PROXY_COUNT=1` (two chained proxies: `2`)
 many places from the right instead. Entries further left are client-controlled and ignored; a missing, oversize or unparseable
 header falls back to the peer address. Valid values are 0-10; anything else counts as 0.
 
+WARNING: this repo's own `docker-compose.yml` publishes `5000:5000` on all interfaces, so as shipped `TRUSTED_PROXY_COUNT` must stay 0.
 Precondition: Flask's port must be reachable only through the proxy. In compose, publish it on the proxy interface
 (for example `127.0.0.1:5000:5000` or the Tailscale/docker-network address), not `0.0.0.0`. Otherwise a client that connects
 directly can send its own `X-Forwarded-For` and pick a fresh limiter bucket per request. The proxy must also append to (not
@@ -121,6 +122,12 @@ edit any server compose file; make that change on the server first, then set the
 
 ## Content-Security-Policy (report-only)
 
-`/app/*` and `/legacy` send `Content-Security-Policy-Report-Only` (policy: `web/app.py::CSP_REPORT_ONLY`; nothing is blocked).
+`/app/*` and `/legacy` send `Content-Security-Policy-Report-Only` (policy: `school_dashboard/csp.py::CSP_REPORT_ONLY`; nothing is blocked).
 Browsers post violations to `/api/csp-report`, which only counts them: look for `CSP reports so far:` in the server log.
+The body of a report is never read or logged, so the browser console (DevTools, "Content Security Policy" messages) is the place to see *which* directive a page violates; check it on `/app/` and `/legacy` before enforcing. Because `'unsafe-inline'` is allowed, an injected inline script produces no report until nonces exist.
 Enforcing needs the inline theme script in `web/spa/index.html` and the legacy page's inline scripts to move to nonces or files first.
+
+## Finding a sync error
+
+`/api/sync/status` only says "Sync failed. See the server log for details." The detail is in the container log:
+`docker logs <container> 2>&1 | grep 'Sync error'`.

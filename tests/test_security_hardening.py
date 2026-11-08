@@ -4,7 +4,7 @@ import logging
 import pytest
 
 import web.app as app_module
-from school_dashboard import maintenance
+from school_dashboard import csp, maintenance
 from school_dashboard.rate_limit import trusted_client_ip
 from web.app import app as flask_app
 
@@ -24,12 +24,36 @@ TOKEN = "TESTTOKEN123-abcdefghijklmnopqrstuvwxyz"
     ("10.0.0.1", "not-an-ip", 1, "10.0.0.1"),                        # garbage
     ("10.0.0.1", "203.0.113.5:8080", 1, "10.0.0.1"),
     ("10.0.0.1", "unknown", 1, "10.0.0.1"),
-    ("10.0.0.1", "1.2.3.4, " + "x" * 5000, 1, "10.0.0.1"),           # oversize header
+    ("10.0.0.1", "x" * 5000, 1, "10.0.0.1"),                         # oversize, nothing usable
+    ("10.0.0.1", "x" * 2000 + ", 203.0.113.5", 1, "203.0.113.5"),    # oversize: right-hand entry intact
+    ("10.0.0.1", "x" * 2000 + ", 203.0.113.5", 2, "10.0.0.1"),       # oversize: too short after truncation
+    ("10.0.0.1", "1.2.3.4:5678", 1, "10.0.0.1"),                     # port suffix
+    ("10.0.0.1", "[::1]:80", 1, "10.0.0.1"),
+    ("10.0.0.1", "::ffff:192.0.2.7", 1, "::ffff:192.0.2.7"),
     ("10.0.0.1", "2001:db8::7", 1, "2001:db8::7"),
     ("10.0.0.1", " 203.0.113.5 ", 1, "203.0.113.5"),
 ])
 def test_trusted_client_ip(remote, xff, n, expected):
     assert trusted_client_ip(remote, xff, n) == expected
+
+
+def test_zone_id_and_mapped_ipv6_group_like_plain_addresses():
+    from school_dashboard.rate_limit import client_key
+    assert client_key(trusted_client_ip("10.0.0.1", "fe80::1%eth0", 1)) == "fe80::/64"
+    assert client_key(trusted_client_ip("10.0.0.1", "::ffff:192.0.2.7", 1)) == "192.0.2.7"
+
+
+def test_invalid_env_value_warns_once(caplog):
+    from school_dashboard import rate_limit
+    rate_limit._warned_proxy_values.clear()
+    with caplog.at_level(logging.WARNING):
+        assert rate_limit.trusted_proxy_count("abc") == 0
+        assert rate_limit.trusted_proxy_count("abc") == 0
+        assert rate_limit.trusted_proxy_count("") == 0
+        assert rate_limit.trusted_proxy_count(None) == 0
+        assert rate_limit.trusted_proxy_count("3") == 3
+    warnings = [r for r in caplog.records if "TRUSTED_PROXY_COUNT" in r.getMessage()]
+    assert len(warnings) == 1
 
 
 # -- limiter integration ------------------------------------------------------
@@ -83,10 +107,14 @@ def test_garbage_forwarded_for_uses_remote_addr(client, monkeypatch):
 
 # -- CSP report-only ----------------------------------------------------------
 
-CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-       "style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
-       "manifest-src 'self'; worker-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; "
-       "form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report")
+CSP = app_module.CSP_REPORT_ONLY
+
+
+@pytest.fixture(autouse=True)
+def reset_csp_counters():
+    csp.reset()
+    yield
+    csp.reset()
 
 
 @pytest.fixture
@@ -106,7 +134,7 @@ def test_html_pages_carry_report_only_csp(web, path):
     assert "Content-Security-Policy" not in r.headers  # never enforced
 
 
-@pytest.mark.parametrize("path", ["/api/sync/status", "/api/sync/meta"])
+@pytest.mark.parametrize("path", ["/api/sync/status", "/api/sync/meta", "/app/sw.js", "/app/assets/x.js"])
 def test_non_html_has_no_csp(web, path):
     assert "Content-Security-Policy-Report-Only" not in web.get(path).headers
 
@@ -125,7 +153,35 @@ def test_csp_report_oversize_still_204_body_unlogged(web, caplog):
     with caplog.at_level(logging.INFO):
         r = web.post("/api/csp-report", data="A" * 100_000 + "SECRETMARK", content_type="application/csp-report")
     assert r.status_code == 204
+    assert csp.counts() == {"received": 0, "oversize": 1}
     assert "SECRETMARK" not in caplog.text
+
+
+def test_csp_report_without_content_length_counts_as_received(web):
+    # No Content-Length -> treated as 0 bytes -> "received"; the body is never read either way.
+    web.post("/api/csp-report")
+    assert csp.counts() == {"received": 1, "oversize": 0}
+
+
+def _csp_log_lines(caplog):
+    return [r.getMessage() for r in caplog.records if "CSP reports so far" in r.getMessage()]
+
+
+def test_csp_log_throttle_first_ten_then_every_hundredth(web, caplog):
+    def post(n):
+        for _ in range(n):
+            web.post("/api/csp-report", data="{}")
+
+    with caplog.at_level(logging.INFO):
+        post(11)
+        assert len(_csp_log_lines(caplog)) == 10
+        post(88)  # total 99
+        assert len(_csp_log_lines(caplog)) == 10
+        post(1)  # the 100th
+        assert len(_csp_log_lines(caplog)) == 11
+        post(1)  # 101st
+        assert len(_csp_log_lines(caplog)) == 11
+    assert csp.counts()["received"] == 101
 
 
 def test_csp_report_not_blocked_by_maintenance(web, monkeypatch):

@@ -5,6 +5,7 @@ per process, so with several workers each keeps its own count. Behind a reverse 
 the proxy, so all clients share one bucket unless TRUSTED_PROXY_COUNT opts in to `trusted_client_ip`.
 """
 import ipaddress
+import logging
 import math
 import threading
 import time
@@ -27,15 +28,28 @@ def client_key(addr: Optional[str]) -> str:
 
 MAX_TRUSTED_PROXIES = 10
 _MAX_XFF_LEN = 1024
+_log = logging.getLogger(__name__)
+_warned_proxy_values: set = set()
 
 
 def trusted_proxy_count(raw: Optional[str]) -> int:
-    """Parse TRUSTED_PROXY_COUNT: an int in 0..MAX_TRUSTED_PROXIES, anything else -> 0 (header ignored)."""
-    try:
-        n = int((raw or "0").strip())
-    except ValueError:
+    """Parse TRUSTED_PROXY_COUNT: an int in 0..MAX_TRUSTED_PROXIES; unset/empty -> 0.
+
+    A non-empty invalid or out-of-range value also gives 0 (header ignored) and logs one WARNING per distinct value.
+    """
+    text = (raw or "").strip()
+    if not text:
         return 0
-    return n if 0 <= n <= MAX_TRUSTED_PROXIES else 0
+    try:
+        n = int(text)
+    except ValueError:
+        n = -1
+    if 0 <= n <= MAX_TRUSTED_PROXIES:
+        return n
+    if text[:32] not in _warned_proxy_values:
+        _warned_proxy_values.add(text[:32])
+        _log.warning("TRUSTED_PROXY_COUNT is not an integer 0-%d; X-Forwarded-For is ignored", MAX_TRUSTED_PROXIES)
+    return 0
 
 
 def trusted_client_ip(remote_addr: Optional[str], forwarded_for: Optional[str], trusted: int) -> Optional[str]:
@@ -43,16 +57,19 @@ def trusted_client_ip(remote_addr: Optional[str], forwarded_for: Optional[str], 
 
     With trusted == 0 (default) X-Forwarded-For is ignored. Otherwise the entry `trusted` places from the
     right is used (each trusted proxy appends the address it saw); entries to its left are client-controlled
-    and never read. Missing, oversize, too-short or unparseable headers fall back to remote_addr.
+    and never read. A header over 1024 characters is cut to its tail and its possibly truncated first entry
+    dropped. Missing, too-short or unparseable headers fall back to remote_addr.
     """
-    if trusted <= 0 or not forwarded_for or len(forwarded_for) > _MAX_XFF_LEN:
+    if trusted <= 0 or not forwarded_for:
         return remote_addr
-    hops = [h.strip() for h in forwarded_for.split(",")]
+    truncated = len(forwarded_for) > _MAX_XFF_LEN
+    hops = [h.strip() for h in forwarded_for[-_MAX_XFF_LEN:].split(",")]
+    if truncated:
+        hops = hops[1:]
     if len(hops) < trusted:
         return remote_addr
-    candidate = hops[-trusted]
     try:
-        return str(ipaddress.ip_address(candidate))
+        return str(ipaddress.ip_address(hops[-trusted]))
     except ValueError:
         return remote_addr
 

@@ -14,7 +14,8 @@ from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, gc_warnings, powerschool_warnings, scrape_warnings
 from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
-from school_dashboard import maintenance, paths, powerschool
+from school_dashboard import csp, maintenance, paths, powerschool
+from school_dashboard.csp import CSP_REPORT_ONLY  # noqa: F401  (re-exported for tests and docs)
 from school_dashboard.rate_limit import FailureLimiter, client_key, trusted_client_ip, trusted_proxy_count
 from school_dashboard.sources import source_enabled
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta
@@ -25,40 +26,8 @@ _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _MAINTENANCE_RETRY_AFTER = "60"
 # /api/chat only reads state and calls the LLM; it persists nothing.
 # /api/csp-report only counts browser reports; it persists nothing.
-_MAINTENANCE_EXEMPT = frozenset({"/api/chat", "/api/csp-report"})
-
-# Report-only: nothing is blocked. 'unsafe-inline' is needed by the SPA's theme bootstrap script, the legacy page's
-# inline scripts/handlers/styles; cdn.jsdelivr.net serves marked + DOMPurify (SRI-pinned) to /legacy.
-CSP_REPORT_ONLY = (
-    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-    "style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
-    "manifest-src 'self'; worker-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; "
-    "form-action 'self'; frame-ancestors 'self'; report-uri /api/csp-report"
-)
-_CSP_PAGES = frozenset({"spa", "legacy_index"})
-_CSP_MAX_REPORT_BYTES = 8192
-_csp_counts = {"received": 0, "oversize": 0}
-_csp_lock = threading.Lock()
-
-
-@app.after_request
-def _add_csp_report_only(resp):
-    if request.endpoint in _CSP_PAGES:
-        resp.headers["Content-Security-Policy-Report-Only"] = CSP_REPORT_ONLY
-    return resp
-
-
-@app.route("/api/csp-report", methods=["POST"])
-def api_csp_report():
-    """Browser CSP violation sink. The body is never read, parsed or logged: counts only."""
-    key = "received" if (request.content_length or 0) <= _CSP_MAX_REPORT_BYTES else "oversize"
-    with _csp_lock:
-        _csp_counts[key] += 1
-        total = _csp_counts["received"] + _csp_counts["oversize"]
-        snapshot = dict(_csp_counts)
-    if total <= 10 or total % 100 == 0:
-        app.logger.info("CSP reports so far: received=%d oversize=%d", snapshot["received"], snapshot["oversize"])
-    return "", 204
+_MAINTENANCE_EXEMPT = frozenset({"/api/chat", csp.REPORT_PATH})
+csp.init_app(app)
 
 
 @app.before_request
