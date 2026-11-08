@@ -9,7 +9,7 @@
 // errors, failed requests, 4xx/5xx (favicon aside) and horizontal overflow. Saves screenshots.
 // Output: COUNTS ONLY. Never page text, URLs or data values. Exit 1 on any problem, 2 on bad usage.
 import { createRequire } from 'node:module'
-import { mkdirSync } from 'node:fs'
+import { chmodSync, mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 // Keep in step with ROUTES in web/spa/e2e/shared.ts.
@@ -29,6 +29,7 @@ const THEMES = ['midnight', 'daylight']
 const WIDTHS = [375, 1440]
 const ALLOWED_4XX = [/\/favicon\.ico$/]
 
+process.umask(0o077)
 const base = (process.argv[2] ?? process.env.BASE_URL ?? 'http://127.0.0.1:5000').replace(/\/+$/, '')
 if (!/^https?:\/\/[A-Za-z0-9.:_-]+$/.test(base)) {
   console.error('live-check: BASE_URL must look like http(s)://host[:port]')
@@ -72,6 +73,7 @@ async function checkScreen(browser, theme, width, route) {
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
     if (over > 0) c.overflow++
     mkdirSync(shots, { recursive: true, mode: 0o700 })
+    chmodSync(shots, 0o700)
     await page.screenshot({ path: `${shots}/${route.path.replace('/', '-') || 'today'}-${theme}-${width}.png`, fullPage: true })
   } catch {
     c.timeout++
