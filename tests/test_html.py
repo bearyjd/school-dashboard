@@ -54,3 +54,27 @@ def test_build_urgent_items_filters_and_sorts():
     assert urgent[2]["urgency"] == "tomorrow"
     # Child name attached
     assert urgent[0]["child"] == "Alice"
+
+
+def test_embedded_state_json_cannot_break_out_of_script(tmp_path):
+    """A scraped title with </script> must not end the state-json block (same origin as /app/)."""
+    import json
+    import re
+    from school_dashboard.html import render
+
+    evil = '</script><script>alert(1)</script> & <!--    "q"'
+    state = {
+        "last_updated": "now",
+        "children": {"Kid": {"grade": "5"}},
+        "ixl": {},
+        "action_items": [{"title": evil, "status": "pending", "child": "Kid"}],
+        "schoology": {"Kid": {"assignments": [{"title": evil, "course": "C", "due_date": None}], "grades": []}},
+    }
+    page = render(state, str(tmp_path / "d.html")).read_text()
+    assert "<script>alert(1)" not in page
+    m = re.search(r'<script id="state-json" type="application/json">(.*?)</script>', page, re.S)
+    assert m, "state-json block missing"
+    block = m.group(1)
+    assert "<" not in block and ">" not in block and "&" not in block
+    assert " " not in block and " " not in block
+    assert json.loads(block) == state
