@@ -4,7 +4,7 @@ import json
 import logging
 import sqlite3
 from contextlib import closing
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Literal
 from pathlib import Path
 
@@ -83,9 +83,9 @@ def _call_litellm(prompt: str, litellm_url: str, api_key: str, model: str) -> st
     return chat_completion(prompt, litellm_url, api_key, model, max_tokens=600, timeout=60)
 
 
-def _warning_parts(state: dict) -> tuple[str, str]:
+def _warning_parts(state: dict, now: datetime | None = None) -> tuple[str, str]:
     """(block before a following paragraph, block after a preceding one); both "" when healthy."""
-    block = scrape_meta.data_warnings_block(state)
+    block = scrape_meta.data_warnings_block(state, now)
     return (f"{block}\n\n", f"\n\n{block}") if block else ("", "")
 
 
@@ -225,6 +225,7 @@ def build_morning_digest(
     model: str,
     today: str | None = None,
     gc_path: str | None = None,
+    now: datetime | None = None,
 ) -> tuple[str, list[dict]]:
     """Build a morning briefing: what does today hold?"""
     today = today or date.today().isoformat()
@@ -265,7 +266,7 @@ def build_morning_digest(
     )
 
     ps_section = _powerschool_section(state, today)
-    warn_pre, _ = _warning_parts(state)
+    warn_pre, _ = _warning_parts(state, now)
 
     prompt = f"""You are a family assistant sending a morning briefing push notification. Be brief, warm, and practical. Max 200 words.
 
@@ -325,6 +326,7 @@ def build_afternoon_digest(
     today: str | None = None,
     db_path: str | None = None,
     gc_path: str | None = None,
+    now: datetime | None = None,
 ) -> tuple[str, list[dict]]:
     """Build an afternoon homework check: did the kids do their work?"""
     today = today or date.today().isoformat()
@@ -356,7 +358,7 @@ def build_afternoon_digest(
     )
 
     ps_section = _powerschool_section(state, today)
-    warn_pre, _ = _warning_parts(state)
+    warn_pre, _ = _warning_parts(state, now)
 
     prompt = f"""You are a family assistant sending an afternoon homework check push notification. Be direct. Max 150 words.
 
@@ -416,6 +418,7 @@ def build_night_digest(
     model: str,
     tomorrow: str | None = None,
     gc_path: str | None = None,
+    now: datetime | None = None,
 ) -> tuple[str, list[dict]]:
     """Build a night prep summary: what do we need ready for tomorrow?"""
     tomorrow = tomorrow or (date.today() + timedelta(days=1)).isoformat()
@@ -450,7 +453,7 @@ def build_night_digest(
         or "None"
     )
 
-    warn_pre, _ = _warning_parts(state)
+    warn_pre, _ = _warning_parts(state, now)
 
     prompt = f"""You are a family assistant sending a night prep push notification. Be brief and actionable. Max 150 words.
 
@@ -513,6 +516,7 @@ def build_weekly_digest(
     days_ahead: int = 7,
     today: str | None = None,
     gc_path: str | None = None,
+    now: datetime | None = None,
 ) -> tuple[str, list[dict]]:
     """Build a weekly digest: friday=week in review, sunday=week ahead preview."""
     _today = date.fromisoformat(today) if today else date.today()
@@ -558,7 +562,7 @@ def build_weekly_digest(
         or "None"
     )
 
-    _, warn_post = _warning_parts(state)
+    _, warn_post = _warning_parts(state, now)
 
     if mode == "friday":
         prompt = f"""You are writing a Friday afternoon school summary for a parent. Summarize the week: what's still outstanding per child, IXL progress, anything that needs attention over the weekend. Be concise — 3-5 bullet points per child max.

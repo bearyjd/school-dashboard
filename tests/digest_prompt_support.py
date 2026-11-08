@@ -23,7 +23,7 @@ def _resp() -> MagicMock:
     return r
 
 
-def capture_all(tmp: Path, state: dict) -> dict:
+def capture_all(tmp: Path, state: dict, now=None) -> dict:
     """{builder name: messages sent to requests.post} for the four LLM builders (weekly: both modes)."""
     sp, fp, dp = tmp / "s.json", tmp / "f.json", tmp / "s.db"
     sp.write_text(json.dumps(state))
@@ -34,11 +34,11 @@ def capture_all(tmp: Path, state: dict) -> dict:
     conn.close()
     llm = ("http://x", "k", "m")
     calls = {
-        "morning": lambda: digest.build_morning_digest(str(sp), str(dp), str(fp), [], *llm, today="2026-04-10"),
-        "afternoon": lambda: digest.build_afternoon_digest(str(sp), *llm, today="2026-04-10"),
-        "night": lambda: digest.build_night_digest(str(sp), str(dp), str(fp), [], *llm, tomorrow="2026-04-11"),
-        "friday": lambda: digest.build_weekly_digest("friday", str(sp), str(dp), str(fp), *llm, today="2026-04-10"),
-        "sunday": lambda: digest.build_weekly_digest("sunday", str(sp), str(dp), str(fp), *llm, today="2026-04-12"),
+        "morning": lambda: digest.build_morning_digest(str(sp), str(dp), str(fp), [], *llm, today="2026-04-10", now=now),
+        "afternoon": lambda: digest.build_afternoon_digest(str(sp), *llm, today="2026-04-10", now=now),
+        "night": lambda: digest.build_night_digest(str(sp), str(dp), str(fp), [], *llm, tomorrow="2026-04-11", now=now),
+        "friday": lambda: digest.build_weekly_digest("friday", str(sp), str(dp), str(fp), *llm, today="2026-04-10", now=now),
+        "sunday": lambda: digest.build_weekly_digest("sunday", str(sp), str(dp), str(fp), *llm, today="2026-04-12", now=now),
     }
     out = {}
     for name, fn in calls.items():
