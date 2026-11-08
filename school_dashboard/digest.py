@@ -83,6 +83,12 @@ def _call_litellm(prompt: str, litellm_url: str, api_key: str, model: str) -> st
     return chat_completion(prompt, litellm_url, api_key, model, max_tokens=600, timeout=60)
 
 
+def _warning_parts(state: dict) -> tuple[str, str]:
+    """(block before a following paragraph, block after a preceding one); both "" when healthy."""
+    block = scrape_meta.data_warnings_block(state)
+    return (f"{block}\n\n", f"\n\n{block}") if block else ("", "")
+
+
 def _assignments_due_on(state: dict, target_date: str) -> list[dict]:
     """Return Schoology assignments with due_date matching target_date (YYYY-MM-DD)."""
     out = []
@@ -259,6 +265,7 @@ def build_morning_digest(
     )
 
     ps_section = _powerschool_section(state, today)
+    warn_pre, _ = _warning_parts(state)
 
     prompt = f"""You are a family assistant sending a morning briefing push notification. Be brief, warm, and practical. Max 200 words.
 
@@ -285,7 +292,7 @@ Extracurricular events (today + 2 days):
 {ps_section}Known facts (recurring activities):
 {facts_str}
 
-Write a short morning briefing: what does today hold? Mention anything urgent first."""
+{warn_pre}Write a short morning briefing: what does today hold? Mention anything urgent first."""
 
     cards: list[dict] = []
     for a in assignments:
@@ -349,6 +356,7 @@ def build_afternoon_digest(
     )
 
     ps_section = _powerschool_section(state, today)
+    warn_pre, _ = _warning_parts(state)
 
     prompt = f"""You are a family assistant sending an afternoon homework check push notification. Be direct. Max 150 words.
 
@@ -369,7 +377,7 @@ Action items due today:
 Extracurricular events today:
 {gc_str}
 
-{ps_section}Write a brief afternoon check-in: what homework still needs to be done? Flag anything urgent."""
+{ps_section}{warn_pre}Write a brief afternoon check-in: what homework still needs to be done? Flag anything urgent."""
 
     cards: list[dict] = []
     for a in due_today:
@@ -442,6 +450,8 @@ def build_night_digest(
         or "None"
     )
 
+    warn_pre, _ = _warning_parts(state)
+
     prompt = f"""You are a family assistant sending a night prep push notification. Be brief and actionable. Max 150 words.
 
 Tomorrow: {tomorrow}
@@ -464,7 +474,7 @@ Extracurricular events tomorrow:
 Known facts (recurring activities):
 {facts_str}
 
-Write a brief night summary: what do we need to have ready for tomorrow? Mention gear, forms, early wake-ups, or anything to prepare tonight."""
+{warn_pre}Write a brief night summary: what do we need to have ready for tomorrow? Mention gear, forms, early wake-ups, or anything to prepare tonight."""
 
     cards: list[dict] = []
     for a in assignments:
@@ -548,6 +558,8 @@ def build_weekly_digest(
         or "None"
     )
 
+    _, warn_post = _warning_parts(state)
+
     if mode == "friday":
         prompt = f"""You are writing a Friday afternoon school summary for a parent. Summarize the week: what's still outstanding per child, IXL progress, anything that needs attention over the weekend. Be concise — 3-5 bullet points per child max.
 
@@ -566,7 +578,7 @@ Extracurricular events next {days_ahead} days:
 {gc_str}
 
 Known facts:
-{facts_str}"""
+{facts_str}{warn_post}"""
     else:
         prompt = f"""You are writing a Sunday evening school preview for a parent. Summarize what's coming up this week: assignments due with dates, school events, and IXL targets to hit. Be practical and forward-looking — help the parent plan.
 
@@ -585,7 +597,7 @@ Extracurricular events next {days_ahead} days:
 {gc_str}
 
 Known facts:
-{facts_str}"""
+{facts_str}{warn_post}"""
 
     cards: list[dict] = []
     for a in upcoming_assignments:

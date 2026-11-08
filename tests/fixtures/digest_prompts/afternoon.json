@@ -1,0 +1,6 @@
+[
+ {
+  "role": "user",
+  "content": "You are a family assistant sending an afternoon homework check push notification. Be direct. Max 150 words.\n\nToday: 2026-04-10\n\nAssignments due TODAY (should already be done or being done now):\n- Alpha: Math HW (Math)\n\nAssignments due TOMORROW (should be started):\n- Alpha: Essay (ELA)\n\nIXL work still remaining:\n- Alpha: Math (3 remaining)\n\nAction items due today:\n- Alpha: Return form\n\nExtracurricular events today:\nNone\n\nWrite a brief afternoon check-in: what homework still needs to be done? Flag anything urgent."
+ }
+]

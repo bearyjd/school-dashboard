@@ -1,0 +1,6 @@
+[
+ {
+  "role": "user",
+  "content": "You are a family assistant sending a morning briefing push notification. Be brief, warm, and practical. Max 200 words.\n\nToday: 2026-04-10\n\nSchool calendar events today:\nNone\n\nFamily calendar today (Google Calendar):\nNone\n\nAssignments due today:\n- Alpha: Math HW (Math)\n\nIXL work remaining:\n- Alpha: Math (3 remaining)\n\nAction items due today:\n- Alpha: Return form\n\nExtracurricular events (today + 2 days):\nNone\n\nKnown facts (recurring activities):\n- [Alpha] Soccer on Tuesdays\n\nWrite a short morning briefing: what does today hold? Mention anything urgent first."
+ }
+]

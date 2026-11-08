@@ -114,3 +114,17 @@ def scrape_warnings(state: dict, now: Optional[datetime] = None) -> list:
             tail = f"showing the last good data from {good}" if good else "no earlier data to show"
             out.append(f"{who}: {phrase}; {tail}{_age(entry, now)}")
     return out
+
+
+WARNING_INSTRUCTION = (
+    "If DATA WARNINGS lists an unavailable source, say so in one short line and do not "
+    "present that source's items as complete or as 'all done'."
+)
+
+
+def data_warnings_block(state: dict, now: Optional[datetime] = None) -> str:
+    """Prompt text for the LLM digests: a DATA WARNINGS list plus one instruction; "" when healthy."""
+    warnings = scrape_warnings(state, now or _utc_now())
+    if not warnings:
+        return ""
+    return "DATA WARNINGS:\n" + "\n".join(f"- {w}" for w in warnings) + "\n" + WARNING_INSTRUCTION
