@@ -9,7 +9,7 @@ git clone --recurse-submodules <repo>
 cd school-dashboard
 cp .env.example config/env        # fill in secrets
 mkdir -p state
-# drop 2025-2026 calendar PDF → state/calendar.pdf
+# (no PDF import; load calendar JSON with `school-state calendar import <file>`)
 gog auth add EMAIL                # one-time Google OAuth (host machine)
 docker compose up -d
 ```

@@ -24,7 +24,7 @@ should know about before picking up a bug report in this repo.
 ```bash
 git clone --recurse-submodules <repo>
 cp .env.example config/env        # fill in secrets
-# drop 2025-2026 calendar PDF into state/calendar.pdf
+# (no PDF import; load calendar JSON with `school-state calendar import <file>`)
 gog auth add EMAIL                # one-time Google OAuth setup
 docker compose up -d
 # Access SPA at https://school.grepon.cc/app (install to homescreen for PWA)
@@ -222,7 +222,7 @@ docker/
 | `email-digest.json` | Latest classified Gmail digest |
 | `gc-schedule.json` | Latest GameChanger schedule: `{scraped_at, teams: [{team_id, team_name, child, schedule: [{date, time, type, opponent, location, home_away}]}]}` |
 | `sync_meta.json` | Per-source scrape timestamps: `{ixl: {last_run, last_result}, sgy: ..., gc: ...}` |
-| `calendar.pdf` | Source PDF (drop in manually each school year) |
+| `calendar.pdf` | Legacy path only (`paths.calendar_pdf_path()`, `dry_run.py`); nothing imports a PDF |
 
 ## Config
 

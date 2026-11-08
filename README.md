@@ -99,7 +99,7 @@ Path overrides (default to `/app/state/` inside Docker):
 
 ```
 SCHOOL_STATE_PATH, SCHOOL_DB_PATH, SCHOOL_FACTS_PATH,
-SCHOOL_EMAIL_DIGEST, SCHOOL_CALENDAR_PDF, SCHOOL_GC_PATH,
+SCHOOL_EMAIL_DIGEST, SCHOOL_CALENDAR_PDF (legacy, unused by any importer), SCHOOL_GC_PATH,
 SCHOOL_SYNC_META_PATH
 ```
 
@@ -115,7 +115,7 @@ All gitignored, stored in `state/`:
 | `email-digest.json` | Latest classified Gmail digest |
 | `gc-schedule.json` | Latest GameChanger schedule: `{scraped_at, teams: [{team_id, team_name, schedule: [...]}]}` |
 | `sync_meta.json` | Per-source scrape timestamps: `{ixl: {last_run, last_result}, sgy: ..., gc: ..., powerschool: ...}` |
-| `calendar.pdf` | Source PDF (drop in manually each school year) |
+| `calendar.pdf` | Legacy path only (`paths.calendar_pdf_path()`, `dry_run.py`); nothing imports a PDF |
 
 ## API Endpoints
 
