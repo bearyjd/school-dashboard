@@ -90,6 +90,7 @@ def _extract_pdf_text(pdf_path: str, max_chars: int = SNIPPET_ATTACHMENT_CHARS) 
         text = re.sub(r"\s+", " ", text).strip()
         return text[:max_chars]
     except Exception:
+        logger.warning("Failed to extract text from PDF attachment %s", pdf_path, exc_info=True)
         return ""
 
 

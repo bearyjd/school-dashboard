@@ -51,7 +51,8 @@ def _query_db_events(db_path: str, target_date: str) -> list[dict]:
                 (target_date,),
             ).fetchall()
             return _collapse_events([dict(r) for r in rows])
-    except Exception:
+    except (sqlite3.Error, OSError):
+        _log.warning("Failed to query digest events for %s from %s", target_date, db_path, exc_info=True)
         return []
 
 

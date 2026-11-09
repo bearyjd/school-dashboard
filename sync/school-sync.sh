@@ -76,7 +76,12 @@ maintenance_skip "sync" && exit 0
 # Helper: write sync metadata for a source (non-fatal)
 write_sync_meta() {
     local source="$1" result="$2"
-    python3 -c "import sys; from school_dashboard.sync_meta import write_sync_source; write_sync_source(sys.argv[1], sys.argv[2])" "$source" "$result" 2>/dev/null || true
+    local err rc=0
+    err="$(python3 -c "import sys; from school_dashboard.sync_meta import write_sync_source; write_sync_source(sys.argv[1], sys.argv[2])" "$source" "$result" 2>&1)" || rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+        log "WARN: could not record sync result for $source ($result) (rc=$rc): $(printf '%s' "$err" | tail -n 3 | tr '\n' ' ')"
+    fi
+    return 0
 }
 
 # Helper: per-source toggle. SOURCE_<NAME>_ENABLED defaults to enabled; 0/false/no/off disables.
@@ -190,12 +195,25 @@ if ! source_enabled sgy; then
     pause_source sgy
 elif command -v sgy &>/dev/null; then
     log "Running Schoology scrape..."
-    if sgy summary --json > "$SGY_FILE" 2>/dev/null; then
+    # Write to a private temp file next to $SGY_FILE and replace it only on a clean exit AND
+    # a non-empty JSON object, so a failed/truncated scrape never clobbers the last good one.
+    # CLI stderr goes to a second temp file; only its last 20 lines are appended to the sync log.
+    SGY_CHECK='import json, sys; d = json.load(open(sys.argv[1])); sys.exit(0 if isinstance(d, dict) and d else 1)'
+    sgy_tmp=""
+    sgy_err=""
+    if sgy_tmp="$(mktemp "${SGY_FILE}.XXXXXX" 2>/dev/null)" \
+        && sgy_err="$(mktemp "${STATE_DIR}/.sgy-stderr.XXXXXX" 2>/dev/null)" \
+        && sgy summary --json > "$sgy_tmp" 2>"$sgy_err" \
+        && python3 -c "$SGY_CHECK" "$sgy_tmp" 2>/dev/null; then
+        mv "$sgy_tmp" "$SGY_FILE"
         write_sync_meta "sgy" "ok"
     else
+        [[ -n "$sgy_tmp" ]] && rm -f "$sgy_tmp"
+        [[ -n "$sgy_err" && -s "$sgy_err" ]] && tail -n 20 "$sgy_err" >> "$STATE_DIR/school-sync.log"
         log "WARN: SGY scrape had errors"
         write_sync_meta "sgy" "error"
     fi
+    [[ -n "$sgy_err" ]] && rm -f "$sgy_err"
 else
     log "WARN: sgy command not found — skipping"
 fi

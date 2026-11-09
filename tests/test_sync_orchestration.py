@@ -30,7 +30,10 @@ MAINTENANCE_FLAG = '{"operation_id": "x", "since": "2026-01-01T00:00:00+00:00", 
 BODIES = {
     "ixl": 'cat "$FAKE_DATA/ixl.json"',
     # FAKE_SGY_MAINTENANCE: switch maintenance on while the sync is already running.
-    "sgy": ('[ -n "${FAKE_SGY_MAINTENANCE:-}" ] && echo \'' + MAINTENANCE_FLAG
+    # FAKE_SGY_PARTIAL: write a truncated document plus stderr, then fail. FAKE_SGY_BADJSON: truncated, exit 0.
+    "sgy": ('if [ -n "${FAKE_SGY_PARTIAL:-}" ]; then printf \'{"trunc\'; echo "sgy boom: parse error" >&2; echo "sgy boom line2" >&2; exit 1; fi\n'
+            'if [ -n "${FAKE_SGY_BADJSON:-}" ]; then printf \'{"trunc\'; exit 0; fi\n'
+            '[ -n "${FAKE_SGY_MAINTENANCE:-}" ] && echo \'' + MAINTENANCE_FLAG
             + '\' > "$SCHOOL_STATE_DIR/maintenance.json"\ncat "$FAKE_DATA/sgy.json"'),
     "powerschool": 'cat "$FAKE_DATA/powerschool.json"',
     "gc": ('case "$1" in\n  teams) cat "$FAKE_DATA/gc-teams.json" ;;\n'
@@ -227,3 +230,49 @@ def test_failed_state_update_is_fatal(env):
     assert (env.state / "school-state.json").read_text() == "{ this is not json"  # not overwritten
     assert env.results()["ixl"] == "ok"  # scrapes were recorded before the merge failed
     assert not list(env.state.glob("sync.running.*"))
+
+
+PREVIOUS_SGY = '{"previous": true}'
+
+
+def _sgy_file(env) -> Path:
+    return Path(env.env["SGY_FILE"])
+
+
+def test_sgy_failure_mid_write_keeps_previous_file_and_logs_stderr(env):
+    _sgy_file(env).write_text(PREVIOUS_SGY)
+    r = env.run(FAKE_SGY_PARTIAL="1")
+    assert r.returncode == 0, r.stderr
+    assert _sgy_file(env).read_text() == PREVIOUS_SGY
+    assert env.results()["sgy"] == "error"
+    assert "WARN: SGY scrape had errors" in r.stderr
+    assert "sgy boom: parse error" in (env.state / "school-sync.log").read_text()
+    assert "sgy boom: parse error" not in r.stdout
+    assert not list(_sgy_file(env).parent.glob(f".{_sgy_file(env).name}.*"))  # no temp files left
+
+
+def test_sgy_success_replaces_previous_file(env):
+    _sgy_file(env).write_text(PREVIOUS_SGY)
+    r = env.run()
+    assert r.returncode == 0, r.stderr
+    assert env.results()["sgy"] == "ok"
+    assert "previous" not in json.loads(_sgy_file(env).read_text())
+
+
+def test_sgy_invalid_json_is_not_installed(env):
+    _sgy_file(env).write_text(PREVIOUS_SGY)
+    r = env.run(FAKE_SGY_BADJSON="1")
+    assert r.returncode == 0, r.stderr
+    assert _sgy_file(env).read_text() == PREVIOUS_SGY
+    assert env.results()["sgy"] == "error"
+    assert "WARN: SGY scrape had errors" in r.stderr
+
+
+def test_sync_meta_write_failure_is_logged_but_non_fatal(env):
+    real = subprocess.run(["which", "python3"], capture_output=True, text=True).stdout.strip()
+    wrapper = env.bin / "python3"
+    wrapper.write_text(f'#!/bin/sh\ncase "$*" in *write_sync_source*) echo "meta boom" >&2; exit 1;; esac\nexec {real} "$@"\n')
+    wrapper.chmod(0o755)
+    r = env.run()
+    assert r.returncode == 0, r.stderr
+    assert "WARN: could not record sync result for sgy (ok)" in r.stderr
