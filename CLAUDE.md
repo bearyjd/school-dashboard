@@ -302,15 +302,22 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
   status`/`/api/sync/meta` handlers and in the SPA. If asked to change staleness
   behavior, search `web/app.py` and `web/spa/` for where `last_run` timestamps get
   compared to `datetime.now()`, not `sync_meta.py`.
-- **Vendor pinning:** `vendor/{ixl-scrape,schoology-scrape,gc,powerschool-scrape}` are git submodules
-  pinned to a specific commit each (see `.gitmodules` for URLs). `git submodule
-  update --remote vendor/<name>` moves the pin to that submodule's current default-
-  branch HEAD — this is a manual, unreviewed judgment call with **no automated
-  check** that the new version's JSON output shape still matches what this repo's
-  `state.py`/`readiness.py`/`digest.py` expect (see contract-test gap above). Treat
-  any submodule bump as requiring a manual read of that vendor repo's own
-  CHANGELOG/diff before merging, until `.agent_native/agent_roadmap.md` item 4 is
-  addressed.
+- **Vendor pinning (verified 2026-11-09):** `vendor/{ixl-scrape,schoology-scrape,gc,powerschool-scrape}` are git
+  submodules; the Dockerfile `COPY`s them and `pip install -e`s each, so the image's scraper versions are whatever
+  the submodule checkout contained at build time. **`.github/workflows/docker.yml` runs
+  `git submodule update --remote vendor/ixl-scrape vendor/schoology-scrape` before building**, so those two ship
+  the default-branch HEAD at build time, not the pinned commit (this is how prod ran `sgy 0.4.8` while the index
+  pinned v0.4.7). `gc` and `powerschool-scrape` ship exactly their pin. Keep the pins at what ships: bump the
+  index once a floated scraper's HEAD has been built. The parent-dir `gc-scrape/`, `ixl-scrape/`,
+  `schoology-scrape/` clones are separate upstream checkouts and never what ships. Known behaviour of sgy 0.4.8
+  (what prod runs): the per-course warmup set is populated even if the warmup request fails, so a failed warmup
+  is not retried for that course within a run.
+  Safe bump: in the submodule, `git fetch` then `git log --oneline HEAD..origin/HEAD`; read the diff for changes
+  to the `--json` output shape; `tests/test_contract_*.py` use recorded fixtures, so they do not catch a real shape
+  change (update the fixture if the vendor changed it); check out the new commit, then `git add vendor/<name>`.
+  `tests/test_vendor_pins.py` fails on an empty/uninitialised submodule (the image would silently lack that
+  scraper) and, in CI (`VENDOR_PINS_STRICT=1`, vendors installed with `--no-deps`), on an installed version
+  differing from the vendor's own `pyproject.toml`. Locally run `git submodule update --init` first.
 - **Schoology auto-archive (`schoology_autoarchive.py`, run by `school-state update` after the sgy merge):**
   pending schoology items carry `last_seen`/`missed`; `missed` only increments on a *trusted* scrape (no
   top-level `warnings`, child entry parses, not suspiciously empty). Archived (removed from state, appended to
