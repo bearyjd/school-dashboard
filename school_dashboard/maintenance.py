@@ -95,8 +95,17 @@ def _publish_flag(info: dict, current: Optional[dict]) -> dict:
         Path(tmp).unlink(missing_ok=True)
 
 
-def disable() -> bool:
-    """Clear the flag (even a corrupt one). Returns True if a flag was removed."""
+def disable(operation_id: Optional[str] = None) -> bool:
+    """Clear the flag (even a corrupt one). Returns True if a flag was removed.
+
+    With `operation_id`, only a flag that still carries that id is removed, so a
+    caller never clears a window opened by someone else (check-then-unlink; the
+    gap is microseconds and only matters if another opener replaces it in it).
+    """
+    if operation_id is not None:
+        current = status()
+        if current is None or current.get("operation_id") != operation_id:
+            return False
     try:
         flag_path().unlink()
     except FileNotFoundError:

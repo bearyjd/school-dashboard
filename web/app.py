@@ -14,7 +14,7 @@ from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, gc_warnings, powerschool_warnings, scrape_warnings
 from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
-from school_dashboard import csp, maintenance, paths, powerschool
+from school_dashboard import csp, db, maintenance, paths, powerschool
 from school_dashboard.csp import CSP_REPORT_ONLY  # noqa: F401  (re-exported for tests and docs)
 from school_dashboard.rate_limit import FailureLimiter, client_key, trusted_client_ip, trusted_proxy_count
 from school_dashboard.sources import source_enabled
@@ -67,7 +67,7 @@ def load_upcoming_events(days: int = 30) -> list[dict]:
     try:
         from_date = date.today().isoformat()
         end_date = (date.today() + timedelta(days=days)).isoformat()
-        conn = sqlite3.connect(paths.db_path())
+        conn = db.open_conn(str(paths.db_path()))
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(
             "SELECT date, title, type, child FROM events WHERE date >= ? AND date < ? ORDER BY date",

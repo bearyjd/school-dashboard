@@ -11,7 +11,7 @@ from pathlib import Path
 
 import requests
 
-from school_dashboard import maintenance, powerschool
+from school_dashboard import db, maintenance, powerschool
 from school_dashboard import scrape_meta
 from school_dashboard.state import canonical_name, get_roster
 from school_dashboard.llm import chat_completion
@@ -44,7 +44,7 @@ def _query_db_events(db_path: str, target_date: str) -> list[dict]:
     if not Path(db_path).exists():
         return []
     try:
-        with closing(sqlite3.connect(db_path)) as conn:
+        with closing(db.open_conn(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             rows = [dict(r) for r in conn.execute(
                 "SELECT date, title, type, child FROM events WHERE date = ? ORDER BY title",

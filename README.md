@@ -47,7 +47,7 @@ vendor/
 docker/
   Dockerfile            python:3.12-slim + Node 20 + gog v0.12.0 + Playwright/Chromium + scrapers + SPA build
   entrypoint.sh         loads config/env → starts cron → starts Flask on :5000
-  crontab               6:00am + 2:30pm weekday syncs; 7am/3:30pm/8:30pm digest jobs
+  crontab               6:00am + 2:30pm weekday syncs; 7am/3:30pm/8:30pm digest jobs; 3:15am backup; 3:45am log rotation
 ```
 
 ## Data Flow
@@ -60,6 +60,8 @@ docker/
 | **3:30pm** (weekdays) | Afternoon digest — homework check + cards → digests DB → ntfy.sh |
 | **8:30pm** (daily) | Night digest — next-day prep + cards → digests DB → ntfy.sh |
 | **Fri 3pm / Sun 7pm** | Weekly digest — week-in-review / week-ahead preview |
+| **3:15am** (daily) | Scheduled state backup into `state/backups/` (newest `BACKUP_KEEP`=14 kept) — `sync/run-backup.sh` |
+| **3:45am** (daily) | Log rotation of `state/*.log` (size-based, copytruncate, 4 gzip copies) |
 | **On demand** | `/api/sync` — trigger per-source sync from the PWA; `/api/sync/meta` for freshness |
 | **On demand** | `/api/chat` — query 30-day events + facts + full state via LiteLLM |
 | **On demand** | `/api/digest/<id>` — retrieve carousel history + toggle card done state |
@@ -70,7 +72,7 @@ docker/
 
 It also acts as a dead-man's switch for digests: when a scheduled digest (morning, afternoon, night, Friday and Sunday weekly) has no row in the `digests` table 90 min after its `docker/crontab` time, it alerts (`Morning Briefing digest: not delivered, ...`). Digests are matched by exact title (a `<title> (fallback)` push does not count as delivered); a digest with no cards writes no row and so also alerts. Disable with `WATCHDOG_DIGESTS_ENABLED=0`.
 
-Silence it: `SOURCE_<NAME>_ENABLED=0` for one source (also pauses its scrape), or `WATCHDOG_ENABLED=0` for the whole watchdog. It skips during maintenance mode and logs an ERROR and exits 2 when `NTFY_TOPIC` is unset. Sources that are not configured (no GC credentials, PowerSchool absent) are not monitored.
+Silence it: `SOURCE_<NAME>_ENABLED=0` for one source (also pauses its scrape), or `WATCHDOG_ENABLED=0` for the whole watchdog. It skips during maintenance mode (except that maintenance left on for more than 2h raises a `maintenance_stuck` alert) and logs an ERROR and exits 2 when `NTFY_TOPIC` is unset. Sources that are not configured (no GC credentials, PowerSchool absent) are not monitored.
 
 ## Configuration
 

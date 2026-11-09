@@ -34,6 +34,9 @@ GRACE = timedelta(minutes=90)
 FAILING_AFTER = timedelta(hours=24)
 REALERT_AFTER = timedelta(hours=24)
 DEGRADED_AFTER = timedelta(hours=24)
+MAINTENANCE_STUCK_AFTER = timedelta(hours=2)
+MAINTENANCE_KEY = "maintenance_stuck"
+
 
 
 @dataclass(frozen=True)
@@ -171,6 +174,31 @@ def check_scrape_degraded(school_state: Any, watched, now: datetime) -> list[Pro
     return out
 
 
+def check_maintenance_stuck(info: Optional[dict], now: datetime,
+                            flag_mtime: Optional[datetime] = None) -> list[Problem]:
+    """One problem when maintenance mode (flag contents `info`) has been on for > 2h.
+
+    The start is the flag's `since`; a missing/unparseable `since` (corrupt or
+    hand-made flag) uses the flag file's mtime instead. With neither, the window
+    is stuck-unknown: one problem with `age_hours=None`.
+    """
+    if info is None:
+        return []
+    start = _parse(info.get("since")) or flag_mtime
+    if start is None:
+        return [Problem(MAINTENANCE_KEY, "maintenance_stuck", None)]
+    if now - start <= MAINTENANCE_STUCK_AFTER:
+        return []
+    return [Problem(MAINTENANCE_KEY, "maintenance_stuck", _hours(now - start))]
+
+
+def _flag_mtime() -> Optional[datetime]:
+    try:
+        return datetime.fromtimestamp(maintenance.flag_path().stat().st_mtime, tz=timezone.utc)
+    except OSError:
+        return None
+
+
 # ---- scheduled digest delivery (dead-man's switch) ----
 
 def expected_digest(slot: DigestSlot, now: datetime, tz: tzinfo) -> Optional[datetime]:
@@ -281,6 +309,7 @@ def plan_alerts(problems: list[Problem], state: dict, now: datetime):
 _NAMES = {"sgy": "Schoology", "ixl": "IXL", "gc": "GameChanger",
           "powerschool": "PowerSchool", STATE_KEY: "school data",
           "ixl_scrape": "IXL scrape", "sgy_scrape": "Schoology scrape",
+          MAINTENANCE_KEY: "maintenance mode",
           **{f"{DIGEST_KEY_PREFIX}{k}": f"{v.title} digest" for k, v in DIGEST_SCHEDULE.items()}}
 ALERT_FOOTER = "Dashboard may be showing old info."
 
@@ -290,6 +319,10 @@ def _label(source: str) -> str:
 
 
 def _describe(p: Problem) -> str:
+    if p.issue == "maintenance_stuck":
+        age = "an unknown time (flag has no readable start)" if p.age_hours is None else f"{p.age_hours:.1f} hours"
+        return (f"Maintenance mode has been ON for {age}; syncs, digests and "
+                "writes are paused. Run: school-state transition maintenance off")
     if p.issue == DIGEST_MISSING:
         return f"{_label(p.source)}: not delivered, was due {p.age_hours:.1f} hours ago"
     if p.age_hours is None:
@@ -380,6 +413,35 @@ def _skip(reason: str, exit_code: int = 0, error: Optional[str] = None) -> dict:
     return result
 
 
+def _maintenance_run(info: dict, now: Optional[datetime], dry_run: bool, send: Optional[SendFn]) -> dict:
+    """Maintenance is on: skip the normal checks, but alert if it has been on too long."""
+    now = now or datetime.now(get_tz())
+    problems = check_maintenance_stuck(info, now, _flag_mtime())
+    if not problems:
+        return _skip("maintenance")
+    topic = os.environ.get("NTFY_TOPIC", "")
+    state_file = paths.state_dir() / WATCHDOG_FILE
+    stored = load_state(state_file)
+    old = stored.get("alerts") if isinstance(stored.get("alerts"), dict) else {}
+    alerts, _, mine = plan_alerts(problems, {MAINTENANCE_KEY: old[MAINTENANCE_KEY]} if MAINTENANCE_KEY in old else {}, now)
+    result = {**_skip("maintenance", exit_code=1), "healthy": False,
+              "problems": [_problem_dict(p) for p in problems],
+              "would_alert": [_problem_dict(p) for p in alerts]}
+    if dry_run:
+        return result
+    if not topic:
+        logger.error("NTFY_TOPIC is not set; watchdog cannot send alerts")
+        return {**result, "exit_code": 2, "error": "NTFY_TOPIC is not set; watchdog cannot send alerts"}
+    try:
+        if alerts:
+            (send or _default_send)(topic, format_alert(alerts), ALERT_TITLE)
+        save_state(state_file, {**stored, "alerts": {**old, **mine}})
+    except Exception as exc:  # delivery/state failure: nothing advanced, next run retries
+        logger.error("watchdog maintenance alert failed: %s", exc)
+        return {**result, "exit_code": 2, "error": str(exc)}
+    return result
+
+
 def run(now: Optional[datetime] = None, dry_run: bool = False,
         send: Optional[SendFn] = None) -> dict:
     """Evaluate, de-duplicate, notify. Returns a result dict with `exit_code`.
@@ -389,8 +451,9 @@ def run(now: Optional[datetime] = None, dry_run: bool = False,
     """
     if os.environ.get("WATCHDOG_ENABLED", "").strip().lower() in _FALSY:
         return _skip("disabled")
-    if maintenance.is_active():
-        return _skip("maintenance")
+    info = maintenance.status()
+    if info is not None:
+        return _maintenance_run(info, now, dry_run, send)
     topic = os.environ.get("NTFY_TOPIC", "")
     if not topic and not dry_run:
         msg = "NTFY_TOPIC is not set; watchdog cannot send alerts"

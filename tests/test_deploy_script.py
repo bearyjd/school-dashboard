@@ -750,6 +750,21 @@ def test_manual_rollback_takes_the_lock(env):
     assert p.returncode == 2 and "another deploy" in p.stderr
 
 
+def test_backup_excludes_nightly_backups_and_pre_restore_dirs(env):
+    state = Path(env["DEPLOY_DIR"]) / "state"
+    (state / "backups" / "20261101T031500000000Z").mkdir(parents=True)
+    (state / "backups" / "20261101T031500000000Z" / "school.db").write_text("old")
+    (state / ".pre-restore-20261101T031500000000Z").mkdir()
+    (state / ".hidden-keep").write_text("dot")
+    (state / "facts.json").write_text("[]")
+    assert run(env, "--slug", "spa").returncode == 0
+    (b,) = backups(env)
+    assert not (b / "state" / "backups").exists()
+    assert not list((b / "state").glob(".pre-restore-*"))
+    assert (b / "state" / "facts.json").exists() and (b / "state" / "school-state.json").exists()
+    assert (b / "state" / ".hidden-keep").read_text() == "dot"
+
+
 def test_container_health_is_informational_only(env):
     p = run(env, "--slug", "spa")
     assert p.returncode == 0, p.stdout + p.stderr
@@ -760,3 +775,14 @@ def test_container_health_is_informational_only(env):
 def test_dry_run_mentions_health_info(env):
     p = run(env, "--dry-run", "--slug", "spa")
     assert "State.Health.Status" in p.stdout
+
+
+def test_dry_run_lists_excluded_state_entries(env):
+    state = Path(env["DEPLOY_DIR"]) / "state"
+    (state / "backups").mkdir()
+    (state / ".pre-restore-20261101T031500000000Z").mkdir()
+    p = run(env, "--dry-run", "--slug", "spa")
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert "excluded from state copy: backups" in p.stdout
+    assert "excluded from state copy: .pre-restore-20261101T031500000000Z" in p.stdout
+    assert not any(" cp " in ln and "/state/backups" in ln for ln in p.stdout.splitlines())

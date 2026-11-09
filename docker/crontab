@@ -28,3 +28,11 @@ SCHOOL_DASHBOARD_ENV=/app/config/env
 0 15 * * 5 root bash /app/sync/run-weekly.sh friday
 # Sunday 7pm: week ahead preview
 0 19 * * 0 root bash /app/sync/run-weekly.sh sunday
+
+# Scheduled state backup — 3:15am daily (quiet slot: no sync/digest/watchdog near it).
+# Writes $STATE_DIR/backups/<UTC stamp>/, keeps the newest BACKUP_KEEP (default 14).
+15 3 * * * root bash /app/sync/run-backup.sh
+
+# Log rotation — 3:45am daily (after the backup so backup.log is included).
+# Size-based copytruncate of /app/state/*.log (LOG_MAX_BYTES, default 5 MiB), 4 gzip'd rotations.
+45 3 * * * root python3 -m school_dashboard.logrotate >> /app/state/logrotate.log 2>&1
