@@ -1,4 +1,5 @@
-FROM python:3.15-slim
+# python:3.15-slim (multi-arch index digest, resolved 2026-11-09); Renovate bumps the digest
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 # System deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -25,19 +26,21 @@ RUN wget -qO /tmp/gog.tar.gz \
 WORKDIR /app
 
 # Install Python deps
-COPY pyproject.toml ./
+COPY pyproject.toml requirements.lock ./
 COPY vendor/ixl-scrape/ ./vendor/ixl-scrape/
 COPY vendor/schoology-scrape/ ./vendor/schoology-scrape/
 COPY vendor/gc/ ./vendor/gc/
 COPY vendor/powerschool-scrape/ ./vendor/powerschool-scrape/
 
-RUN pip install --no-cache-dir -e ".[server]" \
+# -c pins every transitive dep to requirements.lock (editable installs still work).
+RUN pip install --no-cache-dir -c requirements.lock -e ".[server]" \
     -e "vendor/ixl-scrape[browser]" \
     -e vendor/schoology-scrape \
     -e vendor/gc \
     -e "vendor/powerschool-scrape[browser]"
 
-# Install Playwright + Chromium (for IXL login)
+# Install Playwright + Chromium (for IXL login). The playwright package is pinned in
+# requirements.lock, so the Chromium build downloaded here always matches it.
 RUN playwright install chromium --with-deps
 
 # Install Node.js for SPA build

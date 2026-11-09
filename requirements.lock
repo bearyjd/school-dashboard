@@ -1,0 +1,29 @@
+# Pinned production dependency set (pip constraints file). Plain name==version pins, no hashes:
+# hashes would force --require-hashes on every install, which breaks the editable vendor installs.
+# Used by the Dockerfile: pip install -c requirements.lock ...
+# Excludes the local projects (school-dashboard and the vendor/ scrapers) and pip/setuptools/wheel.
+# Regenerate with scripts/update-lock.sh [--upgrade] (clean venv, same installs as the Dockerfile,
+# pip freeze, filtered). Renovate also bumps these pins.
+beautifulsoup4==4.15.0
+blinker==1.9.0
+certifi==2026.10.23
+cffi==2.1.1
+charset-normalizer==3.5.2
+click==8.5.1
+cryptography==50.0.2
+Flask==3.1.3
+greenlet==3.5.6
+gunicorn==26.2.0
+idna==3.20
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.4
+pdfminer.six==20260107
+playwright==1.64.1
+pycparser==3.12
+pyee==14.0.0
+requests==2.34.2
+soupsieve==4.0.1
+typing_extensions==4.16.0
+urllib3==2.8.0
+Werkzeug==3.1.9
