@@ -6,7 +6,7 @@ import os
 import sqlite3
 from contextlib import closing
 from datetime import date, datetime, timedelta
-from typing import Literal
+from typing import Callable, Literal
 from pathlib import Path
 
 import requests
@@ -772,4 +772,32 @@ def send_ntfy(
         timeout=15,
     )
     if not resp.ok:
-        _log.warning("ntfy delivery failed: %s %s", resp.status_code, resp.text[:200])
+        _log.error("ntfy delivery failed: %s %s", resp.status_code, resp.text[:200])
+    resp.raise_for_status()
+
+
+class DigestFallbackSent(RuntimeError):
+    """The LLM digest could not be built; the no-LLM quick check was sent instead."""
+
+
+def deliver_digest(
+    build: Callable[[], tuple[str, list[dict]]],
+    *,
+    topic: str,
+    title: str,
+    state_path: str,
+    db_path: str | None,
+) -> tuple[str, list[dict]]:
+    """Build a digest and push it. If the build (LLM) fails, push the deterministic
+    quick check titled "<title> (fallback)" and raise DigestFallbackSent so callers
+    still record a failure. Delivery errors propagate from send_ntfy."""
+    try:
+        text, cards = build()
+    except Exception as exc:
+        _log.error("Digest build failed for %r; sending no-LLM fallback", title, exc_info=True)
+        quick, _ = build_quick_check(state_path)
+        note = "AI summary unavailable - showing the basic homework check instead.\n\n"
+        send_ntfy(topic=topic, message=note + quick, title=f"{title} (fallback)")
+        raise DigestFallbackSent(f"{title}: LLM digest failed ({exc}); fallback sent") from exc
+    send_ntfy(topic=topic, message=text, title=title, cards=cards, db_path=db_path)
+    return text, cards

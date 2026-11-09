@@ -185,48 +185,28 @@ def cmd_digest(args: argparse.Namespace) -> None:
     gc_path = str(paths.gc_path())
     gcal_events = fetch_gcal_events(gog_account) if gog_account else []
 
-    if args.mode == "morning":
-        text, cards = _digest.build_morning_digest(
-            state_path=state_file,
-            db_path=db_path,
-            facts_path=facts_path,
-            gcal_events=gcal_events,
-            litellm_url=litellm_url,
-            api_key=api_key,
-            model=model,
-            gc_path=gc_path,
-        )
-        _digest.send_ntfy(topic=ntfy_topic, message=text, title="Morning Briefing",
-                          cards=cards, db_path=db_path)
-
-    elif args.mode == "afternoon":
-        text, cards = _digest.build_afternoon_digest(
-            state_path=state_file,
-            db_path=db_path,
-            litellm_url=litellm_url,
-            api_key=api_key,
-            model=model,
-            gc_path=gc_path,
-        )
-        _digest.send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
-                          cards=cards, db_path=db_path)
-
-    elif args.mode == "night":
-        text, cards = _digest.build_night_digest(
-            state_path=state_file,
-            db_path=db_path,
-            facts_path=facts_path,
-            gcal_events=gcal_events,
-            litellm_url=litellm_url,
-            api_key=api_key,
-            model=model,
-            gc_path=gc_path,
-        )
-        _digest.send_ntfy(topic=ntfy_topic, message=text, title="Night Prep",
-                          cards=cards, db_path=db_path)
-
-    else:
+    builders = {
+        "morning": ("Morning Briefing", lambda: _digest.build_morning_digest(
+            state_path=state_file, db_path=db_path, facts_path=facts_path,
+            gcal_events=gcal_events, litellm_url=litellm_url, api_key=api_key,
+            model=model, gc_path=gc_path)),
+        "afternoon": ("Homework Check", lambda: _digest.build_afternoon_digest(
+            state_path=state_file, db_path=db_path, litellm_url=litellm_url,
+            api_key=api_key, model=model, gc_path=gc_path)),
+        "night": ("Night Prep", lambda: _digest.build_night_digest(
+            state_path=state_file, db_path=db_path, facts_path=facts_path,
+            gcal_events=gcal_events, litellm_url=litellm_url, api_key=api_key,
+            model=model, gc_path=gc_path)),
+    }
+    if args.mode not in builders:
         raise ValueError(f"Unknown mode: {args.mode}")
+    title, build = builders[args.mode]
+    try:
+        text, cards = _digest.deliver_digest(
+            build, topic=ntfy_topic, title=title, state_path=state_file, db_path=db_path)
+    except _digest.DigestFallbackSent as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"Digest sent [{args.mode}]: {len(cards)} cards, {text[:80]}...", file=sys.stderr)
 
