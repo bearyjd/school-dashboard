@@ -76,7 +76,11 @@ def load_upcoming_events(days: int = 30) -> list[dict]:
         rows = [dict(r) for r in cursor.fetchall()]
         conn.close()
         return rows
-    except Exception:
+    except (sqlite3.Error, OSError) as exc:
+        if isinstance(exc, sqlite3.OperationalError) and "no such table" in str(exc):
+            app.logger.debug("Events table not present in the school DB")
+        else:
+            app.logger.warning("Failed to load upcoming events from the school DB", exc_info=True)
         return []
 
 
@@ -85,8 +89,8 @@ def load_facts() -> list[dict]:
         p = paths.facts_path()
         if p.exists():
             return json.loads(p.read_text())
-    except Exception:
-        pass
+    except (OSError, ValueError):
+        app.logger.warning("Failed to load facts file", exc_info=True)
     return []
 
 
@@ -322,7 +326,8 @@ def api_agent_inline():
             action_type, payload_str = rest.split(" ", 1)
             action = {"type": action_type, "payload": json.loads(payload_str)}
             clean_lines = lines[:-1]
-        except Exception:
+        except ValueError:  # includes json.JSONDecodeError and a missing payload on split
+            app.logger.warning("Ignoring malformed ACTION line in model reply")
             action = None
             clean_lines = lines
     else:
