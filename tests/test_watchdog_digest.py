@@ -201,3 +201,66 @@ def test_run_records_digest_first_seen(env):
     watchdog.run(now=ny(2026, 11, 6, 9, 0), send=lambda *a: None)
     seen = json.loads((env / "watchdog.json").read_text())["first_seen"]
     assert "digest_morning" in seen
+
+
+def _corrupt_db(env):
+    (env / "school.db").write_bytes(b"not a sqlite database" * 50)
+
+
+def test_unreadable_db_keeps_open_digest_alerts_no_false_recovery(env):
+    _seed(env, "2026-01-01T00:00:00+00:00")
+    _make_db(env / "school.db", [("Night Prep", "2026-11-05 01:31:00")])
+    sent = []
+    send = lambda topic, msg, title: sent.append((msg, title))  # noqa: E731
+    now = ny(2026, 11, 6, 9, 0)
+    watchdog.run(now=now, send=send)
+    before = json.loads((env / "watchdog.json").read_text())["alerts"]
+    assert "digest_morning" in before
+    _corrupt_db(env)
+    r = watchdog.run(now=now + timedelta(hours=1), send=send)
+    assert r["would_recover"] == []
+    assert len(sent) == 1  # no recovery push, no re-alert
+    after = json.loads((env / "watchdog.json").read_text())["alerts"]
+    assert after["digest_morning"] == before["digest_morning"]
+
+
+def test_unreadable_db_preserves_digest_first_seen(env):
+    stamp = "2026-11-01T00:00:00+00:00"
+    _seed(env, stamp)
+    _corrupt_db(env)
+    watchdog.run(now=ny(2026, 11, 6, 9, 0), send=lambda *a: None)
+    seen = json.loads((env / "watchdog.json").read_text())["first_seen"]
+    assert seen["digest_morning"] == stamp
+
+
+def test_disabled_digests_do_clear_alerts(env, monkeypatch):
+    _seed(env, "2026-01-01T00:00:00+00:00")
+    _make_db(env / "school.db", [])
+    sent = []
+    send = lambda topic, msg, title: sent.append(msg)  # noqa: E731
+    now = ny(2026, 11, 6, 9, 0)
+    watchdog.run(now=now, send=send)
+    monkeypatch.setenv("WATCHDOG_DIGESTS_ENABLED", "0")
+    r = watchdog.run(now=now + timedelta(hours=1), send=send)
+    assert "digest_morning" in r["would_recover"]
+
+
+def test_read_failure_logged_at_warning(tmp_path, caplog):
+    bad = tmp_path / "bad.db"
+    bad.write_bytes(b"garbage" * 100)
+    with caplog.at_level("WARNING", logger="school_dashboard.watchdog"):
+        assert watchdog.latest_digests(bad) is None
+    rec = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert rec and rec[0].exc_info
+
+
+def test_exact_title_match_fallback_does_not_count(env):
+    _seed(env, "2026-01-01T00:00:00+00:00")
+    _make_db(env / "school.db", [("Morning Briefing (fallback)", "2026-11-06 12:05:00")])
+    r = watchdog.run(now=ny(2026, 11, 6, 9, 0), dry_run=True)
+    assert any(p["source"] == "digest_morning" for p in r["problems"])
+
+
+def test_watchdog_cron_covers_evening_digests():
+    text = (Path(__file__).resolve().parent.parent / "docker" / "crontab").read_text()
+    assert re.search(r"^5 17,22 \* \* \* root bash /app/sync/run-watchdog\.sh$", text, re.M)

@@ -218,7 +218,7 @@ def latest_digests(db_path: Path) -> Optional[dict[str, datetime]]:
         finally:
             conn.close()
     except sqlite3.Error as exc:  # no digests table yet, locked or unreadable DB
-        logger.info("digest delivery check skipped: %s", exc)
+        logger.warning("digest delivery check skipped: %s", exc, exc_info=True)
         return None
     out = {}
     for title, created in rows:
@@ -404,8 +404,13 @@ def run(now: Optional[datetime] = None, dry_run: bool = False,
     watched = [*monitored_sources(), STATE_KEY]
     # The digest clocks start once a digests table exists (never on a fresh install).
     latest = latest_digests(paths.db_path()) if digests_enabled() else None
-    digest_keys = [f"{DIGEST_KEY_PREFIX}{k}" for k in DIGEST_SCHEDULE] if latest is not None else []
-    first_seen = _update_first_seen(stored.get("first_seen"), [*watched, *digest_keys], now)
+    # Unreadable/absent DB (rule still enabled): keep stored digest first_seen and open alerts.
+    keep_digest_state = latest is None and digests_enabled()
+    all_digest_keys = [f"{DIGEST_KEY_PREFIX}{k}" for k in DIGEST_SCHEDULE]
+    stored_seen = stored.get("first_seen") if isinstance(stored.get("first_seen"), dict) else {}
+    digest_keys = (all_digest_keys if latest is not None
+                   else [k for k in all_digest_keys if k in stored_seen] if keep_digest_state else [])
+    first_seen = _update_first_seen(stored_seen, [*watched, *digest_keys], now)
 
     problems = evaluate(read_sync_meta(), watched[:-1], now, tz, first_seen)
     state_problem = check_mtime(STATE_KEY, _state_mtime(), now, tz, first_seen=first_seen[STATE_KEY])
@@ -417,6 +422,10 @@ def run(now: Optional[datetime] = None, dry_run: bool = False,
 
     old_alerts = stored.get("alerts") if isinstance(stored.get("alerts"), dict) else {}
     alerts, recovered, new_alerts = plan_alerts(problems, old_alerts, now)
+    if keep_digest_state:
+        held = {k: v for k, v in old_alerts.items() if k.startswith(DIGEST_KEY_PREFIX)}
+        recovered = [k for k in recovered if k not in held]
+        new_alerts = {**new_alerts, **held}
     result = {
         "exit_code": 1 if problems else 0,
         "healthy": not problems,
