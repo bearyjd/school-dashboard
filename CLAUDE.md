@@ -261,7 +261,7 @@ tests/test_readiness.py        8 tests — readiness.py checklist scoring (pure,
 tests/test_sync.py            18 tests — /api/sync auth, concurrency, /api/sync/status, /api/sync/meta, assetlinks, freshness, sync_meta writes
 tests/test_sync_meta.py        8 tests — sync_meta module read/write, env var path
 tests/test_wrapper_scripts.py 11 tests — run-digest.sh / run-weekly.sh LOGDIR logic, bash syntax
-tests/test_sync_orchestration.py 11 tests — runs the real sync/school-sync.sh (+ gc-refresh.sh, gc-scrape.sh, school-state) against fake ixl/sgy/gc/powerschool CLIs on PATH: all ok, one source failing, all failing, gc failing, gc unconfigured, paused source keeps cached data, maintenance at start and mid-sync, fatal state-update failure, missing gc-refresh.sh aborting the sync, in-flight marker. Characterisation tests pin existing behaviour.
+tests/test_sync_orchestration.py 12 tests — runs the real sync/school-sync.sh (+ gc-refresh.sh, gc-scrape.sh, school-state) against fake ixl/sgy/gc/powerschool CLIs on PATH: all ok, one source failing, all failing, gc failing, gc unconfigured, paused source keeps cached data, maintenance at start and mid-sync, fatal state-update failure, missing gc-refresh.sh non-fatal, concurrent-run lock, in-flight marker. Characterisation tests pin existing behaviour.
 ```
 
 **Verification gaps an agent should know about before trusting "tests pass" as proof
@@ -273,10 +273,11 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
 
 ## Sync, Staleness & Vendor Model
 
-- **Known gaps in `school-sync.sh` (pinned by characterisation tests, not endorsed):** (a) there is no lock file, only
-  per-PID `sync.running.$$` markers, so overlapping runs both scrape and merge (state writers are serialised on the
-  state lock); (b) a missing `/app/sync/gc-refresh.sh` aborts the whole sync under `set -e` (exit 127), so later
-  sources and the merge never run. `SYNC_SCRIPT_DIR` (default `/app/sync`) overrides where the sibling scripts live, for tests.
+- **`school-sync.sh` locking and GC refresh:** the script takes a non-blocking `flock` on
+  `$STATE_DIR/sync.lock` (override `SYNC_LOCK`) before writing its `sync.running.$$` marker; an overlapping run logs
+  an INFO line and exits 0 without scraping. If `flock` is missing or the lock file cannot be opened it warns and
+  runs unlocked. A missing `gc-refresh.sh` logs a WARN and the sync continues (a refresh that exists but fails is
+  unchanged). `SYNC_SCRIPT_DIR` (default `/app/sync`) overrides where the sibling scripts live, for tests.
 - **GC token keep-alive:** GC tokens last 1h; a host systemd timer keeps the saved browser session
   fresh, and `sync/gc-refresh.sh` (called by `school-sync.sh`) takes the same `/root/.gc/refresh.lock`.
   Install, verify and failure modes: `docs/ops/gc-keepalive.md`.

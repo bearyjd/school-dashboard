@@ -48,6 +48,21 @@ maintenance_skip() {
     log "Maintenance mode active or check failed (rc=$rc) — skipping $1"
 }
 
+# Single-instance lock: a second sync (cron overlap, /api/sync, manual run) exits cleanly
+# instead of scraping and merging concurrently. Taken BEFORE the in-flight marker so a
+# skipped run never leaves one behind. The kernel drops the lock when this process exits.
+# If the lock cannot be set up (no flock, unwritable dir) we warn and run unlocked rather
+# than silently never syncing.
+SYNC_LOCK="${SYNC_LOCK:-$STATE_DIR/sync.lock}"
+if ! command -v flock &>/dev/null; then
+    log "WARN: flock not found — running without a sync lock"
+elif ! { mkdir -p "$(dirname "$SYNC_LOCK")" && exec 9>"$SYNC_LOCK"; } 2>/dev/null; then
+    log "WARN: could not open sync lock $SYNC_LOCK — running without a sync lock"
+elif ! flock -n 9; then
+    log "INFO: another sync is already running (lock $SYNC_LOCK) — skipping"
+    exit 0
+fi
+
 # Per-process in-flight marker, written BEFORE the maintenance check so a backup
 # that sees no marker knows we have not yet passed the check. Removed on any exit.
 SYNC_MARKER="$STATE_DIR/sync.running.$$"
@@ -221,7 +236,12 @@ elif command -v gc &>/dev/null && [[ -n "${GC_TOKEN:-}${GC_EMAIL:-}" ]]; then
     # upfront avoids a Playwright launch in the middle of the loop.
     log "Refreshing GC token..."
     # Lock held only around the refresh (shared with the host keep-alive timer).
-    bash "$SYNC_SCRIPT_DIR/gc-refresh.sh"
+    # A missing refresh script is non-fatal: warn and carry on (the CLI auto-recovers from 401).
+    if [[ -f "$SYNC_SCRIPT_DIR/gc-refresh.sh" ]]; then
+        bash "$SYNC_SCRIPT_DIR/gc-refresh.sh"
+    else
+        log "WARN: $SYNC_SCRIPT_DIR/gc-refresh.sh not found — skipping GC token refresh"
+    fi
 
     log "Running GameChanger scrape..."
     if bash "$SYNC_SCRIPT_DIR/gc-scrape.sh"; then

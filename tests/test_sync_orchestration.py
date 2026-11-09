@@ -186,15 +186,35 @@ def test_maintenance_turned_on_mid_sync_skips_the_merge(env):
     assert not (env.state / "school-dashboard.html").exists()
 
 
-def test_missing_gc_refresh_script_aborts_whole_sync(env, tmp_path):
-    """Characterisation test of a KNOWN GAP: pins existing behaviour (missing gc-refresh.sh
-    kills the sync with exit 127 under set -e, so the merge never runs); may legitimately change."""
-    empty = tmp_path / "no-scripts"
-    empty.mkdir()
-    r = env.run(SYNC_SCRIPT_DIR=str(empty))
-    assert r.returncode == 127
+def test_missing_gc_refresh_script_is_non_fatal(env, tmp_path):
+    """A missing gc-refresh.sh logs a warning and the sync carries on (merge still runs)."""
+    scripts = tmp_path / "scripts-without-refresh"
+    scripts.mkdir()
+    (scripts / "gc-scrape.sh").symlink_to(REPO / "sync" / "gc-scrape.sh")
+    r = env.run(SYNC_SCRIPT_DIR=str(scripts))
+    assert r.returncode == 0, r.stderr
+    assert "gc-refresh.sh not found" in r.stderr
+    assert "Sync complete." in r.stderr
+    assert env.state_json()["ixl"]
+    assert env.results() == ALL_OK
+
+
+def test_concurrent_sync_is_skipped_by_lock(env):
+    """While another process holds the sync lock, a second sync exits 0 without scraping."""
+    import fcntl
+    lock = env.state / "sync.lock"
+    with open(lock, "w") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        r = env.run()
+    assert r.returncode == 0, r.stderr
+    assert "another sync is already running" in r.stderr
+    assert env.called() == []
     assert not (env.state / "school-state.json").exists()
-    assert env.results() == {"ixl": "ok", "sgy": "ok", "powerschool": "ok"}
+    assert not list(env.state.glob("sync.running.*"))
+    # Lock released: the next run proceeds normally.
+    r2 = env.run()
+    assert r2.returncode == 0, r2.stderr
+    assert "Sync complete." in r2.stderr
 
 
 def test_failed_state_update_is_fatal(env):
