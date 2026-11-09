@@ -5,6 +5,8 @@ import tomllib
 from pathlib import Path
 
 import pytest
+from packaging.requirements import Requirement
+from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parent.parent
 LOCK_LINE = re.compile(
@@ -41,11 +43,7 @@ def test_lock_lines_are_well_formed():
 
 
 def test_lock_has_no_duplicate_names():
-    names = [
-        _norm(LOCK_LINE.match(ln).group(1))
-        for ln in _lock_lines()
-        if LOCK_LINE.match(ln)
-    ]
+    names = [_norm(m.group(1)) for ln in _lock_lines() if (m := LOCK_LINE.match(ln))]
     assert len(names) == len(set(names))
 
 
@@ -55,10 +53,7 @@ def test_lock_excludes_local_projects():
 
 @pytest.mark.parametrize("requirement", _direct_requirements())
 def test_direct_dependency_pinned_and_satisfied(requirement):
-    packaging = pytest.importorskip("packaging.requirements")
-    from packaging.version import Version
-
-    req = packaging.Requirement(requirement)
+    req = Requirement(requirement)
     lock = _lock()
     assert _norm(req.name) in lock, f"{req.name} missing from requirements.lock"
     assert req.specifier.contains(Version(lock[_norm(req.name)]), prereleases=True), (
@@ -76,7 +71,4 @@ def test_dockerfile_uses_lock_and_pins_base_image():
     assert re.search(r"pip install[^\n]*-c requirements\.lock", text)
     assert re.search(r"^COPY pyproject\.toml requirements\.lock", text, re.M)
     from_line = next(ln for ln in text.splitlines() if ln.startswith("FROM "))
-    assert (
-        re.search(r"@sha256:[0-9a-f]{64}$", from_line)
-        or "TODO" in text.split(from_line)[0]
-    )
+    assert re.search(r"@sha256:[0-9a-f]{64}$", from_line), from_line

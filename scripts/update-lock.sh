@@ -12,14 +12,27 @@ for d in ixl-scrape schoology-scrape gc powerschool-scrape; do
     [ -f "vendor/$d/pyproject.toml" ] || { echo "vendor/$d missing: run git submodule update --init" >&2; exit 1; }
 done
 
-CONSTRAIN=(-c requirements.lock)
-[ "${1:-}" = "--upgrade" ] && CONSTRAIN=()
+# The image runs Python 3.15; resolving on another minor could pick different pins.
+PY="$(command -v python3.15 || true)"
+if [ -z "$PY" ]; then
+    case "$(python3 --version 2>&1)" in
+        "Python 3.15."*) PY="$(command -v python3)" ;;
+        *) echo "need python3.15 (the Dockerfile base); found: $(python3 --version 2>&1)" >&2; exit 1 ;;
+    esac
+fi
+
+# Plain string, not an array: empty-array expansion fails under set -u on bash < 4.4.
+CONSTRAIN="-c requirements.lock"
+[ "${1:-}" = "--upgrade" ] && CONSTRAIN=""
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
-python3 -m venv "$TMP/venv"
+cleanup() {
+    rm -rf "$TMP" build ./*.egg-info vendor/*/build vendor/*/*.egg-info
+}
+trap cleanup EXIT
+"$PY" -m venv "$TMP/venv"
 "$TMP/venv/bin/pip" install --quiet --upgrade pip
-"$TMP/venv/bin/pip" install --quiet "${CONSTRAIN[@]}" ".[server]" \
+"$TMP/venv/bin/pip" install --quiet $CONSTRAIN ".[server]" \
     -e "vendor/ixl-scrape[browser]" \
     -e vendor/schoology-scrape \
     -e vendor/gc \

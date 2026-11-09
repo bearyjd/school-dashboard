@@ -10,6 +10,25 @@ permissions:
   contents: read
 
 jobs:
+  lock-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install with requirements.lock
+        run: pip install -c requirements.lock ".[server]"
+
+      - name: Check dependency consistency
+        run: pip check
+
   pytest:
     runs-on: ubuntu-latest
     steps:
@@ -22,7 +41,7 @@ jobs:
           python-version: "3.15"
 
       - name: Install dependencies
-        run: pip install -e ".[server]" pytest
+        run: pip install -e ".[server]" pytest pyyaml
 
       - name: Run tests
         run: pytest tests/
