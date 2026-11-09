@@ -319,6 +319,42 @@ def test_send_ntfy_with_cards_creates_digest(mock_post, tmp_path):
 
 
 @patch("school_dashboard.digest.requests.post")
+def test_send_ntfy_zero_cards_still_records_delivery(mock_post, tmp_path):
+    """A delivered digest with nothing due (zero cards) must leave a digests row for the watchdog."""
+    mock_post.return_value = MagicMock(ok=True, status_code=200)
+    db = tmp_path / "school.db"
+    send_ntfy(topic="t", message="All clear", title="Morning Briefing", cards=[], db_path=str(db))
+    click = mock_post.call_args.kwargs["headers"]["Click"]
+    assert "digest=" not in click and "mode=all" in click  # static link, not an empty carousel
+    from school_dashboard.watchdog import latest_digests
+    assert "Morning Briefing" in latest_digests(db)
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_send_ntfy_nonempty_cards_deep_links_to_digest(mock_post, tmp_path):
+    mock_post.return_value = MagicMock(ok=True, status_code=200)
+    db = tmp_path / "school.db"
+    from school_dashboard.db import get_digest
+    cards = [{"source": "ixl", "child": "A", "title": "T", "detail": "", "due_date": "", "url": "", "done": False}]
+    send_ntfy(topic="t", message="m", title="Morning Briefing", cards=cards, db_path=str(db))
+    click = mock_post.call_args.kwargs["headers"]["Click"]
+    assert get_digest(str(db), click.split("digest=")[1])["cards"] == cards
+
+
+def test_zero_card_digest_api_and_card_patch(tmp_path, monkeypatch):
+    monkeypatch.setenv("SCHOOL_STATE_DIR", str(tmp_path))
+    from school_dashboard.db import init_digests_table, create_digest
+    from web.app import app
+    db = str(tmp_path / "school.db")
+    init_digests_table(db)
+    did = create_digest(db, "Morning Briefing", [])
+    c = app.test_client()
+    r = c.get(f"/api/digest/{did}")
+    assert r.status_code == 200 and r.get_json()["cards"] == []
+    assert c.patch(f"/api/digest/{did}/cards/0", json={"done": True}).status_code == 404
+
+
+@patch("school_dashboard.digest.requests.post")
 def test_send_ntfy_without_cards_uses_static_links(mock_post):
     mock_post.return_value = MagicMock(ok=True, status_code=200)
     send_ntfy(topic="test-topic", message="Hello", title="Homework Check")

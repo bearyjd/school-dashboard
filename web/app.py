@@ -725,8 +725,8 @@ def _send_sync_digest(digest: str, ntfy_topic: str, state_path: str,
     if digest == "quick":
         from school_dashboard.digest import build_quick_check, send_ntfy
         text, cards = build_quick_check(state_path)
-        send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
-                  cards=cards or None, db_path=db_path if cards else None)
+        send_ntfy(topic=ntfy_topic, message=text, title="Quick Check",
+                  cards=cards, db_path=db_path)
     elif digest == "full":
         from school_dashboard.digest import build_afternoon_digest, send_ntfy
         litellm_url = os.environ.get("LITELLM_URL", "")
