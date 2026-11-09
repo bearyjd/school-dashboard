@@ -309,7 +309,9 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
   the default-branch HEAD at build time, not the pinned commit (this is how prod ran `sgy 0.4.8` while the index
   pinned v0.4.7). `gc` and `powerschool-scrape` ship exactly their pin. Keep the pins at what ships: bump the
   index once a floated scraper's HEAD has been built. The parent-dir `gc-scrape/`, `ixl-scrape/`,
-  `schoology-scrape/` clones are separate upstream checkouts and never what ships.
+  `schoology-scrape/` clones are separate upstream checkouts and never what ships. Known behaviour of sgy 0.4.8
+  (what prod runs): the per-course warmup set is populated even if the warmup request fails, so a failed warmup
+  is not retried for that course within a run.
   Safe bump: in the submodule, `git fetch` then `git log --oneline HEAD..origin/HEAD`; read the diff for changes
   to the `--json` output shape; `tests/test_contract_*.py` use recorded fixtures, so they do not catch a real shape
   change (update the fixture if the vendor changed it); check out the new commit, then `git add vendor/<name>`.

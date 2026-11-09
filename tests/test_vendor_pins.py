@@ -14,6 +14,7 @@ from importlib import metadata
 from pathlib import Path
 
 import pytest
+from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parent.parent
 VENDOR = ROOT / "vendor"
@@ -45,8 +46,9 @@ def test_gitmodules_match_the_expected_scrapers():
 def test_submodule_is_initialised(directory):
     path = VENDOR / directory
     assert path.is_dir() and any(path.iterdir()), (
-        f"vendor/{directory} is empty: run `git submodule update --init` "
-        "(the Docker image would ship without this scraper)"
+        f"vendor/{directory} is empty or uninitialised. Likely causes: checkout without "
+        "submodules (run `git submodule update --init`, or `submodules: recursive` in CI), or the "
+        "vendor repo became private so the clone failed. The Docker image would ship without this scraper"
     )
     assert (path / "pyproject.toml").is_file(), f"vendor/{directory}/pyproject.toml missing"
     assert _declared(directory)[0] == SCRAPERS[directory]
@@ -61,7 +63,7 @@ def test_installed_version_matches_vendor_pyproject(directory):
         if STRICT:
             pytest.fail(f"{name} is not installed (pip install -e vendor/{directory})")
         pytest.skip(f"{name} not installed")
-    assert dist.version == declared, (
+    assert Version(dist.version) == Version(declared), (
         f"installed {name} {dist.version} != vendor/{directory}/pyproject.toml {declared}"
     )
     if STRICT:
