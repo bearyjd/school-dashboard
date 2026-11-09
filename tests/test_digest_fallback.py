@@ -1,14 +1,16 @@
 """No-LLM fallback digest and ntfy delivery-failure handling."""
 import argparse
 import json
+import sqlite3
 import logging
+from contextlib import closing
 from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
 from school_dashboard import cli, maintenance
-from school_dashboard.digest import DigestFallbackSent, deliver_digest, send_ntfy
+from school_dashboard.digest import FALLBACK_NOTE, DigestFallbackSent, deliver_digest, send_ntfy
 
 STATE = {
     "ixl": {"Jack": {"totals": {"Math": {"remaining": 3, "assigned": 5, "done": 2}}}},
@@ -36,8 +38,8 @@ def _boom():
 
 @patch("school_dashboard.digest.requests.post")
 def test_send_ntfy_raises_on_http_error(mock_post, state_file):
-    resp = MagicMock(ok=False, status_code=503, text="down")
-    resp.raise_for_status.side_effect = requests.HTTPError("503")
+    resp = requests.Response()
+    resp.status_code = 503
     mock_post.return_value = resp
     with pytest.raises(requests.HTTPError):
         send_ntfy("t", "msg", "Title")
@@ -77,8 +79,33 @@ def test_deliver_digest_llm_failure_sends_quick_check_and_raises(mock_post, stat
     kw = mock_post.call_args.kwargs
     assert kw["headers"]["Title"] == "Morning Briefing (fallback)"
     body = kw["data"].decode()
-    assert "unavailable" in body.lower()
+    assert FALLBACK_NOTE in body
     assert "Jack" in body
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_deliver_digest_fallback_writes_no_digest_row(mock_post, state_file, tmp_path):
+    from school_dashboard.db import init_digests_table
+    db = str(tmp_path / "school.db")
+    init_digests_table(db)
+    mock_post.return_value = _ok()
+    with pytest.raises(DigestFallbackSent):
+        deliver_digest(_boom, topic="t", title="Night Prep", state_path=state_file, db_path=db)
+    with closing(sqlite3.connect(db)) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM digests").fetchone()[0] == 0
+    assert "AI summary unavailable" in mock_post.call_args.kwargs["data"].decode()
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_deliver_digest_maintenance_does_not_claim_fallback(mock_post, state_file, caplog):
+    maintenance.enable("t")
+    with caplog.at_level(logging.INFO), pytest.raises(RuntimeError) as exc:
+        deliver_digest(_boom, topic="t", title="Night Prep", state_path=state_file, db_path=None)
+    assert not isinstance(exc.value, DigestFallbackSent)
+    assert "fallback sent" not in str(exc.value)
+    assert "llm down" in str(exc.value)
+    assert "maintenance" in caplog.text.lower()
+    mock_post.assert_not_called()
 
 
 @patch("school_dashboard.digest.requests.post")

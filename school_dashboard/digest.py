@@ -776,6 +776,9 @@ def send_ntfy(
     resp.raise_for_status()
 
 
+FALLBACK_NOTE = "AI summary unavailable - showing the basic homework check instead.\n\n"
+
+
 class DigestFallbackSent(RuntimeError):
     """The LLM digest could not be built; the no-LLM quick check was sent instead."""
 
@@ -795,9 +798,11 @@ def deliver_digest(
         text, cards = build()
     except Exception as exc:
         _log.error("Digest build failed for %r; sending no-LLM fallback", title, exc_info=True)
+        if maintenance.is_active():
+            _log.info("Maintenance mode active; fallback for %r skipped, nothing sent", title)
+            raise
         quick, _ = build_quick_check(state_path)
-        note = "AI summary unavailable - showing the basic homework check instead.\n\n"
-        send_ntfy(topic=topic, message=note + quick, title=f"{title} (fallback)")
+        send_ntfy(topic=topic, message=FALLBACK_NOTE + quick, title=f"{title} (fallback)")
         raise DigestFallbackSent(f"{title}: LLM digest failed ({exc}); fallback sent") from exc
     send_ntfy(topic=topic, message=text, title=title, cards=cards, db_path=db_path)
     return text, cards
