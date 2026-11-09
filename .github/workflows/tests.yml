@@ -42,6 +42,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          submodules: recursive
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -51,8 +53,13 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[server]" pytest pyyaml
 
+      - name: Install vendored scrapers (version/pin guard)
+        run: pip install --no-deps -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc -e vendor/powerschool-scrape
+
       - name: Run tests
         run: pytest tests/
+        env:
+          VENDOR_PINS_STRICT: "1"
 
   spa:
     runs-on: ubuntu-latest

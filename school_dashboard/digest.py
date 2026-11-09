@@ -659,6 +659,7 @@ Known facts:
 _DEEP_LINKS: dict[str, str] = {
     "Morning Briefing": "?mode=all&time=week",
     "Homework Check": "?mode=schoology&time=week",
+    "Quick Check": "?mode=schoology&time=week",
     "Night Prep": "?mode=all&time=today",
     "Week in Review": "?mode=all&time=week",
     "Week Ahead": "?mode=all&time=week",
@@ -745,17 +746,19 @@ def send_ntfy(
     if maintenance.is_active():
         _log.info("Maintenance mode active; skipping digest store and ntfy send")
         return
-    if cards and db_path:
+    if cards is not None and db_path:  # [] still records the row: the watchdog treats it as delivery
+        deep = _DEEP_LINKS.get(title, "")
+        static_url = f"{DASHBOARD_BASE}/{deep}" if deep else DASHBOARD_BASE
         try:
             from school_dashboard.db import init_digests_table, create_digest, purge_old_digests
             init_digests_table(db_path)
             purge_old_digests(db_path, days=7)
             digest_id = create_digest(db_path, title, cards)
-            url = f"{DASHBOARD_BASE}/?digest={digest_id}"
+            # an empty digest has no carousel to open: keep the mode link
+            url = f"{DASHBOARD_BASE}/?digest={digest_id}" if cards else static_url
         except Exception as exc:
             _log.warning("Digest DB error, falling back to static link: %s", exc)
-            deep = _DEEP_LINKS.get(title, "")
-            url = f"{DASHBOARD_BASE}/{deep}" if deep else DASHBOARD_BASE
+            url = static_url
     else:
         deep = _DEEP_LINKS.get(title, "")
         url = f"{DASHBOARD_BASE}/{deep}" if deep else DASHBOARD_BASE

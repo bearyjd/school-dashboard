@@ -155,11 +155,12 @@ check_compose_image_tag() {
 
 preflight() {
     if [[ "$DRY" -eq 1 ]]; then
-        note "[dry-run] preflight: no $STATE_DIR/sync.running.*, no $STATE_DIR/maintenance.json, env and compose files exist,"
+        note "[dry-run] preflight: state dir exists, no $STATE_DIR/sync.running.*, no $STATE_DIR/maintenance.json, env and compose files exist,"
         note "[dry-run]            compose has no /app/web mount and only :latest images,"
         note "[dry-run]            >= ${MIN_FREE_GB}G free on $DEPLOY_DIR, the Docker root dir (docker info) and $BACKUP_ROOT"
         return
     fi
+    [[ -d "$STATE_DIR" ]] || die "state dir $STATE_DIR is missing; nothing to back up"
     preflight_quiet
     [[ -f "$ENV_FILE" && -f "$COMPOSE_FILE" ]] || die "missing $ENV_FILE or $COMPOSE_FILE"
     if grep -q '/app/web' "$COMPOSE_FILE"; then die "compose file mounts /app/web; it would shadow the image (see runbook)"; fi

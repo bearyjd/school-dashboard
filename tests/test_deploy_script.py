@@ -300,6 +300,20 @@ def test_refuses_during_sync(env):
     _nothing_changed(env)
 
 
+def test_refuses_when_state_dir_missing(env):
+    import shutil
+    shutil.rmtree(Path(env["DEPLOY_DIR"]) / "state")
+    p = run(env)
+    assert p.returncode == 2 and "state dir" in p.stderr.lower()
+    _nothing_changed(env)
+
+
+def test_dry_run_mentions_state_dir_check(env):
+    p = run(env, "--dry-run")
+    assert p.returncode == 0, p.stderr
+    assert "state dir exists" in p.stdout
+
+
 def test_refuses_during_maintenance(env):
     (Path(env["DEPLOY_DIR"]) / "state" / "maintenance.json").write_text("{}")
     p = run(env)
