@@ -49,6 +49,8 @@ npm --prefix web/spa run e2e      # screenshots -> $E2E_SHOTS (default web/spa/t
 python3 scripts/spa-qa-server.py --port 5099   # same synthetic server for manual preview at /app/
 ```
 
+**Production server (`docker/entrypoint.sh`):** `exec python3 -m gunicorn -w 1 --threads 4 --timeout 120 --graceful-timeout 30 -b 0.0.0.0:5000 web.app:app` (the Flask dev server is no longer used). Keep EXACTLY ONE worker process: `web/app.py` holds the sync state (`_sync_lock`, `_sync_status`, the `/api/sync` token `FailureLimiter`) in process memory, so extra workers could run two syncs at once and disagree on `/api/sync/status`. Scale with `--threads`, never `-w`. `request.remote_addr` and `TRUSTED_PROXY_COUNT` behave as before (no `--forwarded-allow-ips`/ProxyFix). `/api/chat` is a non-streaming JSON reply (60 s upstream timeout), well inside `--timeout 120`. `tests/test_entrypoint_gunicorn.py` pins this.
+
 **Run `pytest tests/` from the repo root (the documented command).** `pyproject.toml` now sets `testpaths = ["tests"]`, so bare `pytest` is also safe; the note below explains the original trap, which is fixed.
 Verified 2026-07-07: bare `pytest` fails collection with
 `ImportPathMismatchError` / `ModuleNotFoundError: No module named 'tests.test_summary'`
