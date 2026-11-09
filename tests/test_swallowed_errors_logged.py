@@ -3,6 +3,7 @@ import json
 import logging
 import sqlite3
 import sys
+import types
 from unittest.mock import MagicMock, patch
 
 from school_dashboard import digest, email
@@ -21,12 +22,19 @@ def test_digest_db_error_logs_and_returns_empty(tmp_path, caplog):
     assert any("Failed to query digest events" in r.message and r.exc_info for r in caplog.records)
 
 
-def test_email_pdf_failure_logs_and_returns_empty(caplog):
-    boom = MagicMock()
-    boom.extract_text.side_effect = RuntimeError("bad pdf")
-    with patch.dict(sys.modules, {"pdfminer": MagicMock(), "pdfminer.high_level": boom}):
-        with caplog.at_level(logging.WARNING, logger="school_dashboard.email"):
-            assert email._extract_pdf_text("/tmp/x.pdf") == ""
+def test_email_pdf_failure_logs_and_returns_empty(monkeypatch, caplog):
+    def _boom(_path):
+        raise RuntimeError("bad pdf")
+
+    # Plain module objects (no Mocks in sys.modules: they break importlib/logging internals).
+    parent = types.ModuleType("pdfminer")
+    parent.__path__ = []
+    high_level = types.ModuleType("pdfminer.high_level")
+    high_level.extract_text = _boom
+    monkeypatch.setitem(sys.modules, "pdfminer", parent)
+    monkeypatch.setitem(sys.modules, "pdfminer.high_level", high_level)
+    with caplog.at_level(logging.WARNING, logger="school_dashboard.email"):
+        assert email._extract_pdf_text("/tmp/x.pdf") == ""
     assert any("Failed to extract text from PDF" in r.message and r.exc_info for r in caplog.records)
 
 
@@ -113,9 +121,11 @@ def test_collapse_events_tolerates_bad_rows():
 
 
 def test_pdfminer_missing_is_logged_once(monkeypatch, caplog):
+    # setattr registers the restore, so the flag is reset after the test too; then clear it for the test.
+    monkeypatch.setattr(email, "_pdfminer_missing_logged", True)
     monkeypatch.setattr(email, "_pdfminer_missing_logged", False)
-    with patch.dict(sys.modules, {"pdfminer": MagicMock(), "pdfminer.high_level": None}):
-        with caplog.at_level(logging.WARNING, logger="school_dashboard.email"):
-            assert email._extract_pdf_text("/tmp/a.pdf") == ""
-            assert email._extract_pdf_text("/tmp/b.pdf") == ""
+    monkeypatch.setitem(sys.modules, "pdfminer.high_level", None)  # import raises ImportError
+    with caplog.at_level(logging.WARNING, logger="school_dashboard.email"):
+        assert email._extract_pdf_text("/tmp/a.pdf") == ""
+        assert email._extract_pdf_text("/tmp/b.pdf") == ""
     assert len([r for r in caplog.records if "pdfminer is not installed" in r.message]) == 1
