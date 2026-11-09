@@ -2,6 +2,7 @@
 """Three daily digest builders and ntfy.sh delivery."""
 import json
 import logging
+import os
 import sqlite3
 from contextlib import closing
 from datetime import date, datetime, timedelta
@@ -78,9 +79,24 @@ def _collapse_events(rows: list[dict]) -> list[dict]:
     ]
 
 
+_DIGEST_MAX_TOKENS = 3000
+
+
 def _call_litellm(prompt: str, litellm_url: str, api_key: str, model: str) -> str:
-    """Call the LLM proxy and return reply text. Tolerates SSE responses."""
-    return chat_completion(prompt, litellm_url, api_key, model, max_tokens=600, timeout=60)
+    """Call the LLM proxy and return reply text. Tolerates SSE responses.
+
+    Reasoning models count hidden reasoning tokens against ``max_tokens`` and
+    can spend the whole budget (even 3000) leaving no text, which the proxy
+    reports as a 502. ``reasoning_effort="low"`` is what actually fixes it;
+    the larger budget is headroom.
+    """
+    # LITELLM_REASONING_EFFORT overrides the default; an empty value omits the
+    # parameter for models/providers that reject it.
+    effort = os.environ.get("LITELLM_REASONING_EFFORT", "low").strip() or None
+    return chat_completion(
+        prompt, litellm_url, api_key, model, max_tokens=_DIGEST_MAX_TOKENS,
+        timeout=120, reasoning_effort=effort, max_attempts=3,
+    )
 
 
 def _read_gc_data(gc_path: str | None) -> object:

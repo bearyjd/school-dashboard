@@ -9,10 +9,16 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 
 import requests
 
 _log = logging.getLogger(__name__)
+
+# Transient proxy failures worth retrying. A reasoning model that spends its
+# whole completion budget on reasoning comes back as a 502 from the proxy.
+_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+_RETRY_BACKOFF_SECONDS = 2.0
 
 
 def _looks_like_sse(content_type: str, body: str) -> bool:
@@ -67,31 +73,49 @@ def chat_completion(
     *,
     max_tokens: int = 600,
     timeout: int = 60,
+    reasoning_effort: str | None = None,
+    max_attempts: int = 1,
 ) -> str:
     """Send a chat completion and return the assistant reply text.
 
     ``messages`` may be either an OpenAI-style message list or a bare prompt
     string (which is wrapped as a single user turn).
+
+    ``max_attempts`` > 1 retries transient HTTP failures (429/5xx) with backoff.
+    Network errors and timeouts are not retried. The default of 1 keeps
+    interactive callers (web routes) from blocking on retries.
     """
     if isinstance(messages, str):
         messages = [{"role": "user", "content": messages}]
 
     endpoint = f"{url.rstrip('/')}/v1/chat/completions"
-    resp = requests.post(
-        endpoint,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-        json={
-            "model": model,
-            "messages": messages,
-            "max_tokens": max_tokens,
-            "stream": False,
-        },
-        timeout=timeout,
-    )
+    payload = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "stream": False,
+    }
+    if reasoning_effort:
+        payload["reasoning_effort"] = reasoning_effort
+    resp = None
+    for attempt in range(1, max_attempts + 1):
+        resp = requests.post(
+            endpoint,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            json=payload,
+            timeout=timeout,
+        )
+        if resp.ok or resp.status_code not in _RETRY_STATUSES or attempt == max_attempts:
+            break
+        _log.warning(
+            "chat_completion HTTP %s (attempt %d/%d), retrying",
+            resp.status_code, attempt, max_attempts,
+        )
+        time.sleep(_RETRY_BACKOFF_SECONDS * attempt)
     if not resp.ok:
         raise RuntimeError(
             f"chat_completion HTTP {resp.status_code} from {endpoint}: "
