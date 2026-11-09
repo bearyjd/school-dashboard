@@ -2,5 +2,27 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "pip_requirements": {
+    "fileMatch": ["^requirements\\.lock$"]
+  },
+  "dockerfile": {
+    "pinDigests": true
+  },
+  "automerge": false,
+  "packageRules": [
+    {
+      "description": "One weekly PR for all Python dependency pins in requirements.lock",
+      "matchManagers": ["pip_requirements"],
+      "groupName": "python-deps",
+      "schedule": ["before 6am on monday"]
+    },
+    {
+      "description": "Base image tag/digest bumps in the Dockerfile",
+      "matchManagers": ["dockerfile"],
+      "matchDepNames": ["python"],
+      "groupName": "python-base-image",
+      "schedule": ["before 6am on monday"]
+    }
   ]
 }

@@ -75,6 +75,18 @@ bundle-budget checks (job `spa`) and the Playwright screens + axe suite (job `e2
 `continue-on-error`). `.github/workflows/docker.yml` only builds and pushes the Docker image on push
 to `main`.
 
+## Pinned dependencies (`requirements.lock`)
+
+Builds are reproducible: the Dockerfile base image is pinned by digest (tag kept in a comment) and
+`pip install -c requirements.lock ...` pins every Python package to the versions production runs
+(plain `name==version`, no hashes, because `--require-hashes` would break the editable vendor installs).
+`pyproject.toml` keeps its `>=` ranges; `tests/test_lockfile.py` checks the lock satisfies them. The
+`playwright` pin also fixes the Chromium build that `playwright install chromium` downloads.
+Regenerate with `scripts/update-lock.sh` (clean venv, same installs as the Dockerfile; `--upgrade`
+floats everything to the newest versions), review the diff, and rebuild. Renovate opens a weekly
+grouped `python-deps` PR and bumps the base image digest (no automerge). Vendor submodules are not
+part of the lock.
+
 ## GameChanger calendar-feed (ICS) fallback
 
 `sync/gc-scrape.sh` falls back per team to a calendar feed (`school_dashboard/gc_ics.py`, `school-state gc-ics --team-id ID`)
