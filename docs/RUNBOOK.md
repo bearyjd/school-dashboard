@@ -9,14 +9,15 @@ git clone --recurse-submodules <repo>
 cd school-dashboard
 cp .env.example config/env        # fill in secrets
 mkdir -p state
-# drop 2025-2026 calendar PDF → state/calendar.pdf
+# (no PDF import; load calendar JSON with `school-state calendar import <file>`)
 gog auth add EMAIL                # one-time Google OAuth (host machine)
 docker compose up -d
 ```
 
 **Note:** calendar-PDF import (`calendar_import.py`) has been removed from this
-codebase — see `CLAUDE.md`'s Architecture section. There is currently no way to
-populate the `events` table from a calendar PDF.
+codebase — see `CLAUDE.md`'s Architecture section. There is no calendar-PDF import;
+populate the `events` table from approved calendar JSON with
+`school-state calendar import <file>`.
 
 ### Update
 
