@@ -748,3 +748,15 @@ def test_manual_rollback_takes_the_lock(env):
         fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
         p = run(env, "--rollback", "rollback-1")
     assert p.returncode == 2 and "another deploy" in p.stderr
+
+
+def test_container_health_is_informational_only(env):
+    p = run(env, "--slug", "spa")
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert "INFO container health:" in p.stdout
+    assert any("{{.State.Health.Status}}" in c for c in log(env))
+
+
+def test_dry_run_mentions_health_info(env):
+    p = run(env, "--dry-run", "--slug", "spa")
+    assert "State.Health.Status" in p.stdout

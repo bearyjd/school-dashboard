@@ -237,6 +237,7 @@ run_gates() {  # sets FAILS; $1 = ISO time the (re)start began; $2 = smoke (0|1)
         note "[dry-run]        docker logs --since <start> $CONTAINER readable and 0 tracebacks;"
         [[ "$with_wd" -eq 0 ]] || note "[dry-run]        watchdog --dry-run --json: no problem beyond the pre-deploy baseline + KNOWN_WATCHDOG_PROBLEMS"
         [[ "$with_smoke" -eq 0 ]] || note "[dry-run]        $SMOKE_SCRIPT --container $CONTAINER"
+        note "[dry-run] info only (not a gate): docker inspect --format '{{.State.Health.Status}}' $CONTAINER"
         return 0
     fi
     for p in /api/dashboard /api/overview /api/readiness /api/sync/status /api/sync/meta /app/ /legacy; do
@@ -277,6 +278,8 @@ run_gates() {  # sets FAILS; $1 = ISO time the (re)start began; $2 = smoke (0|1)
             tail -n 5 -- "$TMP/smoke.out" | sed 's/^/        smoke: /' || true
         fi
     fi
+    # informational only (never a gate): the image HEALTHCHECK needs a few intervals to turn "healthy"
+    note "  INFO container health: $(docker inspect --format '{{.State.Health.Status}}' "$CONTAINER" 2>/dev/null || echo unknown)"
     [[ "$FAILS" -eq 0 ]]
 }
 
