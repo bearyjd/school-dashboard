@@ -146,7 +146,7 @@ docker compose up -d --force-recreate
 
 Do not run `docker compose pull` before rolling back, or `:latest` is overwritten again. The `pre-redesign` image serves the `web/` baked into it, which is not necessarily what the old host `web/` mount was serving at the time. Installed PWAs return to the old layout after their service worker updates.
 
-The image runs gunicorn (one worker, 4 threads; see `docker/entrypoint.sh`). Rolling back to an image built before this change brings back the Flask dev server; behaviour is otherwise the same.
+The image runs gunicorn (one worker, 8 threads; see `docker/entrypoint.sh`). Rolling back to an image built before this change brings back the Flask dev server; behaviour is otherwise the same.
 
 ## Classic view retirement
 

@@ -10,4 +10,4 @@ service cron start
 
 # Start gunicorn. Exactly ONE worker process: sync state (running flag, lock, status, token rate limiter)
 # lives in web/app.py memory. Concurrency comes from threads.
-exec python3 -m gunicorn -w 1 --threads 4 --timeout 120 --graceful-timeout 30 -b 0.0.0.0:5000 web.app:app
+exec python3 -m gunicorn -w 1 --threads 8 --timeout 120 --graceful-timeout 8 -b 0.0.0.0:5000 web.app:app
