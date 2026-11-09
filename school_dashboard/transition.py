@@ -1,10 +1,11 @@
 """`school-state transition ...`: maintenance mode, backup, restore and dry-run."""
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-from school_dashboard import backup, dry_run, maintenance
+from school_dashboard import backup, backup_prune, dry_run, maintenance, paths
 
 EXIT_USAGE = 2
 EXIT_INACTIVE = 10  # `maintenance check`: 0 active, 10 inactive; anything else = failure
@@ -28,6 +29,10 @@ def add_parser(subs) -> argparse.ArgumentParser:
     p_b.add_argument("--wait-idle", type=float, default=0, metavar="SECONDS",
                      help="Wait up to SECONDS for a running sync to finish (default 0: refuse)")
     p_b.set_defaults(func=cmd_transition)
+
+    p_p = ts.add_parser("prune-backups", help="Delete old completed backups under <state>/backups (keeps the newest N)")
+    p_p.add_argument("--keep", type=int, default=None, help="Backups to keep (default: env BACKUP_KEEP, else 14)")
+    p_p.set_defaults(func=cmd_transition)
 
     p_r = ts.add_parser("restore", help="Verify and restore a backup")
     p_r.add_argument("backup_dir", type=Path)
@@ -75,6 +80,13 @@ def _backup(args: argparse.Namespace) -> int:
     return 0
 
 
+def _prune(args: argparse.Namespace) -> int:
+    keep = args.keep if args.keep is not None else backup_prune.parse_keep(os.environ.get("BACKUP_KEEP"))
+    removed = backup_prune.prune_backups(paths.state_dir() / "backups", keep)
+    print(f"Pruned {len(removed)} backup(s); keeping the newest {max(1, keep)}")
+    return 0
+
+
 def _restore(args: argparse.Namespace) -> int:
     report = backup.restore_backup(args.backup_dir, args.target, args.confirm_live)
     counts = " ".join(f"{k}={v}" for k, v in sorted(report["counts"].items()))
@@ -96,9 +108,9 @@ def _dry_run(args: argparse.Namespace) -> int:
 
 def cmd_transition(args: argparse.Namespace) -> None:
     sub = getattr(args, "transition_command", None)
-    handlers = {"maintenance": _maintenance, "backup": _backup, "restore": _restore, "dry-run": _dry_run}
+    handlers = {"maintenance": _maintenance, "backup": _backup, "prune-backups": _prune, "restore": _restore, "dry-run": _dry_run}
     if sub not in handlers:
-        print("usage: school-state transition maintenance|backup|restore|dry-run", file=sys.stderr)
+        print("usage: school-state transition maintenance|backup|prune-backups|restore|dry-run", file=sys.stderr)
         sys.exit(EXIT_USAGE)
     try:
         code = handlers[sub](args)

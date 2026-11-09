@@ -198,7 +198,7 @@ def _preview_existing(db_file: Path, source: str, rows: list[tuple]) -> int:
 
 def _replace(db_file: Path, source: str, rows: list[tuple]) -> int:
     db.init_events_table(str(db_file))
-    with closing(sqlite3.connect(str(db_file))) as conn:
+    with closing(db.open_conn(str(db_file))) as conn:
         with conn:  # one transaction: commit on success, rollback on error
             deleted = conn.execute("DELETE FROM events WHERE source = ?", (source,)).rowcount
             try:
