@@ -76,8 +76,11 @@ def load_upcoming_events(days: int = 30) -> list[dict]:
         rows = [dict(r) for r in cursor.fetchall()]
         conn.close()
         return rows
-    except (sqlite3.Error, OSError):
-        app.logger.warning("Failed to load upcoming events from the school DB", exc_info=True)
+    except (sqlite3.Error, OSError) as exc:
+        if isinstance(exc, sqlite3.OperationalError) and "no such table" in str(exc):
+            app.logger.debug("Events table not present in the school DB")
+        else:
+            app.logger.warning("Failed to load upcoming events from the school DB", exc_info=True)
         return []
 
 

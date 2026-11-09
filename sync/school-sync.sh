@@ -66,7 +66,8 @@ fi
 # Per-process in-flight marker, written BEFORE the maintenance check so a backup
 # that sees no marker knows we have not yet passed the check. Removed on any exit.
 SYNC_MARKER="$STATE_DIR/sync.running.$$"
-trap 'rm -f "$SYNC_MARKER"' EXIT
+# Also removes the sgy scrape temp files so a TERM/timeout mid-scrape leaks nothing.
+trap 'rm -f "$SYNC_MARKER" "${sgy_tmp:-}" "${sgy_err:-}"' EXIT
 { mkdir -p "$(dirname "$SYNC_MARKER")" && echo "$$" > "$SYNC_MARKER"; } 2>/dev/null \
     || log "ERROR: could not write sync marker $SYNC_MARKER — a concurrent backup will not wait for this sync"
 
@@ -201,16 +202,27 @@ elif command -v sgy &>/dev/null; then
     SGY_CHECK='import json, sys; d = json.load(open(sys.argv[1])); sys.exit(0 if isinstance(d, dict) and d else 1)'
     sgy_tmp=""
     sgy_err=""
-    if sgy_tmp="$(mktemp "${SGY_FILE}.XXXXXX" 2>/dev/null)" \
-        && sgy_err="$(mktemp "${STATE_DIR}/.sgy-stderr.XXXXXX" 2>/dev/null)" \
-        && sgy summary --json > "$sgy_tmp" 2>"$sgy_err" \
-        && python3 -c "$SGY_CHECK" "$sgy_tmp" 2>/dev/null; then
+    # If the stderr temp file cannot be created, stderr is discarded rather than skipping the scrape.
+    sgy_err="$(mktemp "${STATE_DIR}/.sgy-stderr.XXXXXX" 2>/dev/null)" || sgy_err=""
+    sgy_rc=0
+    sgy_reason=""
+    if sgy_tmp="$(mktemp "${SGY_FILE}.XXXXXX" 2>/dev/null)"; then
+        sgy summary --json > "$sgy_tmp" 2>"${sgy_err:-/dev/null}" || sgy_rc=$?
+        if [[ "$sgy_rc" -ne 0 ]]; then
+            sgy_reason="sgy exited with status $sgy_rc"
+        elif ! python3 -c "$SGY_CHECK" "$sgy_tmp" 2>/dev/null; then
+            sgy_reason="empty or invalid JSON"
+        fi
+    else
+        sgy_reason="could not create temp file"
+    fi
+    if [[ -z "$sgy_reason" ]]; then
         mv "$sgy_tmp" "$SGY_FILE"
         write_sync_meta "sgy" "ok"
     else
         [[ -n "$sgy_tmp" ]] && rm -f "$sgy_tmp"
         [[ -n "$sgy_err" && -s "$sgy_err" ]] && tail -n 20 "$sgy_err" >> "$STATE_DIR/school-sync.log"
-        log "WARN: SGY scrape had errors"
+        log "WARN: SGY scrape had errors ($sgy_reason)"
         write_sync_meta "sgy" "error"
     fi
     [[ -n "$sgy_err" ]] && rm -f "$sgy_err"

@@ -72,3 +72,50 @@ def test_inline_agent_malformed_action_logs_and_is_ignored(tmp_path, monkeypatch
     assert r.get_json()["action"] is None
     assert any("malformed ACTION" in rec.message for rec in caplog.records)
     assert not any("not json" in rec.getMessage() for rec in caplog.records)
+
+
+def _empty_db(tmp_path):
+    db = tmp_path / "empty.db"
+    sqlite3.connect(str(db)).close()  # valid SQLite file with no events table
+    return db
+
+
+def test_digest_missing_events_table_is_debug_not_warning(tmp_path, caplog):
+    with caplog.at_level(logging.DEBUG, logger="school_dashboard.digest"):
+        assert digest._query_db_events(str(_empty_db(tmp_path)), "2026-01-01") == []
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert any(r.levelno == logging.DEBUG and "events table" in r.message for r in caplog.records)
+    assert not any(r.exc_info for r in caplog.records)
+
+
+def test_app_missing_events_table_is_debug_not_warning(tmp_path, monkeypatch, caplog):
+    monkeypatch.setenv("SCHOOL_DB_PATH", str(_empty_db(tmp_path)))
+    with caplog.at_level(logging.DEBUG):
+        assert app_module.load_upcoming_events() == []
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert any(r.levelno == logging.DEBUG and "Events table" in r.message for r in caplog.records)
+    assert not any(r.exc_info for r in caplog.records)
+
+
+def test_collapse_events_tolerates_bad_rows():
+    rows = [
+        {"title": "Quiz", "type": "QUIZ", "child": 123},
+        {"title": "Quiz", "type": "QUIZ", "child": "Ford"},
+        {"title": "Test", "type": "TEST", "child": None},
+        "garbage",
+        {"type": "TEST"},
+    ]
+    out = digest._collapse_events(rows)
+    by_title = {r.get("title"): r for r in out}
+    assert by_title["Quiz"]["child"] == "123, Ford"
+    assert by_title["Test"]["child"] == ""
+    assert len(out) == 3  # garbage skipped; the title-less row is kept with a None title
+
+
+def test_pdfminer_missing_is_logged_once(monkeypatch, caplog):
+    monkeypatch.setattr(email, "_pdfminer_missing_logged", False)
+    with patch.dict(sys.modules, {"pdfminer": MagicMock(), "pdfminer.high_level": None}):
+        with caplog.at_level(logging.WARNING, logger="school_dashboard.email"):
+            assert email._extract_pdf_text("/tmp/a.pdf") == ""
+            assert email._extract_pdf_text("/tmp/b.pdf") == ""
+    assert len([r for r in caplog.records if "pdfminer is not installed" in r.message]) == 1

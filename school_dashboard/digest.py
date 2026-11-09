@@ -46,14 +46,17 @@ def _query_db_events(db_path: str, target_date: str) -> list[dict]:
     try:
         with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
-            rows = conn.execute(
+            rows = [dict(r) for r in conn.execute(
                 "SELECT date, title, type, child FROM events WHERE date = ? ORDER BY title",
                 (target_date,),
-            ).fetchall()
-            return _collapse_events([dict(r) for r in rows])
-    except (sqlite3.Error, OSError):
-        _log.warning("Failed to query digest events for %s from %s", target_date, db_path, exc_info=True)
+            ).fetchall()]
+    except (sqlite3.Error, OSError) as exc:
+        if isinstance(exc, sqlite3.OperationalError) and "no such table" in str(exc):
+            _log.debug("Digest events table not present in %s", db_path)
+        else:
+            _log.warning("Failed to query digest events for %s from %s", target_date, db_path, exc_info=True)
         return []
+    return _collapse_events(rows)
 
 
 def _collapse_events(rows: list[dict]) -> list[dict]:
@@ -65,8 +68,12 @@ def _collapse_events(rows: list[dict]) -> list[dict]:
     """
     merged: dict[tuple, dict] = {}
     for r in rows:
-        key = (r["title"], r["type"])
-        names = [n.strip() for n in (r.get("child") or "").split(",") if n.strip()]
+        if not isinstance(r, dict):
+            continue
+        key = (r.get("title"), r.get("type"))
+        child = r.get("child")
+        child = child if isinstance(child, str) else ("" if child is None else str(child))
+        names = [n.strip() for n in child.split(",") if n.strip()]
         prev = merged.get(key)
         if prev is None:
             merged[key] = {**r, "_names": list(dict.fromkeys(names)), "_all": not names}

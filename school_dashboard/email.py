@@ -83,12 +83,21 @@ def _strip_html(html: str) -> str:
     return text
 
 
+_pdfminer_missing_logged = False
+
+
 def _extract_pdf_text(pdf_path: str, max_chars: int = SNIPPET_ATTACHMENT_CHARS) -> str:
+    global _pdfminer_missing_logged
     try:
         from pdfminer.high_level import extract_text
         text = extract_text(pdf_path)
         text = re.sub(r"\s+", " ", text).strip()
         return text[:max_chars]
+    except ImportError:
+        if not _pdfminer_missing_logged:  # once per process, not once per attachment
+            _pdfminer_missing_logged = True
+            logger.warning("pdfminer is not installed; PDF attachments will not be read", exc_info=True)
+        return ""
     except Exception:
         logger.warning("Failed to extract text from PDF attachment %s", pdf_path, exc_info=True)
         return ""
