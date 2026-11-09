@@ -423,7 +423,8 @@ def _maintenance_run(info: dict, now: Optional[datetime], dry_run: bool, send: O
     state_file = paths.state_dir() / WATCHDOG_FILE
     stored = load_state(state_file)
     old = stored.get("alerts") if isinstance(stored.get("alerts"), dict) else {}
-    window = str(info.get("operation_id") or info.get("since") or "")
+    # operation_id only: maintenance.status() treats a flag without one as corrupt (no `since`)
+    window = str(info.get("operation_id") or "")
     prev = old.get(MAINTENANCE_KEY)
     # A different window than the one alerted (off/on between runs) re-alerts at once;
     # entries without a stored window (older watchdog.json) keep the plain 24h dedupe.

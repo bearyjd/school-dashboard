@@ -323,12 +323,22 @@ def test_send_ntfy_zero_cards_still_records_delivery(mock_post, tmp_path):
     """A delivered digest with nothing due (zero cards) must leave a digests row for the watchdog."""
     mock_post.return_value = MagicMock(ok=True, status_code=200)
     db = tmp_path / "school.db"
-    from school_dashboard.db import get_digest
     send_ntfy(topic="t", message="All clear", title="Morning Briefing", cards=[], db_path=str(db))
     click = mock_post.call_args.kwargs["headers"]["Click"]
-    assert "digest=" in click
-    result = get_digest(str(db), click.split("digest=")[1])
-    assert result is not None and result["cards"] == [] and result["title"] == "Morning Briefing"
+    assert "digest=" not in click and "mode=all" in click  # static link, not an empty carousel
+    from school_dashboard.watchdog import latest_digests
+    assert "Morning Briefing" in latest_digests(db)
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_send_ntfy_nonempty_cards_deep_links_to_digest(mock_post, tmp_path):
+    mock_post.return_value = MagicMock(ok=True, status_code=200)
+    db = tmp_path / "school.db"
+    from school_dashboard.db import get_digest
+    cards = [{"source": "ixl", "child": "A", "title": "T", "detail": "", "due_date": "", "url": "", "done": False}]
+    send_ntfy(topic="t", message="m", title="Morning Briefing", cards=cards, db_path=str(db))
+    click = mock_post.call_args.kwargs["headers"]["Click"]
+    assert get_digest(str(db), click.split("digest=")[1])["cards"] == cards
 
 
 def test_zero_card_digest_api_and_card_patch(tmp_path, monkeypatch):

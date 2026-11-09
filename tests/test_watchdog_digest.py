@@ -264,3 +264,11 @@ def test_exact_title_match_fallback_does_not_count(env):
 def test_watchdog_cron_covers_evening_digests():
     text = (Path(__file__).resolve().parent.parent / "docker" / "crontab").read_text()
     assert re.search(r"^5 17,22 \* \* \* root bash /app/sync/run-watchdog\.sh$", text, re.M)
+
+
+def test_on_demand_quick_check_row_does_not_satisfy_afternoon_digest(env):
+    from school_dashboard.digest import _DEEP_LINKS
+    _make_db(env / "school.db", [("Quick Check", "2026-11-06 19:45:00")])
+    latest = watchdog.latest_digests(env / "school.db")
+    assert watchdog.DIGEST_SCHEDULE["afternoon"].title not in latest
+    assert "Quick Check" in _DEEP_LINKS
