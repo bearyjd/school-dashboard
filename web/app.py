@@ -714,6 +714,28 @@ def _run_gc_scrape(script: str) -> None:
         raise subprocess.CalledProcessError(rc, script)
 
 
+def _send_sync_digest(digest: str, ntfy_topic: str, state_path: str,
+                      db_path: str, gc_path: str) -> None:
+    """Push the post-sync digest ("quick" or "full"); raises on build/delivery failure."""
+    if digest == "quick":
+        from school_dashboard.digest import build_quick_check, send_ntfy
+        text, cards = build_quick_check(state_path)
+        send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
+                  cards=cards or None, db_path=db_path if cards else None)
+    elif digest == "full":
+        from school_dashboard.digest import build_afternoon_digest, send_ntfy
+        litellm_url = os.environ.get("LITELLM_URL", "")
+        if litellm_url:
+            text, cards = build_afternoon_digest(
+                state_path=state_path, db_path=db_path, litellm_url=litellm_url,
+                api_key=os.environ.get("LITELLM_API_KEY", ""),
+                model=os.environ.get("LITELLM_MODEL", "claude-sonnet"),
+                gc_path=gc_path,
+            )
+            send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
+                      cards=cards, db_path=db_path)
+
+
 def _run_sync_background(sources: str, digest: str) -> None:
     """Run scrapers in a background thread, update state, optionally send digest."""
     global _sync_status
@@ -850,24 +872,11 @@ def _run_sync_background(sources: str, digest: str) -> None:
         if ntfy_topic and digest != "none":
             if _sync_paused_for_maintenance():
                 return
-            if digest == "quick":
-                from school_dashboard.digest import build_quick_check, send_ntfy
-                text, cards = build_quick_check(state_path)
-                send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
-                          cards=cards or None, db_path=db_path if cards else None)
-            elif digest == "full":
-                from school_dashboard.digest import build_afternoon_digest, send_ntfy
-                litellm_url = os.environ.get("LITELLM_URL", "")
-                api_key = os.environ.get("LITELLM_API_KEY", "")
-                model = os.environ.get("LITELLM_MODEL", "claude-sonnet")
-                if litellm_url:
-                    text, cards = build_afternoon_digest(
-                        state_path=state_path, db_path=db_path,
-                        litellm_url=litellm_url, api_key=api_key, model=model,
-                        gc_path=gc_path,
-                    )
-                    send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
-                              cards=cards, db_path=db_path)
+            try:
+                _send_sync_digest(digest, ntfy_topic, state_path, db_path, gc_path)
+            except Exception:
+                app.logger.error("Sync digest delivery failed", exc_info=True)
+                errors.append("digest delivery failed")
 
         all_paused = bool(source_list) and not any(source_enabled(s) for s in source_list)
         _sync_status["last_result"] = "error" if errors else "ok (all paused)" if all_paused else "ok"
