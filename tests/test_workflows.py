@@ -41,12 +41,16 @@ def test_login_and_tag_steps_skip_pull_requests():
             assert step.get("if") == NOT_PR, step["name"]
 
 
-def test_tag_is_created_after_build():
+def test_tag_step_runs_before_build_as_on_main():
     steps = _steps()
     build = next(i for i, s in enumerate(steps) if _uses(s, "docker/build-push-action"))
-    real_tag = [
-        i
-        for i, s in enumerate(steps)
-        if _uses(s, "mathieudutour/github-tag-action") and not s["with"].get("dry_run")
+    tag = [
+        i for i, s in enumerate(steps) if _uses(s, "mathieudutour/github-tag-action")
     ]
-    assert real_tag and all(i > build for i in real_tag)
+    assert len(tag) == 1 and tag[0] < build
+    assert steps[tag[0]]["id"] == "tag"
+
+
+def test_builds_are_serialised():
+    conc = _docker()["concurrency"]
+    assert "github.ref" in conc["group"] and conc["cancel-in-progress"] is False

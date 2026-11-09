@@ -16,12 +16,12 @@ on:
       - "web/**"
       - "docker/**"
       - "sync/**"
+      - "config/**"
       - school-sync.sh
   # Build-only check on PRs (no login, no tag, no push, no secrets).
   pull_request:
     paths:
       - Dockerfile
-      - docker-compose.yml
       - pyproject.toml
       - requirements.lock
       - .gitmodules
@@ -30,8 +30,14 @@ on:
       - "web/**"
       - "docker/**"
       - "sync/**"
+      - "config/**"
       - school-sync.sh
       - .github/workflows/docker.yml
+
+# Serialise builds so overlapping main runs cannot finish out of order and leave :latest on an older commit.
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -51,8 +57,7 @@ jobs:
       - name: Update scrapers to latest
         run: git submodule update --remote vendor/ixl-scrape vendor/schoology-scrape
 
-      # Dry run: only computes the next tag. The tag itself is created after a successful push.
-      - name: Compute next version tag
+      - name: Bump version tag
         id: tag
         if: github.event_name != 'pull_request'
         uses: mathieudutour/github-tag-action@v7.0.0
@@ -60,7 +65,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           default_bump: patch
           release_branches: main
-          dry_run: true
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
@@ -86,11 +90,3 @@ jobs:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
-
-      - name: Create version tag
-        if: github.event_name != 'pull_request'
-        uses: mathieudutour/github-tag-action@v7.0.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          default_bump: patch
-          release_branches: main

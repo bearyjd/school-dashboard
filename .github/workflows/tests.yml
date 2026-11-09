@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          submodules: recursive
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -23,8 +25,14 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.lock
 
+      # Same installs as the Dockerfile, resolved against the lock.
       - name: Install with requirements.lock
-        run: pip install -c requirements.lock ".[server]"
+        run: |
+          pip install -c requirements.lock ".[server]" \
+            -e "vendor/ixl-scrape[browser]" \
+            -e vendor/schoology-scrape \
+            -e vendor/gc \
+            -e "vendor/powerschool-scrape[browser]"
 
       - name: Check dependency consistency
         run: pip check
