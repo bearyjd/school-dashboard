@@ -775,3 +775,14 @@ def test_container_health_is_informational_only(env):
 def test_dry_run_mentions_health_info(env):
     p = run(env, "--dry-run", "--slug", "spa")
     assert "State.Health.Status" in p.stdout
+
+
+def test_dry_run_lists_excluded_state_entries(env):
+    state = Path(env["DEPLOY_DIR"]) / "state"
+    (state / "backups").mkdir()
+    (state / ".pre-restore-20261101T031500000000Z").mkdir()
+    p = run(env, "--dry-run", "--slug", "spa")
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert "excluded from state copy: backups" in p.stdout
+    assert "excluded from state copy: .pre-restore-20261101T031500000000Z" in p.stdout
+    assert not any(" cp " in ln and "/state/backups" in ln for ln in p.stdout.splitlines())

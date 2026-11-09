@@ -174,15 +174,30 @@ def check_scrape_degraded(school_state: Any, watched, now: datetime) -> list[Pro
     return out
 
 
-def check_maintenance_stuck(info: Optional[dict], now: datetime) -> list[Problem]:
+def check_maintenance_stuck(info: Optional[dict], now: datetime,
+                            flag_mtime: Optional[datetime] = None) -> list[Problem]:
     """One problem when maintenance mode (flag contents `info`) has been on for > 2h.
 
-    Uses the flag's `since`; an absent or unparseable `since` is not flagged.
+    The start is the flag's `since`; a missing/unparseable `since` (corrupt or
+    hand-made flag) uses the flag file's mtime instead. With neither, the window
+    is stuck-unknown: one problem with `age_hours=None`.
     """
-    since = _parse(info.get("since")) if isinstance(info, dict) else None
-    if since is None or now - since <= MAINTENANCE_STUCK_AFTER:
+    if info is None:
         return []
-    return [Problem(MAINTENANCE_KEY, "maintenance_stuck", _hours(now - since))]
+    start = _parse(info.get("since")) or flag_mtime
+    if start is None:
+        return [Problem(MAINTENANCE_KEY, "maintenance_stuck", None)]
+    if now - start <= MAINTENANCE_STUCK_AFTER:
+        return []
+    return [Problem(MAINTENANCE_KEY, "maintenance_stuck", _hours(now - start))]
+
+
+def _flag_mtime() -> Optional[datetime]:
+    try:
+        return datetime.fromtimestamp(maintenance.flag_path().stat().st_mtime, tz=timezone.utc)
+    except OSError:
+        return None
+
 
 # ---- scheduled digest delivery (dead-man's switch) ----
 
@@ -305,7 +320,8 @@ def _label(source: str) -> str:
 
 def _describe(p: Problem) -> str:
     if p.issue == "maintenance_stuck":
-        return (f"Maintenance mode has been ON for {p.age_hours:.1f} hours; syncs, digests and "
+        age = "an unknown time (flag has no readable start)" if p.age_hours is None else f"{p.age_hours:.1f} hours"
+        return (f"Maintenance mode has been ON for {age}; syncs, digests and "
                 "writes are paused. Run: school-state transition maintenance off")
     if p.issue == DIGEST_MISSING:
         return f"{_label(p.source)}: not delivered, was due {p.age_hours:.1f} hours ago"
@@ -400,7 +416,7 @@ def _skip(reason: str, exit_code: int = 0, error: Optional[str] = None) -> dict:
 def _maintenance_run(info: dict, now: Optional[datetime], dry_run: bool, send: Optional[SendFn]) -> dict:
     """Maintenance is on: skip the normal checks, but alert if it has been on too long."""
     now = now or datetime.now(get_tz())
-    problems = check_maintenance_stuck(info, now)
+    problems = check_maintenance_stuck(info, now, _flag_mtime())
     if not problems:
         return _skip("maintenance")
     topic = os.environ.get("NTFY_TOPIC", "")

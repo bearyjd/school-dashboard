@@ -38,7 +38,13 @@ def test_check_maintenance_stuck_pure():
     assert f({"since": utc_iso(NOW - timedelta(hours=1, minutes=59))}, NOW) == []
     (p,) = f({"since": utc_iso(NOW - timedelta(hours=3))}, NOW)
     assert (p.source, p.issue, p.age_hours) == ("maintenance_stuck", "maintenance_stuck", 3.0)
-    assert f({"since": "garbage"}, NOW) == [] and f({}, NOW) == []
+    # no/unparseable `since`: fall back to the flag file mtime, then to "unknown"
+    old, recent = NOW - timedelta(hours=5), NOW - timedelta(minutes=10)
+    for bad in ({"since": "garbage"}, {}, {"since": None, "corrupt": True}):
+        assert [p.age_hours for p in f(bad, NOW, flag_mtime=old)] == [5.0]
+        assert f(bad, NOW, flag_mtime=recent) == []
+        (unknown,) = f(bad, NOW, flag_mtime=None)
+        assert (unknown.source, unknown.age_hours) == ("maintenance_stuck", None)
 
 
 def test_run_alerts_when_maintenance_stuck_before_skip(env):
@@ -117,3 +123,22 @@ def test_watchdog_disabled_kill_switch_still_wins(env, monkeypatch):
     _stuck_flag(env)
     res = watchdog.run(now=NOW, send=lambda *a: pytest.fail("sent"))
     assert res["skipped"] == "disabled"
+
+
+def test_run_alerts_for_flag_without_since_using_file_mtime(env):
+    import os
+    (env / "maintenance.json").write_text(json.dumps({"operation_id": "hand-made"}))
+    old = (NOW - timedelta(hours=6)).timestamp()
+    os.utime(env / "maintenance.json", (old, old))
+    sent = []
+    res = watchdog.run(now=NOW, send=lambda t, m, title: sent.append(m))
+    assert res["exit_code"] == 1 and len(sent) == 1 and "6.0" in sent[0]
+
+
+def test_run_alerts_once_for_corrupt_flag_with_fresh_mtime_unreadable_start(env, monkeypatch):
+    (env / "maintenance.json").write_text("{not json")
+    monkeypatch.setattr(watchdog, "_flag_mtime", lambda: None)
+    sent = []
+    watchdog.run(now=NOW, send=lambda t, m, title: sent.append(m))
+    watchdog.run(now=NOW + timedelta(hours=1), send=lambda t, m, title: sent.append(m))
+    assert len(sent) == 1 and "unknown" in sent[0].lower()

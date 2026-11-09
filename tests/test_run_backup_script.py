@@ -150,3 +150,19 @@ def test_failure_alerts_and_still_clears_maintenance(env):
     assert not (state / "maintenance.json").exists()
     assert "FAILED" in (state / "backup.log").read_text()
     assert "ntfy.sh/t" in (tmp / "curl.log").read_text()
+
+
+def test_failed_maintenance_off_alerts_and_exits_nonzero(env):
+    e, state, tmp = env
+    _executable(tmp / "bin" / "school-state",
+                '#!/usr/bin/env bash\n'
+                'if [ "${1:-}" = transition ] && [ "${2:-}" = maintenance ] && [ "${3:-}" = off ]; then\n'
+                '  echo "cannot remove flag" >&2; exit 1\nfi\n'
+                'exec python3 -m school_dashboard.cli "$@"\n')
+    r = _run(e)
+    assert r.returncode != 0
+    log = (state / "backup.log").read_text()
+    assert "backup OK" not in log
+    pushes = (tmp / "curl.log").read_text()
+    assert "ntfy.sh/t" in pushes and "maintenance may still be ON" in pushes
+    assert "school-state transition maintenance off" in pushes

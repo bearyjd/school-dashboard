@@ -49,13 +49,19 @@ alert_failure() {
     notify "Backup FAILED" "Scheduled state backup failed (exit $1). Check $LOGFILE on the container."
 }
 
-cleanup() {
-    if [ -n "$OP_ID" ]; then
-        local id="$OP_ID"; OP_ID=""
-        school-state transition maintenance off --operation-id "$id" >> "$LOGFILE" 2>&1 \
-            || echo "[$TS] WARN: could not clear maintenance mode; run: school-state transition maintenance off" >> "$LOGFILE"
+clear_maintenance() {  # clears only OUR window; on failure alerts and returns 1
+    [ -n "$OP_ID" ] || return 0
+    local id="$OP_ID"; OP_ID=""
+    if school-state transition maintenance off --operation-id "$id" >> "$LOGFILE" 2>&1; then
+        return 0
     fi
+    echo "[$TS] ERROR: could not clear maintenance mode; run: school-state transition maintenance off" >> "$LOGFILE"
+    notify "Backup: maintenance may still be ON" \
+        "Scheduled backup could not clear maintenance mode: maintenance may still be ON and syncs/digests paused. Clear it with: school-state transition maintenance off (log: $LOGFILE)"
+    return 1
 }
+
+cleanup() { clear_maintenance || true; }  # EXIT trap: never changes the exit status
 
 on_signal() {  # on_signal EXITCODE: stop the running step, then exit (EXIT trap clears the flag)
     if [ -n "$CHILD" ]; then kill "$CHILD" 2>/dev/null || true; fi
@@ -105,7 +111,7 @@ fi
 
 rc=0
 step school-state transition backup --wait-idle 300 || rc=$?
-cleanup
+clear_maintenance || { [ "$rc" -ne 0 ] || rc=1; }
 if [ "$rc" -eq 0 ]; then
     step school-state transition prune-backups || rc=$?
 fi
