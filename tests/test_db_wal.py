@@ -70,6 +70,20 @@ def test_readonly_uri_reader_sees_uncheckpointed_wal_rows(tmp_path):
         writer.close()
 
 
+def test_watchdog_latest_digests_reads_wal_db_with_and_without_open_writer(tmp_path):
+    from school_dashboard import watchdog
+    p = tmp_path / "s.db"
+    db.init_db(str(p))
+    writer = db._connect(str(p))
+    try:
+        db.create_digest(str(p), "Morning Briefing", [{"t": 1}])
+        assert Path(str(p) + "-wal").exists()
+        assert "Morning Briefing" in watchdog.latest_digests(p)
+    finally:
+        writer.close()
+    assert "Morning Briefing" in watchdog.latest_digests(p)
+
+
 def test_readonly_uri_reader_works_after_clean_close(tmp_path):
     p = tmp_path / "s.db"
     db.init_db(str(p))

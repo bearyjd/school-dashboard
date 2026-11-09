@@ -59,6 +59,7 @@ docker compose exec dashboard tail -f /tmp/digest.log
 | 7:00am (daily) | Morning digest → ntfy.sh | `/tmp/digest.log` |
 | 3:30pm (weekdays) | Afternoon homework check → ntfy.sh | `/tmp/digest.log` |
 | 8:30pm (daily) | Night prep digest → ntfy.sh | `/tmp/digest.log` |
+| 8:30am, 4:30pm, 5:05pm, 10:05pm (daily) | Staleness + digest watchdog | `state/watchdog.log` |
 | 3:15am (daily) | Scheduled state backup + pruning (`sync/run-backup.sh`) | `state/backup.log` |
 | 3:45am (daily) | Log rotation (`python3 -m school_dashboard.logrotate`) | `state/logrotate.log` |
 

@@ -47,7 +47,7 @@ vendor/
 docker/
   Dockerfile            python:3.12-slim + Node 20 + gog v0.12.0 + Playwright/Chromium + scrapers + SPA build
   entrypoint.sh         loads config/env → starts cron → starts Flask on :5000
-  crontab               6:00am + 2:30pm weekday syncs; 7am/3:30pm/8:30pm digest jobs
+  crontab               6:00am + 2:30pm weekday syncs; 7am/3:30pm/8:30pm digest jobs; 3:15am backup; 3:45am log rotation
 ```
 
 ## Data Flow
@@ -60,15 +60,19 @@ docker/
 | **3:30pm** (weekdays) | Afternoon digest — homework check + cards → digests DB → ntfy.sh |
 | **8:30pm** (daily) | Night digest — next-day prep + cards → digests DB → ntfy.sh |
 | **Fri 3pm / Sun 7pm** | Weekly digest — week-in-review / week-ahead preview |
+| **3:15am** (daily) | Scheduled state backup into `state/backups/` (newest `BACKUP_KEEP`=14 kept) — `sync/run-backup.sh` |
+| **3:45am** (daily) | Log rotation of `state/*.log` (size-based, copytruncate, 4 gzip copies) |
 | **On demand** | `/api/sync` — trigger per-source sync from the PWA; `/api/sync/meta` for freshness |
 | **On demand** | `/api/chat` — query 30-day events + facts + full state via LiteLLM |
 | **On demand** | `/api/digest/<id>` — retrieve carousel history + toggle card done state |
 
 ## Staleness Watchdog
 
-`school-state watchdog` (cron: 8:30am and 4:30pm daily, via `sync/run-watchdog.sh`) reads `sync_meta.json` and pushes an ntfy alert ("School: data is stale") when an enabled source (ixl, sgy, gc, powerschool) has no successful sync since the last scheduled one (weekdays 6:00 / 14:30 ET, 90 min grace; no alerts for weekends), when a source has been failing for over 24h, or when it has never synced. `school-state.json` freshness is checked too, but only as a backstop: manual actions also rewrite that file, so a fresh mtime does not prove the scrapers ran. A source seen for the first time (new deploy, or re-enabled) is not reported as "never synced" until one scheduled sync plus grace has passed. The same unresolved source re-alerts at most every 24h (a stale-to-failing label change does not re-alert); one "recovered" push follows when it clears. A failed push (HTTP error, timeout) is not recorded, so the next run retries, and the command exits 2. State lives in `state/watchdog.json`. The schedule constant `SYNC_SCHEDULE` must stay in step with `docker/crontab`. `--dry-run --json` reports without sending. Exit codes: 0 healthy, 1 problems, 2 internal error.
+`school-state watchdog` (cron: 8:30am, 4:30pm, 5:05pm and 10:05pm daily, via `sync/run-watchdog.sh`) reads `sync_meta.json` and pushes an ntfy alert ("School: data is stale") when an enabled source (ixl, sgy, gc, powerschool) has no successful sync since the last scheduled one (weekdays 6:00 / 14:30 ET, 90 min grace; no alerts for weekends), when a source has been failing for over 24h, or when it has never synced. `school-state.json` freshness is checked too, but only as a backstop: manual actions also rewrite that file, so a fresh mtime does not prove the scrapers ran. A source seen for the first time (new deploy, or re-enabled) is not reported as "never synced" until one scheduled sync plus grace has passed. The same unresolved source re-alerts at most every 24h (a stale-to-failing label change does not re-alert); one "recovered" push follows when it clears. A failed push (HTTP error, timeout) is not recorded, so the next run retries, and the command exits 2. State lives in `state/watchdog.json`. The schedule constant `SYNC_SCHEDULE` must stay in step with `docker/crontab`. `--dry-run --json` reports without sending. Exit codes: 0 healthy, 1 problems, 2 internal error.
 
-Silence it: `SOURCE_<NAME>_ENABLED=0` for one source (also pauses its scrape), or `WATCHDOG_ENABLED=0` for the whole watchdog. It skips during maintenance mode and logs an ERROR and exits 2 when `NTFY_TOPIC` is unset. Sources that are not configured (no GC credentials, PowerSchool absent) are not monitored.
+It also acts as a dead-man's switch for digests: when a scheduled digest (morning, afternoon, night, Friday and Sunday weekly) has no row in the `digests` table 90 min after its `docker/crontab` time, it alerts (`Morning Briefing digest: not delivered, ...`). Digests are matched by exact title (a `<title> (fallback)` push does not count as delivered); a digest with no cards writes no row and so also alerts. Disable with `WATCHDOG_DIGESTS_ENABLED=0`.
+
+Silence it: `SOURCE_<NAME>_ENABLED=0` for one source (also pauses its scrape), or `WATCHDOG_ENABLED=0` for the whole watchdog. It skips during maintenance mode (except that maintenance left on for more than 2h raises a `maintenance_stuck` alert) and logs an ERROR and exits 2 when `NTFY_TOPIC` is unset. Sources that are not configured (no GC credentials, PowerSchool absent) are not monitored.
 
 ## Configuration
 

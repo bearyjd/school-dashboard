@@ -763,3 +763,15 @@ def test_backup_excludes_nightly_backups_and_pre_restore_dirs(env):
     assert not list((b / "state").glob(".pre-restore-*"))
     assert (b / "state" / "facts.json").exists() and (b / "state" / "school-state.json").exists()
     assert (b / "state" / ".hidden-keep").read_text() == "dot"
+
+
+def test_container_health_is_informational_only(env):
+    p = run(env, "--slug", "spa")
+    assert p.returncode == 0, p.stdout + p.stderr
+    assert "INFO container health:" in p.stdout
+    assert any("{{.State.Health.Status}}" in c for c in log(env))
+
+
+def test_dry_run_mentions_health_info(env):
+    p = run(env, "--dry-run", "--slug", "spa")
+    assert "State.Health.Status" in p.stdout
