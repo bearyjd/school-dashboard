@@ -8,6 +8,7 @@ left alone. The newest completed backup is always kept.
 import logging
 import re
 import shutil
+import time
 from pathlib import Path
 
 from school_dashboard.backup import MANIFEST
@@ -17,6 +18,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_KEEP = 14
 # Matches backup.create_backup's default: %Y%m%dT%H%M%S%fZ
 _NAME_RE = re.compile(r"[0-9]{8}T[0-9]{12}Z")
+# create_backup staging dir: .<stamp>.partial-<8 hex>
+_PARTIAL_RE = re.compile(r"\.[0-9]{8}T[0-9]{12}Z\.partial-[0-9a-f]{8}")
+PARTIAL_MAX_AGE_SECONDS = 24 * 3600
 
 
 def is_backup_name(name: str) -> bool:
@@ -24,17 +28,18 @@ def is_backup_name(name: str) -> bool:
 
 
 def parse_keep(raw: "str | None") -> int:
-    """BACKUP_KEEP value -> positive int; unset or invalid falls back to the default."""
+    """BACKUP_KEEP value -> positive int; unset/empty gives the default.
+
+    Raises ValueError for anything that is not an integer >= 1 (never guesses).
+    """
     if raw is None or raw.strip() == "":
         return DEFAULT_KEEP
     try:
         value = int(raw)
     except ValueError:
-        logger.warning("BACKUP_KEEP=%r is not an integer; using %d", raw, DEFAULT_KEEP)
-        return DEFAULT_KEEP
+        raise ValueError(f"BACKUP_KEEP={raw!r} is not an integer >= 1") from None
     if value < 1:
-        logger.warning("BACKUP_KEEP=%r must be >= 1; using %d", raw, DEFAULT_KEEP)
-        return DEFAULT_KEEP
+        raise ValueError(f"BACKUP_KEEP={raw!r} must be >= 1")
     return value
 
 
@@ -48,14 +53,27 @@ def _complete_backups(root: Path) -> list[Path]:
     return sorted(found, key=lambda p: p.name)
 
 
-def prune_backups(root: Path, keep: int = DEFAULT_KEEP) -> list[Path]:
-    """Delete all but the newest `keep` (min 1) completed backups; return those removed."""
+def _stale_partials(root: Path, now: float) -> list[Path]:
+    found = []
+    for entry in root.iterdir():
+        if not _PARTIAL_RE.fullmatch(entry.name) or entry.is_symlink() or not entry.is_dir():
+            continue
+        if now - entry.stat().st_mtime > PARTIAL_MAX_AGE_SECONDS:
+            found.append(entry)
+    return found
+
+
+def prune_backups(root: Path, keep: int = DEFAULT_KEEP, now: "float | None" = None) -> list[Path]:
+    """Delete all but the newest `keep` completed backups plus stale staging dirs.
+
+    Raises ValueError (deleting nothing) when keep < 1. Returns the paths removed.
+    """
+    if keep < 1:
+        raise ValueError(f"keep must be >= 1, got {keep}")
     root = Path(root)
     if not root.is_dir():
         return []
-    keep = max(1, keep)
-    complete = _complete_backups(root)
-    doomed = complete[:-keep]
+    doomed = _complete_backups(root)[:-keep] + _stale_partials(root, time.time() if now is None else now)
     removed = []
     for victim in doomed:
         if victim.parent != root or victim.is_symlink():  # defence in depth

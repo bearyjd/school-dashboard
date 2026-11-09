@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from school_dashboard import backup_prune, cli
 
 
@@ -62,11 +64,13 @@ def test_symlinked_entries_are_never_followed_or_removed(tmp_path):
     assert link.is_symlink() and (outside / "manifest.json").exists()
 
 
-def test_keep_is_at_least_one(tmp_path):
+@pytest.mark.parametrize("keep", [0, -1])
+def test_prune_rejects_keep_below_one_and_deletes_nothing(tmp_path, keep):
     _mk(tmp_path, _stamp(1))
     _mk(tmp_path, _stamp(2))
-    backup_prune.prune_backups(tmp_path, keep=0)
-    assert [p.name for p in tmp_path.iterdir()] == [_stamp(2)]
+    with pytest.raises(ValueError):
+        backup_prune.prune_backups(tmp_path, keep=keep)
+    assert len(list(tmp_path.iterdir())) == 2
 
 
 def test_missing_root_is_a_noop(tmp_path):
@@ -77,9 +81,9 @@ def test_parse_keep_default_and_invalid():
     assert backup_prune.parse_keep(None) == 14
     assert backup_prune.parse_keep("") == 14
     assert backup_prune.parse_keep("7") == 7
-    assert backup_prune.parse_keep("abc") == 14
-    assert backup_prune.parse_keep("-3") == 14
-    assert backup_prune.parse_keep("0") == 14
+    for bad in ("abc", "-3", "0", "2.5"):
+        with pytest.raises(ValueError):
+            backup_prune.parse_keep(bad)
 
 
 def test_name_pattern_rejects_traversal_and_lookalikes():
@@ -110,3 +114,69 @@ def test_cli_prune_reads_backup_keep_env(state_env, monkeypatch):
     with patch("sys.argv", ["school-state", "transition", "prune-backups"]):
         cli.main()
     assert sorted(p.name for p in root.iterdir()) == [_stamp(2), _stamp(3)]
+
+
+@pytest.mark.parametrize("argv", [["--keep", "0"], ["--keep", "-2"], ["--keep", "abc"]])
+def test_cli_rejects_bad_keep_with_exit_2_and_deletes_nothing(state_env, argv):
+    root = state_env / "backups"
+    for i in range(1, 4):
+        _mk(root, _stamp(i))
+    with patch("sys.argv", ["school-state", "transition", "prune-backups", *argv]):
+        with pytest.raises(SystemExit) as exc:
+            cli.main()
+    assert exc.value.code == 2
+    assert len(list(root.iterdir())) == 3
+
+
+@pytest.mark.parametrize("raw", ["0", "-1", "lots"])
+def test_cli_bad_env_keep_logs_error_exit_2_and_deletes_nothing(state_env, monkeypatch, caplog, raw):
+    monkeypatch.setenv("BACKUP_KEEP", raw)
+    root = state_env / "backups"
+    for i in range(1, 4):
+        _mk(root, _stamp(i))
+    with patch("sys.argv", ["school-state", "transition", "prune-backups"]):
+        with caplog.at_level("ERROR"), pytest.raises(SystemExit) as exc:
+            cli.main()
+    assert exc.value.code == 2
+    assert "BACKUP_KEEP" in caplog.text
+    assert len(list(root.iterdir())) == 3
+
+
+# ---- stale partial (staging) dirs ----
+
+def _partial(root: Path, i: int, age_h: float, now: float) -> Path:
+    d = _mk(root, f".{_stamp(i)}.partial-abcd12{i:02d}", complete=False)
+    os.utime(d, (now - age_h * 3600, now - age_h * 3600))
+    return d
+
+
+def test_stale_partials_older_than_24h_are_removed(tmp_path):
+    import time
+    now = time.time()
+    _mk(tmp_path, _stamp(1))
+    old = _partial(tmp_path, 2, 30, now)
+    fresh = _partial(tmp_path, 3, 2, now)
+    removed = backup_prune.prune_backups(tmp_path, keep=5, now=now)
+    assert old in removed and not old.exists() and fresh.exists()
+    assert (tmp_path / _stamp(1)).exists()
+
+
+def test_partial_cleanup_is_strict_about_names_and_symlinks(tmp_path):
+    import time
+    now = time.time()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    root = tmp_path / "backups"
+    root.mkdir()
+    link = root / f".{_stamp(1)}.partial-abcd1234"
+    os.symlink(outside, link)
+    lookalike = _partial(root, 2, 48, now)
+    bad = root / ".my-notes.partial-abcd1234"
+    bad.mkdir()
+    os.utime(bad, (now - 48 * 3600, now - 48 * 3600))
+    wrong = root / f".{_stamp(3)}.partial-ZZZZ"
+    wrong.mkdir()
+    os.utime(wrong, (now - 48 * 3600, now - 48 * 3600))
+    backup_prune.prune_backups(root, keep=5, now=now)
+    assert link.is_symlink() and outside.exists() and bad.exists() and wrong.exists()
+    assert not lookalike.exists()

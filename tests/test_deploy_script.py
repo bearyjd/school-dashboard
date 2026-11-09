@@ -748,3 +748,18 @@ def test_manual_rollback_takes_the_lock(env):
         fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
         p = run(env, "--rollback", "rollback-1")
     assert p.returncode == 2 and "another deploy" in p.stderr
+
+
+def test_backup_excludes_nightly_backups_and_pre_restore_dirs(env):
+    state = Path(env["DEPLOY_DIR"]) / "state"
+    (state / "backups" / "20261101T031500000000Z").mkdir(parents=True)
+    (state / "backups" / "20261101T031500000000Z" / "school.db").write_text("old")
+    (state / ".pre-restore-20261101T031500000000Z").mkdir()
+    (state / ".hidden-keep").write_text("dot")
+    (state / "facts.json").write_text("[]")
+    assert run(env, "--slug", "spa").returncode == 0
+    (b,) = backups(env)
+    assert not (b / "state" / "backups").exists()
+    assert not list((b / "state").glob(".pre-restore-*"))
+    assert (b / "state" / "facts.json").exists() and (b / "state" / "school-state.json").exists()
+    assert (b / "state" / ".hidden-keep").read_text() == "dot"

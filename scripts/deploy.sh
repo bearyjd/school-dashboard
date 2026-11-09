@@ -367,10 +367,20 @@ else
     watchdog_snapshot "$TMP/wd.base"
 fi
 
+# Copy every top-level state entry except the nightly backups and restore snapshots
+# (they would be duplicated into each deploy backup). A symlinked state dir is followed.
+copy_state() (
+    shopt -s nullglob dotglob
+    for entry in "$STATE_DIR"/*; do
+        case "${entry##*/}" in backups|.pre-restore-*) continue ;; esac
+        run cp -a -- "$entry" "$BACKUP_DIR/state/" || exit 1
+    done
+)
+
 note "backup -> $BACKUP_DIR (state, env mode 0600, compose); env contents are never printed"
 run mkdir -m 700 -- "$BACKUP_DIR" || die "cannot create the backup dir"
 run mkdir -m 700 -- "$BACKUP_DIR/state" || die "backup failed (state dir)"
-run cp -a -- "$STATE_DIR/." "$BACKUP_DIR/state/" || die "backup failed (state copy)"
+run copy_state || die "backup failed (state copy)"
 if [[ "$DRY" -eq 1 ]]; then
     note "[dry-run] if $STATE_DIR/school.db exists: sqlite3 .backup into the backup, PRAGMA integrity_check must say ok (else exit 2 before the pull)"
 elif [[ -f "$STATE_DIR/school.db" ]]; then

@@ -1,8 +1,11 @@
 """sync/run-backup.sh end to end against the real school-state CLI (shimmed onto PATH)."""
+import json
 import os
+import signal
 import sqlite3
 import stat
 import subprocess
+import time
 from contextlib import closing
 from pathlib import Path
 
@@ -81,13 +84,62 @@ def test_prunes_to_backup_keep(env):
 
 
 def test_skips_when_maintenance_already_active_and_leaves_flag(env):
-    e, state, _ = env
+    e, state, tmp = env
     assert subprocess.run(["school-state", "transition", "maintenance", "on"], env=e).returncode == 0
     r = _run(e)
     assert r.returncode == 0
     assert (state / "maintenance.json").exists()
     assert not (state / "backups").exists()
     assert "skipped" in (state / "backup.log").read_text()
+    assert "ntfy.sh/t" in (tmp / "curl.log").read_text()  # a skip is alerted, not silent
+
+
+def _slow_backup_shim(tmp: Path, body: str) -> None:
+    """school-state shim whose `transition backup` runs `body`; everything else is the real CLI."""
+    _executable(tmp / "bin" / "school-state",
+                '#!/usr/bin/env bash\n'
+                'if [ "${1:-}" = transition ] && [ "${2:-}" = backup ]; then\n'
+                f'{body}\nfi\n'
+                'exec python3 -m school_dashboard.cli "$@"\n')
+
+
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT, signal.SIGHUP])
+def test_signal_mid_backup_clears_our_maintenance_flag(env, sig):
+    e, state, tmp = env
+    _slow_backup_shim(tmp, f'touch {tmp}/started\nexec sleep 60')
+    proc = subprocess.Popen(["bash", str(SCRIPT)], env=e, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            start_new_session=True)
+    for _ in range(100):
+        if (tmp / "started").exists():
+            break
+        time.sleep(0.1)
+    assert (tmp / "started").exists() and (state / "maintenance.json").exists()
+    proc.send_signal(sig)
+    proc.wait(timeout=15)
+    assert not (state / "maintenance.json").exists()
+    assert "interrupted" in (state / "backup.log").read_text()
+
+
+def test_foreign_operation_id_flag_is_left_alone(env):
+    e, state, tmp = env
+    foreign = json.dumps({"operation_id": "deploy-window", "since": "2026-11-09T00:00:00+00:00", "reason": "deploy"})
+    _slow_backup_shim(tmp, f"printf '%s' '{foreign}' > {state}/maintenance.json\nexit 0")
+    r = _run(e)
+    assert r.returncode == 0, r.stderr
+    assert json.loads((state / "maintenance.json").read_text())["operation_id"] == "deploy-window"
+
+
+@pytest.mark.parametrize("raw", ["0", "-2", "many"])
+def test_bad_backup_keep_fails_alerts_and_deletes_nothing(env, raw):
+    e, state, tmp = env
+    e["BACKUP_KEEP"] = raw
+    old = state / "backups" / "20260101T031500000000Z"
+    old.mkdir(parents=True)
+    (old / "manifest.json").write_text("{}")
+    r = _run(e)
+    assert r.returncode == 2
+    assert old.exists() and not (state / "maintenance.json").exists()
+    assert "ntfy.sh/t" in (tmp / "curl.log").read_text()
 
 
 def test_failure_alerts_and_still_clears_maintenance(env):

@@ -104,23 +104,36 @@ credentials; restore verifies sha256 and DB integrity before writing.
 
 ### Scheduled backups, retention & log rotation
 
-`sync/run-backup.sh` (cron 3:15am daily) turns maintenance on, runs
-`school-state transition backup --wait-idle 300`, turns maintenance off (always,
-via the exit path) and then `school-state transition prune-backups`. Backups go
-to `$STATE_DIR/backups/<UTC stamp>/` (0700) inside the mounted state volume, so
-they survive container recreation; `school.db` is copied with the SQLite backup
-API (consistent in WAL mode) and `integrity_check`ed, and only the allowlisted
-data files are included (never env/secrets/tokens). Retention: newest
-`BACKUP_KEEP` (default 14) completed backups; pruning touches only direct children
-named exactly like a backup stamp, that are real directories with a
-`manifest.json`, so in-progress/partial, foreign or symlinked entries are never
-deleted, and the newest is always kept. If maintenance is already on (or the
-check fails) the run is skipped and logged; failures send an ntfy alert. Deploy
-backups in `/root/school-backups` are separate and not pruned here.
+`sync/run-backup.sh` (cron 3:15am daily) opens a maintenance window with
+`maintenance on --json`, remembers its `operation_id`, runs
+`school-state transition backup --wait-idle 300`, clears the window and then runs
+`school-state transition prune-backups`. A trap on EXIT/INT/TERM/HUP clears the flag
+on every exit path, but only if it still carries our `operation_id` (an operator's or
+deploy's window is never removed). **SIGKILL/OOM cannot be trapped**: the flag then
+stays on (it has no TTL) and blocks syncs, digests and API writes until someone runs
+`school-state transition maintenance off`; the watchdog raises a `maintenance_stuck`
+alert once the window has been on for more than 2h (works even though the watchdog
+otherwise skips under maintenance). If maintenance is already on (or the check
+fails) the backup is skipped, logged and an ntfy alert is sent; failures also alert.
+Backups go to `$STATE_DIR/backups/<UTC stamp>/` (0700) inside the mounted state
+volume, so they survive container recreation; `school.db` is copied with the SQLite
+backup API (consistent in WAL mode) and `integrity_check`ed, and only the allowlisted
+data files are included (never env/secrets/tokens). Retention: newest `BACKUP_KEEP`
+(default 14; must be an integer >= 1, otherwise `prune-backups` exits 2, logs an
+error and deletes nothing) completed backups. Pruning touches only direct children
+named exactly like a backup stamp that are real directories with a `manifest.json`
+(the newest is always kept), plus stale `.<stamp>.partial-<hex>` staging dirs older
+than 24h; foreign names, symlinks and fresh partials are left alone. `scripts/deploy.sh`
+backups skip `state/backups/` and `.pre-restore-*`. Deploy backups in
+`/root/school-backups` are separate and not pruned here.
 
-Watchdog note (not implemented yet): `watchdog.py` does not check backup
-freshness. A future rule should alert when the newest `backups/*/manifest.json` is
-older than ~36h, or when `backup.log` has no `backup OK` line since the last 3:15 run.
+**Manual restore from a deploy backup with `cp`:** the live DB is in WAL mode, so
+first stop the app and delete `state/school.db-wal` and `state/school.db-shm`, then
+copy `school.db` in; a stale `-wal` left beside a replaced DB file can corrupt it or
+resurrect old rows. (`school-state transition restore` does this for you.)
+
+Watchdog also still lacks a backup-freshness rule (not implemented): a future rule
+should alert when the newest `backups/*/manifest.json` is older than ~36h.
 
 The DB runs in WAL mode (`PRAGMA journal_mode=WAL`, 30 s busy timeout), set on the
 first connect after upgrade; expect `school.db-wal` / `school.db-shm` beside it.
