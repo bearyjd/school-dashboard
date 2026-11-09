@@ -8,5 +8,6 @@ ENVFILE="${SCHOOL_DASHBOARD_ENV:-/app/config/env}"
 # Start cron daemon
 service cron start
 
-# Start Flask web server
-exec python3 -m flask --app web/app.py run --host=0.0.0.0 --port=5000
+# Start gunicorn. Exactly ONE worker process: sync state (running flag, lock, status, token rate limiter)
+# lives in web/app.py memory. Concurrency comes from threads.
+exec python3 -m gunicorn -w 1 --threads 8 --timeout 120 --graceful-timeout 8 -b 0.0.0.0:5000 web.app:app
