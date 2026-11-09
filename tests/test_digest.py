@@ -319,6 +319,32 @@ def test_send_ntfy_with_cards_creates_digest(mock_post, tmp_path):
 
 
 @patch("school_dashboard.digest.requests.post")
+def test_send_ntfy_zero_cards_still_records_delivery(mock_post, tmp_path):
+    """A delivered digest with nothing due (zero cards) must leave a digests row for the watchdog."""
+    mock_post.return_value = MagicMock(ok=True, status_code=200)
+    db = tmp_path / "school.db"
+    from school_dashboard.db import get_digest
+    send_ntfy(topic="t", message="All clear", title="Morning Briefing", cards=[], db_path=str(db))
+    click = mock_post.call_args.kwargs["headers"]["Click"]
+    assert "digest=" in click
+    result = get_digest(str(db), click.split("digest=")[1])
+    assert result is not None and result["cards"] == [] and result["title"] == "Morning Briefing"
+
+
+def test_zero_card_digest_api_and_card_patch(tmp_path, monkeypatch):
+    monkeypatch.setenv("SCHOOL_STATE_DIR", str(tmp_path))
+    from school_dashboard.db import init_digests_table, create_digest
+    from web.app import app
+    db = str(tmp_path / "school.db")
+    init_digests_table(db)
+    did = create_digest(db, "Morning Briefing", [])
+    c = app.test_client()
+    r = c.get(f"/api/digest/{did}")
+    assert r.status_code == 200 and r.get_json()["cards"] == []
+    assert c.patch(f"/api/digest/{did}/cards/0", json={"done": True}).status_code == 404
+
+
+@patch("school_dashboard.digest.requests.post")
 def test_send_ntfy_without_cards_uses_static_links(mock_post):
     mock_post.return_value = MagicMock(ok=True, status_code=200)
     send_ntfy(topic="test-topic", message="Hello", title="Homework Check")

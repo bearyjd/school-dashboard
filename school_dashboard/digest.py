@@ -745,7 +745,7 @@ def send_ntfy(
     if maintenance.is_active():
         _log.info("Maintenance mode active; skipping digest store and ntfy send")
         return
-    if cards and db_path:
+    if cards is not None and db_path:  # [] still records the row: the watchdog treats it as delivery
         try:
             from school_dashboard.db import init_digests_table, create_digest, purge_old_digests
             init_digests_table(db_path)

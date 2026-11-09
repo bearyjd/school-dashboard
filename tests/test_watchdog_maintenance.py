@@ -71,6 +71,33 @@ def test_maintenance_stuck_dedupes_and_realerts_after_24h(env):
     assert len(sent) == 2
 
 
+def test_new_stuck_window_realerts_immediately(env):
+    sent = []
+
+    def send(*a):
+        sent.append(a)
+
+    _flag(env, utc_iso(NOW - timedelta(hours=3)), op="opA")
+    watchdog.run(now=NOW, send=send)
+    # off and on again with no normal run in between: a different window
+    _flag(env, utc_iso(NOW - timedelta(hours=2, minutes=30)), op="opB")
+    watchdog.run(now=NOW + timedelta(hours=1), send=send)
+    assert len(sent) == 2
+    watchdog.run(now=NOW + timedelta(hours=2), send=send)  # same window: deduped
+    assert len(sent) == 2
+    stored = json.loads((env / "watchdog.json").read_text())["alerts"]["maintenance_stuck"]
+    assert stored["window"] == "opB"
+
+
+def test_old_entry_without_window_keeps_24h_dedupe(env):
+    _stuck_flag(env)
+    (env / "watchdog.json").write_text(json.dumps({"alerts": {"maintenance_stuck": {
+        "issue": "maintenance_stuck", "first_alerted": utc_iso(NOW), "last_alerted": utc_iso(NOW)}}}))
+    sent = []
+    watchdog.run(now=NOW + timedelta(hours=1), send=lambda *a: sent.append(a))
+    assert sent == []
+
+
 def test_maintenance_stuck_preserves_other_alert_keys_and_first_seen(env):
     state = {"alerts": {"ixl": {"issue": "stale", "first_alerted": "a", "last_alerted": utc_iso(NOW)}},
              "first_seen": {"ixl": utc_iso(NOW)}}
