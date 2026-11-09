@@ -110,3 +110,100 @@ def test_chat_completion_raises_on_empty_sse(mock_post):
     )
     with pytest.raises(ValueError, match="no content"):
         chat_completion("hi", "http://fake", "k", "m")
+
+
+# --- retry on transient proxy failures (reasoning model exhausting max_tokens -> 502) ---
+
+_OK_BODY = json.dumps({"choices": [{"message": {"content": "hi"}}]})
+_BAD_502 = ('{"error":{"message":"reasoning consumed 576/576 tokens - no content output"}}',
+            "application/json")
+
+
+def _bad(status: int = 502) -> MagicMock:
+    return _resp(_BAD_502[0], _BAD_502[1], ok=False, status=status)
+
+
+def test_chat_completion_retries_502_then_succeeds():
+    with patch("school_dashboard.llm.time.sleep") as sleep, patch(
+        "school_dashboard.llm.requests.post",
+        side_effect=[_bad(), _resp(_OK_BODY, "application/json")],
+    ) as post:
+        assert chat_completion("p", "http://x", "k", "m", max_attempts=3) == "hi"
+    assert post.call_count == 2
+    sleep.assert_called_once()
+
+
+def test_chat_completion_raises_after_exhausting_retries():
+    with patch("school_dashboard.llm.time.sleep"), patch(
+        "school_dashboard.llm.requests.post", side_effect=[_bad(), _bad(), _bad()]
+    ) as post:
+        with pytest.raises(RuntimeError, match="HTTP 502"):
+            chat_completion("p", "http://x", "k", "m", max_attempts=3)
+    assert post.call_count == 3
+
+
+def test_chat_completion_does_not_retry_4xx():
+    with patch("school_dashboard.llm.time.sleep") as sleep, patch(
+        "school_dashboard.llm.requests.post", side_effect=[_bad(401)]
+    ) as post:
+        with pytest.raises(RuntimeError, match="HTTP 401"):
+            chat_completion("p", "http://x", "k", "m", max_attempts=3)
+    assert post.call_count == 1
+    sleep.assert_not_called()
+
+
+def test_digest_gives_reasoning_models_token_headroom():
+    from school_dashboard.digest import _call_litellm
+
+    with patch("school_dashboard.digest.chat_completion", return_value="ok") as cc:
+        _call_litellm("p", "http://x", "k", "m")
+    assert cc.call_args.kwargs["max_tokens"] >= 2000
+
+
+def test_chat_completion_sends_reasoning_effort_only_when_set():
+    with patch("school_dashboard.llm.requests.post",
+               return_value=_resp(_OK_BODY, "application/json")) as post:
+        chat_completion("p", "http://x", "k", "m")
+        assert "reasoning_effort" not in post.call_args.kwargs["json"]
+        chat_completion("p", "http://x", "k", "m", reasoning_effort="low")
+        assert post.call_args.kwargs["json"]["reasoning_effort"] == "low"
+
+
+def test_digest_requests_low_reasoning_effort():
+    from school_dashboard.digest import _call_litellm
+
+    with patch("school_dashboard.digest.chat_completion", return_value="ok") as cc:
+        _call_litellm("p", "http://x", "k", "m")
+    assert cc.call_args.kwargs["reasoning_effort"] == "low"
+
+
+def test_chat_completion_does_not_retry_by_default():
+    """Interactive callers (/api/chat) must fail fast, not block on retries."""
+    with patch("school_dashboard.llm.time.sleep") as sleep, patch(
+        "school_dashboard.llm.requests.post", side_effect=[_bad()]
+    ) as post:
+        with pytest.raises(RuntimeError, match="HTTP 502"):
+            chat_completion("p", "http://x", "k", "m")
+    assert post.call_count == 1
+    sleep.assert_not_called()
+
+
+def test_digest_opts_in_to_retries():
+    from school_dashboard.digest import _call_litellm
+
+    with patch("school_dashboard.digest.chat_completion", return_value="ok") as cc:
+        _call_litellm("p", "http://x", "k", "m")
+    assert cc.call_args.kwargs["max_attempts"] == 3
+
+
+def test_digest_reasoning_effort_env_override(monkeypatch):
+    from school_dashboard.digest import _call_litellm
+
+    monkeypatch.setenv("LITELLM_REASONING_EFFORT", "minimal")
+    with patch("school_dashboard.digest.chat_completion", return_value="ok") as cc:
+        _call_litellm("p", "http://x", "k", "m")
+    assert cc.call_args.kwargs["reasoning_effort"] == "minimal"
+    monkeypatch.setenv("LITELLM_REASONING_EFFORT", "")
+    with patch("school_dashboard.digest.chat_completion", return_value="ok") as cc:
+        _call_litellm("p", "http://x", "k", "m")
+    assert cc.call_args.kwargs["reasoning_effort"] is None
