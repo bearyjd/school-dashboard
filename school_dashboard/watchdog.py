@@ -7,6 +7,7 @@ Alert text carries source names and ages only: no credentials, no child names.
 import json
 import logging
 import os
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone, tzinfo
 from pathlib import Path
@@ -28,10 +29,31 @@ DEFAULT_TZ = "America/New_York"
 # Mirrors the school-sync.sh entries in docker/crontab (weekdays, local time).
 SYNC_SCHEDULE = ((6, 0), (14, 30))
 SYNC_WEEKDAYS = (0, 1, 2, 3, 4)
+ALL_DAYS = (0, 1, 2, 3, 4, 5, 6)
 GRACE = timedelta(minutes=90)
 FAILING_AFTER = timedelta(hours=24)
 REALERT_AFTER = timedelta(hours=24)
 DEGRADED_AFTER = timedelta(hours=24)
+
+
+@dataclass(frozen=True)
+class DigestSlot:
+    title: str  # digests.title written by send_ntfy (the only kind marker in the table)
+    time: tuple[int, int]  # local (hour, minute)
+    weekdays: tuple[int, ...]  # Python weekday numbers (Mon=0)
+
+
+# Mirrors the run-digest.sh / run-weekly.sh entries in docker/crontab (local time).
+# tests/test_watchdog_digest.py fails if this drifts from the crontab.
+DIGEST_SCHEDULE = {
+    "morning": DigestSlot("Morning Briefing", (7, 0), ALL_DAYS),
+    "afternoon": DigestSlot("Homework Check", (15, 30), SYNC_WEEKDAYS),
+    "night": DigestSlot("Night Prep", (20, 30), ALL_DAYS),
+    "weekly_friday": DigestSlot("Week in Review", (15, 0), (4,)),
+    "weekly_sunday": DigestSlot("Week Ahead", (19, 0), (6,)),
+}
+DIGEST_KEY_PREFIX = "digest_"
+DIGEST_MISSING = "digest_missing"
 # scrape_meta block name -> watched source (for SOURCE_<NAME>_ENABLED)
 SCRAPE_META_SOURCES = {"ixl": "ixl", "schoology": "sgy"}
 ALERT_TITLE = "School: data is stale"
@@ -46,7 +68,7 @@ SendFn = Callable[[str, str, str], None]
 @dataclass(frozen=True)
 class Problem:
     source: str
-    issue: str  # never_ok | failing | stale | scrape_degraded
+    issue: str  # never_ok | failing | stale | scrape_degraded | digest_missing
     age_hours: Optional[float]
 
 
@@ -149,6 +171,77 @@ def check_scrape_degraded(school_state: Any, watched, now: datetime) -> list[Pro
     return out
 
 
+# ---- scheduled digest delivery (dead-man's switch) ----
+
+def expected_digest(slot: DigestSlot, now: datetime, tz: tzinfo) -> Optional[datetime]:
+    """Most recent scheduled run of `slot` at or before `now` (aware, in `tz`)."""
+    local = now.astimezone(tz)
+    for back in range(0, 8):
+        day = local.date() - timedelta(days=back)
+        if day.weekday() not in slot.weekdays:
+            continue
+        candidate = datetime(day.year, day.month, day.day, *slot.time, tzinfo=tz)
+        if candidate.astimezone(timezone.utc) <= local.astimezone(timezone.utc):
+            return candidate
+    return None
+
+
+def check_digest_delivery(kind: str, last: Optional[datetime], now: datetime, tz: tzinfo,
+                          grace: timedelta = GRACE,
+                          first_seen: Optional[datetime] = None) -> Optional[Problem]:
+    """Problem when the latest scheduled `kind` digest has no row at/after its time.
+
+    `last` is the newest digests.created_at for that kind (None = no row). All
+    comparisons run in UTC so DST shifts cannot skew them. A run scheduled before
+    `first_seen` is never judged, so deploying this rule cannot fire spuriously.
+    """
+    expected = expected_digest(DIGEST_SCHEDULE[kind], now, tz)
+    if expected is None or first_seen is None:
+        return None
+    due = expected.astimezone(timezone.utc)
+    now_utc = now.astimezone(timezone.utc)
+    if due <= first_seen.astimezone(timezone.utc) or now_utc - due < grace:
+        return None
+    if last is not None and last.astimezone(timezone.utc) >= due:
+        return None
+    return Problem(f"{DIGEST_KEY_PREFIX}{kind}", DIGEST_MISSING, _hours(now_utc - due))
+
+
+def latest_digests(db_path: Path) -> Optional[dict[str, datetime]]:
+    """Newest created_at (UTC) per digest title, or None when there is no DB/table to judge."""
+    if not Path(db_path).exists():
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
+        try:
+            rows = conn.execute("SELECT title, MAX(created_at) FROM digests GROUP BY title").fetchall()
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:  # no digests table yet, locked or unreadable DB
+        logger.warning("digest delivery check skipped: %s", exc, exc_info=True)
+        return None
+    out = {}
+    for title, created in rows:
+        parsed = _parse(created)  # stored as naive UTC by datetime('now')
+        if parsed is not None:
+            out[title] = parsed
+    return out
+
+
+def digests_enabled() -> bool:
+    return os.environ.get("WATCHDOG_DIGESTS_ENABLED", "").strip().lower() not in _FALSY
+
+
+def evaluate_digests(latest: Optional[dict[str, datetime]], now: datetime, tz: tzinfo,
+                     first_seen: dict[str, datetime]) -> list[Problem]:
+    if latest is None:
+        return []
+    found = (check_digest_delivery(k, latest.get(v.title), now, tz,
+                                   first_seen=first_seen.get(f"{DIGEST_KEY_PREFIX}{k}"))
+             for k, v in DIGEST_SCHEDULE.items())
+    return [p for p in found if p]
+
+
 # ---- alert de-duplication ----
 
 def load_state(path: Path) -> dict:
@@ -187,7 +280,8 @@ def plan_alerts(problems: list[Problem], state: dict, now: datetime):
 
 _NAMES = {"sgy": "Schoology", "ixl": "IXL", "gc": "GameChanger",
           "powerschool": "PowerSchool", STATE_KEY: "school data",
-          "ixl_scrape": "IXL scrape", "sgy_scrape": "Schoology scrape"}
+          "ixl_scrape": "IXL scrape", "sgy_scrape": "Schoology scrape",
+          **{f"{DIGEST_KEY_PREFIX}{k}": f"{v.title} digest" for k, v in DIGEST_SCHEDULE.items()}}
 ALERT_FOOTER = "Dashboard may be showing old info."
 
 
@@ -196,6 +290,8 @@ def _label(source: str) -> str:
 
 
 def _describe(p: Problem) -> str:
+    if p.issue == DIGEST_MISSING:
+        return f"{_label(p.source)}: not delivered, was due {p.age_hours:.1f} hours ago"
     if p.age_hours is None:
         return f"{_label(p.source)}: no successful sync on record"
     if p.issue == "scrape_degraded":
@@ -306,7 +402,15 @@ def run(now: Optional[datetime] = None, dry_run: bool = False,
     state_file = paths.state_dir() / WATCHDOG_FILE
     stored = load_state(state_file)
     watched = [*monitored_sources(), STATE_KEY]
-    first_seen = _update_first_seen(stored.get("first_seen"), watched, now)
+    # The digest clocks start once a digests table exists (never on a fresh install).
+    latest = latest_digests(paths.db_path()) if digests_enabled() else None
+    # Unreadable/absent DB (rule still enabled): keep stored digest first_seen and open alerts.
+    keep_digest_state = latest is None and digests_enabled()
+    all_digest_keys = [f"{DIGEST_KEY_PREFIX}{k}" for k in DIGEST_SCHEDULE]
+    stored_seen = stored.get("first_seen") if isinstance(stored.get("first_seen"), dict) else {}
+    digest_keys = (all_digest_keys if latest is not None
+                   else [k for k in all_digest_keys if k in stored_seen] if keep_digest_state else [])
+    first_seen = _update_first_seen(stored_seen, [*watched, *digest_keys], now)
 
     problems = evaluate(read_sync_meta(), watched[:-1], now, tz, first_seen)
     state_problem = check_mtime(STATE_KEY, _state_mtime(), now, tz, first_seen=first_seen[STATE_KEY])
@@ -314,9 +418,14 @@ def run(now: Optional[datetime] = None, dry_run: bool = False,
         problems.append(state_problem)
 
     problems.extend(check_scrape_degraded(load_state(paths.state_path()), watched[:-1], now))
+    problems.extend(evaluate_digests(latest, now, tz, first_seen))
 
     old_alerts = stored.get("alerts") if isinstance(stored.get("alerts"), dict) else {}
     alerts, recovered, new_alerts = plan_alerts(problems, old_alerts, now)
+    if keep_digest_state:
+        held = {k: v for k, v in old_alerts.items() if k.startswith(DIGEST_KEY_PREFIX)}
+        recovered = [k for k in recovered if k not in held]
+        new_alerts = {**new_alerts, **held}
     result = {
         "exit_code": 1 if problems else 0,
         "healthy": not problems,

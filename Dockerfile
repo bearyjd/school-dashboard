@@ -70,6 +70,11 @@ ENV FLASK_APP=web/app.py
 
 EXPOSE 5000
 
+# Unauthenticated GET, exempt from the maintenance 503 (safe methods are never blocked).
+# curl is already installed above; a hung Flask makes this fail and the container goes unhealthy.
+HEALTHCHECK --interval=60s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -fsS --noproxy '*' --max-time 8 -o /dev/null http://127.0.0.1:5000/api/sync/status || exit 1
+
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
