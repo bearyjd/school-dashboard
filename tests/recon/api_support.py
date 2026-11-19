@@ -15,6 +15,7 @@ from recon.s4_support import NOW
 PATH_VARS = ("SCHOOL_STATE_PATH", "SCHOOL_DB_PATH", "SCHOOL_FACTS_PATH", "SCHOOL_EMAIL_DIGEST", "SCHOOL_GC_PATH",
              "SCHOOL_SYNC_META_PATH", "SCHOOL_DASHBOARD_HTML", "SCHOOL_CALENDAR_PDF", "SCHOOL_DASHBOARD_CONFIG")
 TOPIC = "synthetic-topic-9f3a"
+TOKEN = "synthetic-write-token-0123456789abcdef"
 ACTOR = {"role": "parent", "name": "Dana"}
 KID_ACTOR = {"role": "kid", "name": "Alex"}
 
@@ -48,9 +49,11 @@ class Api:
         return self.client.get(path, **kw)
 
     def send(self, method: str, path: str, body: Any = None, *, ctype: str | None = "application/json",
-             raw: bytes | str | None = None):
+             raw: bytes | str | None = None, token: str | None = TOKEN):
         data = raw if raw is not None else json.dumps(body)
         kw: dict[str, Any] = {"data": data}
+        if token is not None:
+            kw["headers"] = {"X-Recon-Token": token}
         if ctype:
             kw["content_type"] = ctype
         return getattr(self.client, method)(path, **kw)
@@ -84,6 +87,11 @@ def make_api(tmp_path: Path, monkeypatch, seed: Sequence[Mapping[str, Any]] = ()
     else:
         monkeypatch.delenv("RECON_INGEST_ENABLED", raising=False)
     monkeypatch.delenv("RECON_PUSH_ENABLED", raising=False)
+    monkeypatch.delenv("RECON_WRITE_OPEN", raising=False)
+    monkeypatch.setenv("RECON_WRITE_TOKEN", TOKEN)
+    from web import api_v2_auth, app as webapp
+    api_v2_auth.LOGGED.clear()
+    webapp._sync_failures.clear()
     monkeypatch.setenv("NTFY_TOPIC", TOPIC)
     if roster is not None:
         cfg = tmp_path / "roster.json"
@@ -117,4 +125,4 @@ def err(resp, status: int, code: str) -> None:
     assert body["ok"] is False and body["error"] == code and body["data"] is None, body
 
 
-__all__ = ["ACTOR", "KID_ACTOR", "TOPIC", "Api", "data", "err", "make_api", "one", "ps", "sgy", "write_meta"]
+__all__ = ["ACTOR", "KID_ACTOR", "TOKEN", "TOPIC", "Api", "data", "err", "make_api", "one", "ps", "sgy", "write_meta"]

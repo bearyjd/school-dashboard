@@ -95,3 +95,13 @@ def api_factory(tmp_path, monkeypatch):
     def build(seed=(), **kw):
         return make_api(tmp_path, monkeypatch, seed, **kw)
     return build
+
+
+@pytest.fixture(autouse=True)
+def _push_thread_idle():
+    """No background push sender outlives its test."""
+    yield
+    import sys
+    mod = sys.modules.get("web.api_v2_push")
+    if mod is not None:
+        mod.wait_idle(5.0)
