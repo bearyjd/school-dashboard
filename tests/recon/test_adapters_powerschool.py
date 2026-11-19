@@ -10,7 +10,8 @@ from school_dashboard.assignments.model import SourceRecord
 ADAPTER = PowerSchoolAdapter()
 
 
-def _item(title="Task", course="Sample Algebra", due="2026-11-06", score=None) -> dict:
+def _item(title: str = "Task", course: str | None = "Sample Algebra", due: str | None = "2026-11-06",
+          score: object = None) -> dict:
     return {"course": course, "title": title, "due": due, "category": None, "score": score}
 
 
@@ -70,8 +71,11 @@ def test_score_is_kept_as_text():
 
 
 def test_key_stable_when_row_moves_between_lists():
-    keys = {ADAPTER.parse(_payload(**{lst: [_item()]}), resolve_kid=resolve).records[0].external_key
-            for lst in ("missing", "late", "upcoming")}
+    def key(lists: tuple[list, list, list]) -> str:
+        return ADAPTER.parse(_payload(*lists), resolve_kid=resolve).records[0].external_key
+
+    row = _item()
+    keys = {key(([row], [], [])), key(([], [row], [])), key(([], [], [row]))}
     assert len(keys) == 1
 
 
