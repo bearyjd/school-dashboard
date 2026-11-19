@@ -172,7 +172,7 @@ def test_upgrade_never_rebuilds_v1_tables(tmp_path):
     before = {r["name"]: r["sql"] for r in c.execute("SELECT name, sql FROM sqlite_master WHERE type = 'table'")}
     schema.ensure_schema(c)
     after = {r["name"]: r["sql"] for r in c.execute("SELECT name, sql FROM sqlite_master WHERE type = 'table'")}
-    assert set(before) == set(after)
+    assert set(after) - set(before) == {"class_settings_events"}  # the append-only audit log is the only new table
     assert all(after[n].startswith(before[n].rstrip(")")) or "merged_into" in after[n] for n in before)
 
 

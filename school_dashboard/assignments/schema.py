@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 from typing import Callable
 
-from .schema_v2 import legacy_violations, migrate_v2
+from .schema_v2 import ensure_audit, legacy_violations, migrate_v2
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +124,7 @@ def ensure_schema(conn: sqlite3.Connection) -> int:
     """Bring the reconciliation tables up to SCHEMA_VERSION; idempotent. Joins an open transaction."""
     current = user_version(conn)
     if current >= SCHEMA_VERSION:
+        ensure_audit(conn)
         return current
     if conn.in_transaction:
         _apply_pending(conn, current)

@@ -23,7 +23,7 @@ def test_merge_moves_links_and_marks_source(tmp_path):
     assert stored(c, 1)["title"] == "Essay" and stored(c, 1)["merged_into"] is None
     for aid in (1, 2):
         ev = [e for e in event_rows(c, aid) if e["kind"] == "merge"][-1]
-        assert (ev["detail"], ev["setter"], ev["actor"]) == ("manual", "parent", "Dana")
+        assert (ev["detail"], ev["setter"], ev["actor"]) == ("manual links=2", "parent", "Dana")
 
 
 @pytest.mark.parametrize("a,b,stage", [(2, 3, 3), (3, 1, 3), (1, 1, 1), (2, 2, 2)])
@@ -52,9 +52,12 @@ def test_merge_with_live_missing_link_reopens_a_portal_received_side(tmp_path):
 
 
 @pytest.mark.parametrize("evidence", ["teacher_confirmed", "migration"])
-def test_merge_keeps_teacher_confirmed_and_migration_evidence(tmp_path, evidence):
+def test_merge_refuses_teacher_confirmed_and_migration_evidence(tmp_path, evidence):
+    # S4 review round: silently dropping a persistent stage 4 was a bug; the merge is refused instead
     c = pair(tmp_path, {"stage": 4, "received_evidence": evidence, "closed_at": "2026-11-17T12:00:00-05:00"})
-    service.merge(c, 2, 1, parent(), **kw())
+    with pytest.raises(service.Conflict) as err:
+        service.merge(c, 2, 1, parent(), **kw())
+    assert err.value.code == "closed_record"
     row = stored(c, 1)
     assert (row["stage"], row["received_evidence"]) == (4, evidence) and row["closed_at"]
 
@@ -110,8 +113,11 @@ def test_ingest_after_merge_links_to_the_target(tmp_path):
 
 
 def test_split_creates_a_stage_1_record_for_the_link(tmp_path):
-    c = pair(tmp_path)
-    service.merge(c, 2, 1, parent(), **kw())
+    # a record that never absorbed this link by a manual merge: the link gets a new record
+    both = {**sgy("Essay", "Math 6", "s1"), "links": [
+        {"source": "schoology", "external_key": "s1", "norm_status": "open"},
+        {"source": "powerschool", "external_key": "p1", "norm_status": "open"}]}
+    c = open_conn(tmp_path, [both])
     lid = c.execute("SELECT id FROM source_links WHERE source = 'powerschool'").fetchone()[0]
     c.execute("UPDATE source_links SET raw_json = ? WHERE id = ?",
               (json.dumps({"title": "Other\x00 Thing", "course": "Science", "due": "2026-11-25"}), lid))
@@ -172,11 +178,11 @@ def add_alias(c, names=("Algebra",)):
 def test_remerge_merges_an_unambiguous_pair_after_alias(tmp_path):
     c = alias_db(tmp_path)
     add_alias(c)
-    assert service.remerge_kid(c, "Alex", None, **kw()) == ((2, 1),)
+    assert service.remerge_kid(c, "Alex", None, **kw()).merged == ((2, 1),)
     assert stored(c, 1)["class_key"] == "math 6" and stored(c, 2)["merged_into"] == 1
     ev = [e for e in event_rows(c, 1) if e["kind"] == "merge"][-1]
     assert (ev["setter"], ev["actor"]) == ("system", None)
-    assert service.remerge_kid(c, "Alex", None, **kw()) == ()
+    assert service.remerge_kid(c, "Alex", None, **kw()).merged == ()
 
 
 def test_remerge_with_actor_attributes_events(tmp_path):
@@ -190,20 +196,20 @@ def test_remerge_with_actor_attributes_events(tmp_path):
 def test_remerge_leaves_ambiguous_groups_alone(tmp_path):
     c = alias_db(tmp_path, [ps("Essay", "Math 6", "p2")])
     add_alias(c)
-    assert service.remerge_kid(c, "Alex", None, **kw()) == ()
+    assert service.remerge_kid(c, "Alex", None, **kw()).merged == ()
     assert all(stored(c, i)["merged_into"] is None for i in (1, 2, 3))
 
 
 def test_remerge_needs_disjoint_sources_and_a_due_date(tmp_path):
     c = open_conn(tmp_path, [sgy("Essay", "Algebra", "s1"), sgy("Essay", "Math 6", "s2")])
     add_alias(c)
-    assert service.remerge_kid(c, "Alex", None, **kw()) == ()
+    assert service.remerge_kid(c, "Alex", None, **kw()).merged == ()
     (tmp_path / "b").mkdir()
     c2 = open_conn(tmp_path / "b",
                    [{**sgy("Essay", "Algebra", "s1"), "due_date": None},
                     {**ps("Essay", "Math 6", "p1"), "due_date": None}])
     add_alias(c2)
-    assert service.remerge_kid(c2, "Alex", None, **kw()) == ()
+    assert service.remerge_kid(c2, "Alex", None, **kw()).merged == ()
 
 
 def test_alias_add_triggers_remerge(tmp_path):

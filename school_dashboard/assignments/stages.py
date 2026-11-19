@@ -1,6 +1,7 @@
 """Stage transitions: taps, scrape registration, portal evidence."""
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 from datetime import date, datetime
 from typing import Sequence
@@ -9,7 +10,9 @@ from .model import AssignmentState, LinkState
 
 MISSES_TO_RECEIVE = 3
 MIN_DAYS_CLEARED = 2
-_PLACEHOLDER_SCORES = frozenset({"", "-", "--", "n/a", "missing"})
+_FIRST_NUMBER = re.compile(r"-?(?:\d+(?:\.\d+)?|\.\d+)")
+_LETTER_GRADE = re.compile(r"^(?:[a-d][+-]?|p|pass)$")
+_RECEIVED_STATUSES = ("submitted", "graded")
 _TAP_STAGE = {"done": 2, "turned_in": 3}
 _PERSISTENT_EVIDENCE = ("migration", "teacher_confirmed")
 
@@ -35,6 +38,8 @@ def apply_tap(state: AssignmentState, action: str, setter: str, now: datetime) -
     if state.kind == "task":
         return _tap_task(state, action, now)
     if state.stage == 4:
+        if action == "undo" and setter == "parent" and state.received_evidence == "teacher_confirmed":
+            return replace(state, stage=3, stage_since=now, received_evidence=None, closed_at=None)
         raise StageError("received records cannot be changed by taps")
     if action in _TAP_STAGE:
         target = _TAP_STAGE[action]
@@ -79,7 +84,19 @@ def mark_absent_uncounted(link: LinkState, today: date) -> LinkState:
 
 
 def _real_score(score: str | None) -> bool:
-    return score is not None and score.strip().casefold() not in _PLACEHOLDER_SCORES
+    """Score text that shows work was received: a leading number above 0, a letter grade A-D, or pass."""
+    if score is None:
+        return False
+    text = score.strip().casefold()
+    if _LETTER_GRADE.match(text):
+        return True
+    match = _FIRST_NUMBER.search(text.split("/", 1)[0])
+    return match is not None and float(match.group()) > 0
+
+
+def _scored(link: LinkState) -> bool:
+    """A real score only counts on a link the portal shows as submitted or graded."""
+    return link.norm_status in _RECEIVED_STATUSES and _real_score(link.score)
 
 
 def _received_links(links: Sequence[LinkState]) -> list[LinkState]:
@@ -90,7 +107,7 @@ def _received_links(links: Sequence[LinkState]) -> list[LinkState]:
 def _received_by_portal(links: Sequence[LinkState]) -> bool:
     """Owner rule: a real score, or two different sources each submitted/graded."""
     counted = _received_links(links)
-    if any(_real_score(ln.score) for ln in counted):
+    if any(_scored(ln) for ln in counted):
         return True
     return len({ln.source for ln in counted if ln.norm_status in ("submitted", "graded")}) >= 2
 
@@ -116,4 +133,4 @@ def portal_decision(state: AssignmentState, links: Sequence[LinkState],
 def evidence_sources(links: Sequence[LinkState], today: date) -> tuple[str, ...]:
     """Source names of the links that give portal evidence for stage 4; never titles."""
     return tuple(sorted({ln.source for ln in _received_links(links)
-                         if _real_score(ln.score) or ln.norm_status in ("submitted", "graded")}))
+                         if ln.norm_status in _RECEIVED_STATUSES}))

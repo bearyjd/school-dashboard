@@ -16,7 +16,10 @@ MAX_ID = 2 ** 63 - 1
 MAX_ALIASES = 20
 ACTIONS = ("done", "turned_in", "undo")
 BUCKETS = ("needs_action", "do_tonight", "waiting_on_teacher")
+MAX_ALIASES_JSON = 2000
 _DIGITS = re.compile(r"^[0-9]{1,9}$")
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_SETTING_KEYS = ("grace_school_days", "paper_only", "aliases", "teacher_name", "teacher_email")
 
 
 class RequestError(Exception):
@@ -44,6 +47,7 @@ class ConfirmRequest:
 class MergeRequest:
     into: int
     actor: Actor
+    force: bool = False
 
 
 @dataclass(frozen=True)
@@ -136,8 +140,11 @@ def parse_teacher_confirmed(body: Mapping[str, Any]) -> ConfirmRequest:
 
 
 def parse_merge(body: Mapping[str, Any]) -> MergeRequest:
-    actor = _fields(body, ("into",))
-    return MergeRequest(_int(body.get("into"), 1, MAX_ID), actor)
+    actor = _fields(body, ("into", "force"))
+    force = body.get("force", False)
+    if type(force) is not bool:
+        raise RequestError(400, "invalid_field")
+    return MergeRequest(_int(body.get("into"), 1, MAX_ID), actor, force)
 
 
 def parse_split(body: Mapping[str, Any]) -> SplitRequest:
@@ -158,7 +165,17 @@ def parse_kid(value: Any, kids: Collection[str]) -> str:
 def _aliases(value: Any) -> tuple[str, ...]:
     if not isinstance(value, list) or len(value) > MAX_ALIASES:
         raise RequestError(400, "invalid_field")
-    return tuple(_text(v, 1, 100) for v in value)
+    names = tuple(_text(v, 1, 100) for v in value)
+    if len(json.dumps(names, ensure_ascii=False)) > MAX_ALIASES_JSON:
+        raise RequestError(400, "invalid_field")
+    return names
+
+
+def _email(body: Mapping[str, Any]) -> str | None:
+    value = _optional_text(body, "teacher_email", 200)
+    if value is not None and not _EMAIL.match(value):
+        raise RequestError(400, "invalid_field")
+    return value
 
 
 def _optional_text(body: Mapping[str, Any], key: str, high: int) -> str | None:
@@ -175,7 +192,7 @@ def _settings(body: Mapping[str, Any]) -> ClassSettings:
     return ClassSettings(
         grace_school_days=None if grace is None else _int(grace, 0, 10), paper_only=paper,
         aliases=_aliases(body.get("aliases", [])), teacher_name=_optional_text(body, "teacher_name", 120),
-        teacher_email=_optional_text(body, "teacher_email", 200))
+        teacher_email=_email(body), fields=frozenset(k for k in _SETTING_KEYS if k in body))
 
 
 def parse_class_put(body: Mapping[str, Any], kids: Collection[str]) -> ClassRequest:

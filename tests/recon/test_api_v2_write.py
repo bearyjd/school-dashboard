@@ -117,7 +117,7 @@ def test_merge_then_split_restores_link_sets(api_factory):
     ps_link = next(ln["id"] for ln in item["links"] if ln["source"] == "powerschool")
     r2 = api.post(f"{BASE}/1/split", {"link_id": ps_link, "actor": ACTOR})
     new = data(r2)["data"]["item"]
-    assert r2.status_code == 200 and new["id"] not in (1, 2) and [ln["source"] for ln in new["links"]] == [
+    assert r2.status_code == 200 and new["id"] == 2 and [ln["source"] for ln in new["links"]] == [
         "powerschool"]
     c = api.conn()
     assert link_set(c, 1) == before[0] and link_set(c, new["id"]) == before[1]
@@ -179,12 +179,14 @@ def test_push_is_called_best_effort_and_never_breaks_the_response(api_factory, m
         calls.append(now)
         raise RuntimeError("ntfy down")
     monkeypatch.setattr(notify, "send_pending", boom)
+    from web import api_v2_push
     api = api_factory(one())
-    assert stage(api).status_code == 200 and len(calls) == 1
+    monkeypatch.setenv("RECON_PUSH_ENABLED", "1")
+    assert stage(api).status_code == 200 and api_v2_push.wait_idle(5) and len(calls) == 1
     api.get(f"{BASE}/1")
-    assert len(calls) == 1  # reads never push
+    assert api_v2_push.wait_idle(5) and len(calls) == 1  # reads never push
     err(stage(api, 99), 404, "not_found")
-    assert len(calls) == 1  # failed writes never push
+    assert api_v2_push.wait_idle(5) and len(calls) == 1  # failed writes never push
 
 
 def test_failed_validation_changes_nothing(api_factory):

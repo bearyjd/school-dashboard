@@ -40,6 +40,13 @@ class ClassSettings:
     aliases: tuple[str, ...] = ()
     teacher_name: str | None = None
     teacher_email: str | None = None
+    fields: frozenset[str] | None = None  # None: every field is replaced; a set: only these (partial update)
+
+
+@dataclass(frozen=True)
+class RemergeResult:
+    merged: tuple[tuple[int, int], ...]
+    ambiguous_groups: int
 
 
 @dataclass(frozen=True)

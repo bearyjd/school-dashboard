@@ -87,10 +87,28 @@ def _create_triggers(conn: sqlite3.Connection) -> None:
                      f"BEGIN SELECT RAISE(ABORT, '{table}.{verb.lower()}_forbidden'); END")
 
 
+_AUDIT_TABLE = (
+    "CREATE TABLE IF NOT EXISTS class_settings_events (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL,"
+    " kid TEXT NOT NULL, class_key TEXT NOT NULL, setter TEXT NOT NULL, actor TEXT, changes TEXT NOT NULL)")
+
+
+def ensure_audit(conn: sqlite3.Connection) -> None:
+    """The append-only class-settings audit log; idempotent, also for a v2 database created before it existed."""
+    conn.execute(_AUDIT_TABLE)
+    for verb in ("UPDATE", "DELETE"):
+        conn.execute(f"CREATE TRIGGER IF NOT EXISTS trg_class_settings_events_no_{verb.lower()} BEFORE {verb} ON "
+                     f"class_settings_events BEGIN SELECT RAISE(ABORT, 'class_settings_events.{verb.lower()}_forbidden');"
+                     " END")
+    conn.execute("CREATE TRIGGER IF NOT EXISTS trg_class_settings_events_changes BEFORE INSERT ON "
+                 "class_settings_events WHEN length(NEW.changes) > 2000 BEGIN SELECT RAISE(ABORT, "
+                 "'class_settings_events.changes'); END")
+
+
 def migrate_v2(conn: sqlite3.Connection) -> None:
     """ALTER ADD COLUMN plus triggers only; v1 tables are never rebuilt."""
     conn.execute("ALTER TABLE assignments ADD COLUMN merged_into INTEGER REFERENCES assignments(id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_assignments_merged ON assignments (merged_into)")
     legacy = legacy_violations(conn)
     _create_triggers(conn)
+    ensure_audit(conn)
     logger.info("recon schema v2: %d legacy rows outside the new limits", legacy)

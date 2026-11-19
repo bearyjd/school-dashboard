@@ -47,7 +47,7 @@ def test_correct_token_passes_the_gate(api_factory, route):
 
 
 @pytest.mark.parametrize("route", WRITES, ids=ids)
-@pytest.mark.parametrize("env", [None, "short-token-31-chars-aaaaaaaaaaa"])
+@pytest.mark.parametrize("env", [None, "short-token-31-chars-aaaaaaaaaa"])
 def test_unconfigured_or_short_token_is_501(api_factory, monkeypatch, route, env):
     api = api_factory(PAIR)
     if env is None:
@@ -296,13 +296,16 @@ def test_invalid_teacher_email_is_400(api_factory, email):
 def test_aliases_are_stored_unescaped_and_their_total_size_is_bounded(api_factory):
     api = api_factory(PAIR)
     body = {"kid": "Alex", "class_name": "Math 6", "actor": ACTOR}
-    assert api.put("/api/v2/classes", {**body, "aliases": ["Álgebra é", "Maths"]}).status_code == 200
+    def put(extra):
+        return api.put("/api/v2/classes", raw=json.dumps({**body, **extra}, ensure_ascii=False).encode())
+
+    assert put({"aliases": ["Álgebra é", "Maths"]}).status_code == 200
     raw = api.q("SELECT aliases FROM class_settings WHERE kid = 'Alex'")[0]["aliases"]
     assert "Álgebra é" in raw and "\\u" not in raw
     big = [f"{i:02d}" + "é" * 98 for i in range(20)]
-    err(api.put("/api/v2/classes", {**body, "aliases": big}), 400, "invalid_field")
+    err(put({"aliases": big}), 400, "invalid_field")
     ok = [f"{i:02d}" + "é" * 58 for i in range(20)]
-    assert api.put("/api/v2/classes", {**body, "aliases": ok}).status_code == 200
+    assert put({"aliases": ok}).status_code == 200
 
 
 # ---- C7 / C5 ----

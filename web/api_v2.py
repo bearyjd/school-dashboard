@@ -1,6 +1,7 @@
 """`/api/v2` blueprint: parse -> validate -> service / read model -> envelope. No SQL and no business rules here."""
 from __future__ import annotations
 
+import json
 import logging
 import re
 import sqlite3
@@ -8,17 +9,23 @@ from datetime import datetime
 from typing import Any, Mapping
 
 from flask import Blueprint, Response, jsonify, request
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, MethodNotAllowed
 
 from school_dashboard import watchdog
-from school_dashboard.assignments import flagsenv, notify, readmodel, repo, service
+from school_dashboard.assignments import flagsenv, readmodel, repo, service
 from school_dashboard.assignments.readmodel import ListFilters
+from school_dashboard.assignments import repo_history
+from web import api_v2_auth, api_v2_push
 from web import api_v2_context as ctxmod
 from web import api_v2_validate as V
 
 bp = Blueprint("api_v2", __name__, url_prefix="/api/v2")
 logger = logging.getLogger(__name__)
 _CODE = re.compile(r"^[a-z_]{1,40}$")
+MAX_PATH_ID = 2 ** 53
+_HTTP_CODES = {400: "bad_request", 404: "not_found", 405: "method_not_allowed", 413: "payload_too_large",
+               415: "unsupported_media_type", 500: "internal"}
+_READ_METHODS = ("GET", "HEAD", "OPTIONS")
 
 
 def _now() -> datetime:
@@ -43,13 +50,37 @@ def _fail(code: str, status: int) -> Response:
 def _gate() -> Response | None:
     if request.endpoint != "api_v2.config" and not flagsenv.enabled("RECON_INGEST_ENABLED"):
         return _fail("recon_disabled", 404)
-    return None
+    if request.method in _READ_METHODS:
+        return None
+    no = api_v2_auth.check_write(request.headers.get(api_v2_auth.HEADER, ""), request.headers.getlist("X-Forwarded-For"), request.remote_addr)
+    if no is None:
+        return None
+    resp = _fail(no.code, no.status)
+    if no.retry_after:
+        resp.headers["Retry-After"] = str(no.retry_after)
+    return resp
+
+
+def _in_v2() -> bool:
+    return request.path == "/api/v2" or request.path.startswith("/api/v2/")
 
 
 @bp.after_app_request
-def _no_store(resp: Response) -> Response:
-    if request.path == "/api/v2" or request.path.startswith("/api/v2/"):
+def _harden(resp: Response) -> Response:
+    if _in_v2():
         resp.headers["Cache-Control"] = "no-store"
+        resp.headers["X-Content-Type-Options"] = "nosniff"
+    return resp
+
+
+@bp.app_errorhandler(HTTPException)
+def _http_error(exc: HTTPException) -> Response | HTTPException:
+    """Framework errors (unknown route, wrong method, ...) under /api/v2 get the JSON envelope."""
+    if not _in_v2():
+        return exc
+    resp = _fail(_HTTP_CODES.get(exc.code or 500, "error"), exc.code or 500)
+    if isinstance(exc, MethodNotAllowed) and exc.valid_methods:
+        resp.headers["Allow"] = ", ".join(exc.valid_methods)
     return resp
 
 
@@ -80,10 +111,16 @@ def _busy(_: repo.BusyError) -> Response:
     return resp
 
 
+@bp.errorhandler(sqlite3.IntegrityError)
+def _rejected(exc: sqlite3.IntegrityError) -> Response:
+    logger.warning("api v2: write rejected by a validation rule (%s)", type(exc).__name__)
+    return _fail("rejected", 409)
+
+
 @bp.errorhandler(Exception)
 def _internal(exc: Exception) -> Response | HTTPException:
     if isinstance(exc, HTTPException):
-        return exc
+        return _http_error(exc)
     logger.error("api v2: unexpected %s", type(exc).__name__)
     return _fail("internal", 500)
 
@@ -117,18 +154,16 @@ def _counts(conn: sqlite3.Connection, ctx: ctxmod.ReadCtx, kid: str) -> Mapping[
     return summary["kids"][0]["counts"]
 
 
-def _push(conn: sqlite3.Connection, now: datetime) -> None:
-    try:
-        notify.send_pending(conn, now=now)
-    except Exception as exc:  # best effort: the write already succeeded
-        logger.error("api v2: push failed (%s)", type(exc).__name__)
+def _check_id(aid: int) -> None:
+    if not 1 <= aid <= MAX_PATH_ID:
+        raise service.NotFound("assignment")
 
 
 def _written(conn: sqlite3.Connection, now: datetime, aid: int, **extra: Any) -> Response:
     ctx = ctxmod.load(conn, now)
     item = _item(conn, ctx, aid)
     out = {"item": item, "counts": _counts(conn, ctx, str(item["kid"])), **extra}
-    _push(conn, now)
+    api_v2_push.kick(ctxmod.db_file(), now)
     return _ok(out)
 
 
@@ -137,7 +172,7 @@ def config() -> Response:
     names = ctxmod.roster_names()
     return _ok({"enabled": flagsenv.enabled("RECON_INGEST_ENABLED"), "migrated": ctxmod.is_migrated(),
                 "kids": [{"name": n, "colorIndex": i} for i, n in enumerate(names)],
-                "grace_default": readmodel.DEFAULT_GRACE})
+                "grace_default": readmodel.DEFAULT_GRACE, "write_auth": api_v2_auth.mode()})
 
 
 @bp.get("/summary")
@@ -156,12 +191,13 @@ def assignments() -> Response:
         ctx = ctxmod.load(conn, now)
         flt = V.parse_list_query(request.args, ctx.kids)
         rows = repo.assignment_records(conn, flt.kid, True)
-        items = readmodel.build_list(rows, _links(conn, rows), filters=flt, **ctx.view())
-        return _ok(items, count=len(items), limit=flt.limit, offset=flt.offset)
+        page = readmodel.build_page(rows, _links(conn, rows), filters=flt, **ctx.view())
+        return _ok(page.items, count=len(page.items), total=page.total, limit=flt.limit, offset=flt.offset)
 
 
 @bp.get("/assignments/<int:aid>")
 def assignment(aid: int) -> Response:
+    _check_id(aid)
     now = _now()
     with ctxmod.connection(readonly=True) as conn:
         return _ok(_item(conn, ctxmod.load(conn, now), aid, events=True))
@@ -173,7 +209,18 @@ def classes_get() -> Response:
     with ctxmod.connection(readonly=True) as conn:
         ctx = ctxmod.load(conn, now)
         kid = V.parse_class_query(request.args, ctx.kids)
-        return _ok(_class_rows(conn, ctx, kid))
+        return _ok(_class_rows(conn, ctx, kid), events=_class_events(conn, kid))
+
+
+def _class_events(conn: sqlite3.Connection, kid: str) -> list[dict[str, Any]]:
+    out = []
+    for e in repo_history.class_events(conn, kid):
+        try:
+            changes = json.loads(e["changes"])
+        except ValueError:
+            changes = {}
+        out.append({**e, "changes": changes})
+    return out
 
 
 def _class_rows(conn: sqlite3.Connection, ctx: ctxmod.ReadCtx, kid: str) -> list[dict[str, Any]]:
@@ -187,6 +234,7 @@ def _class_rows(conn: sqlite3.Connection, ctx: ctxmod.ReadCtx, kid: str) -> list
 
 @bp.post("/assignments/<int:aid>/stage")
 def stage(aid: int) -> Response:
+    _check_id(aid)
     body, now = _read_body(), _now()
     with ctxmod.connection(readonly=False) as conn:
         ctx = ctxmod.load(conn, now)
@@ -197,6 +245,7 @@ def stage(aid: int) -> Response:
 
 @bp.post("/assignments/<int:aid>/teacher-confirmed")
 def teacher_confirmed(aid: int) -> Response:
+    _check_id(aid)
     body, now = _read_body(), _now()
     with ctxmod.connection(readonly=False) as conn:
         ctx = ctxmod.load(conn, now)
@@ -208,17 +257,20 @@ def teacher_confirmed(aid: int) -> Response:
 
 @bp.post("/assignments/<int:aid>/merge")
 def merge(aid: int) -> Response:
+    _check_id(aid)
     body, now = _read_body(), _now()
     with ctxmod.connection(readonly=False) as conn:
         ctx = ctxmod.load(conn, now)
         req = V.parse_merge(body)
         V.require_parent(req.actor)
-        into = service.merge(conn, aid, req.into, req.actor, now=now, no_school_rows=ctx.events)
+        into = service.merge(conn, aid, req.into, req.actor, now=now, no_school_rows=ctx.events,
+                          force=req.force)
         return _written(conn, now, into)
 
 
 @bp.post("/assignments/<int:aid>/split")
 def split(aid: int) -> Response:
+    _check_id(aid)
     body, now = _read_body(), _now()
     with ctxmod.connection(readonly=False) as conn:
         ctx = ctxmod.load(conn, now)
@@ -236,10 +288,11 @@ def remerge(kid: str) -> Response:
         req = V.parse_remerge(body)
         V.require_parent(req.actor)
         name = V.parse_kid(kid, ctx.kids)
-        pairs = service.remerge_kid(conn, name, req.actor, now=now, no_school_rows=ctx.events)
+        result = service.remerge_kid(conn, name, req.actor, now=now, no_school_rows=ctx.events)
         fresh = ctxmod.load(conn, now)
-        _push(conn, now)
-        return _ok({"merged": [list(p) for p in pairs], "counts": _counts(conn, fresh, name)})
+        api_v2_push.kick(ctxmod.db_file(), now)
+        return _ok({"merged": [list(p) for p in result.merged], "ambiguous_groups": result.ambiguous_groups,
+                    "counts": _counts(conn, fresh, name)})
 
 
 @bp.put("/classes")
@@ -252,5 +305,5 @@ def classes_put() -> Response:
         service.set_class(conn, req.kid, req.class_name, req.settings, req.actor, now=now,
                           no_school_rows=ctx.events)
         fresh = ctxmod.load(conn, now)
-        _push(conn, now)
+        api_v2_push.kick(ctxmod.db_file(), now)
         return _ok({"classes": _class_rows(conn, fresh, req.kid), "counts": _counts(conn, fresh, req.kid)})

@@ -1,7 +1,8 @@
 """Read model for the v2 API: pure assembly of display dicts from repo rows (no I/O, no clock).
 
 Flags are computed on read with the injected `now`; the stored flag column is never consulted. Nothing here
-emits raw_json, external keys, miss hashes, notes or free-form URLs that could carry credentials.
+emits raw_json, external keys, miss hashes, notes or free-form URLs that could carry credentials. Event `detail`
+is shown as stored: it may hold the parent's own teacher-confirmation note (and manual merge/split link ids).
 """
 from __future__ import annotations
 
@@ -19,7 +20,8 @@ from .model import AssignmentRecord, FlagResult, LinkRecord
 DEFAULT_GRACE = 2
 MAX_EVENTS = 200
 _STAGE_LABELS = {1: "Assigned", 2: "Done at home", 3: "Turned in", 4: "Received"}
-_CREDENTIAL_WORDS = ("token", "key", "secret", "password", "auth", "session", "sig", "signature")
+_CREDENTIAL_WORDS = ("token", "key", "secret", "password", "pwd", "auth", "session", "sig", "signature", "sid",
+                     "jsessionid", "sessionid", "phpsessid", "apikey", "credential")
 _REMAINING = re.compile(r"^\s*(\d+)")
 _NO_DAYS: frozenset[date] = frozenset()
 _BUCKET_ORDER = ("needs_action", "do_tonight", "waiting_on_teacher")
@@ -46,6 +48,16 @@ class _Ctx:
     ingest: IngestHealth
 
 
+def _credential_name(name: str) -> bool:
+    """Whole-name match: `key`, `api_key`, `api-key`, `key_id`; never `monkey` or `assignment_id`."""
+    return any(name == w or name.endswith((f"_{w}", f"-{w}")) or name.startswith(f"{w}_")
+               for w in _CREDENTIAL_WORDS)
+
+
+def _path_param_names(path: str) -> list[str]:
+    return [p.split("=", 1)[0].casefold() for seg in path.split("/") for p in seg.split(";")[1:]]
+
+
 def safe_url(url: str | None) -> str | None:
     """The URL when it is plain http(s) without userinfo or credential-looking parameters; else None."""
     if not url:
@@ -54,13 +66,14 @@ def safe_url(url: str | None) -> str | None:
         parts = urlsplit(url)
         names = [n.casefold() for n, _ in (*parse_qsl(parts.query, keep_blank_values=True),
                                            *parse_qsl(parts.fragment, keep_blank_values=True))]
+        names += _path_param_names(parts.path)
         userinfo = "@" in parts.netloc
         host = parts.hostname
     except ValueError:
         return None
     if parts.scheme not in ("http", "https") or userinfo or not host:
         return None
-    if any(word in name for name in names for word in _CREDENTIAL_WORDS):
+    if any(_credential_name(name) for name in names):
         return None
     return url
 
@@ -131,13 +144,27 @@ def _wanted(rec: AssignmentRecord, item: Mapping[str, Any], f: ListFilters) -> b
             and (f.stage is None or item["stage"] == f.stage) and (f.kind is None or item["kind"] == f.kind))
 
 
+@dataclass(frozen=True)
+class ListPage:
+    items: tuple[Mapping[str, Any], ...]
+    total: int  # after filters, before pagination
+
+
+def build_page(rows: Sequence[AssignmentRecord], links_by_id: Mapping[int, Sequence[LinkRecord]], *, now: datetime,
+               no_school_by_kid: Mapping[str, frozenset[date]], grace_by_class: Mapping[tuple[str, str], int],
+               stale_sources: frozenset[str], ingest: IngestHealth,
+               filters: ListFilters) -> ListPage:
+    ctx = _Ctx(now, no_school_by_kid, grace_by_class, stale_sources, ingest)
+    kept = [item for rec, item in _items(rows, links_by_id, ctx) if _wanted(rec, item, filters)]
+    return ListPage(tuple(kept[filters.offset:filters.offset + filters.limit]), len(kept))
+
+
 def build_list(rows: Sequence[AssignmentRecord], links_by_id: Mapping[int, Sequence[LinkRecord]], *, now: datetime,
                no_school_by_kid: Mapping[str, frozenset[date]], grace_by_class: Mapping[tuple[str, str], int],
                stale_sources: frozenset[str], ingest: IngestHealth,
                filters: ListFilters) -> tuple[Mapping[str, Any], ...]:
-    ctx = _Ctx(now, no_school_by_kid, grace_by_class, stale_sources, ingest)
-    kept = [item for rec, item in _items(rows, links_by_id, ctx) if _wanted(rec, item, filters)]
-    return tuple(kept[filters.offset:filters.offset + filters.limit])
+    return build_page(rows, links_by_id, now=now, no_school_by_kid=no_school_by_kid, grace_by_class=grace_by_class,
+                      stale_sources=stale_sources, ingest=ingest, filters=filters).items
 
 
 def _event(e: Mapping[str, Any]) -> dict[str, Any]:
@@ -161,13 +188,16 @@ def _counts(items: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "needs_action": sum(detail.values()), "needs_action_detail": detail}
 
 
-def _kid_summary(name: str, pairs: Sequence[tuple[AssignmentRecord, dict[str, Any]]]) -> dict[str, Any]:
+def _kid_summary(name: str, pairs: Sequence[tuple[AssignmentRecord, dict[str, Any]]],
+                 ingest: IngestHealth) -> dict[str, Any]:
     mine = [(r, i) for r, i in pairs if i["kid"] == name and not _closed(r)]
     practice = [i for _, i in mine if i["kind"] == "practice"]
     counts = _counts([i for _, i in mine if i["kind"] != "practice"])
     clear = (counts["needs_action"] == 0 and counts["do_tonight"] == 0
              and not any(p["bucket"] == "do_tonight" for p in practice))
-    return {"name": name, "counts": counts, "practice": practice, "all_clear": clear}
+    unverified = not ingest.ok or any(i["unverified"] for _, i in mine)
+    return {"name": name, "counts": counts, "practice": practice, "all_clear": clear and not unverified,
+            "all_clear_reason": "unverified" if clear and unverified else None}
 
 
 def build_summary(rows: Sequence[AssignmentRecord], links_by_id: Mapping[int, Sequence[LinkRecord]], *,
@@ -182,6 +212,6 @@ def build_summary(rows: Sequence[AssignmentRecord], links_by_id: Mapping[int, Se
     notes = [*warnings]
     if not ingest.ok:
         notes.append("Assignment data may be out of date: the last merge run did not succeed")
-    return {"kids": [_kid_summary(n, pairs) for n in names], "data_as_of": ingest.data_as_of.isoformat()
+    return {"kids": [_kid_summary(n, pairs, ingest) for n in names], "data_as_of": ingest.data_as_of.isoformat()
             if ingest.data_as_of else None, "ingest_ok": ingest.ok, "unverified_sources": unverified,
             "warnings": notes, "generated_at": now.isoformat()}

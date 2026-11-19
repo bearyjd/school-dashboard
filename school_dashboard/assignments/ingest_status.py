@@ -8,14 +8,15 @@ from __future__ import annotations
 import sqlite3
 from collections import Counter
 from dataclasses import dataclass, replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Mapping
 
-from . import flags, merge, repo, schooldays, stages
+from . import flags, merge, repo, stages
 from .model import AssignmentState, LinkState
 
 ABSENCE_SOURCES = ("powerschool", "schoology")
 DEFAULT_GRACE = 2
+PUSH_DEBOUNCE = timedelta(hours=6)  # no second push for the same (assignment, flag) inside this window
 
 
 @dataclass(frozen=True)
@@ -119,7 +120,11 @@ def _portal_missing_now(conn: sqlite3.Connection, aid: int, now: datetime) -> bo
         " AND to_value = 'missing' AND at = ?", (aid, now.isoformat())).fetchone() is not None
 
 
-def _enqueue(conn: sqlite3.Connection, ctx: KidContext, aid: int, flag: str, counts: Counter[str]) -> None:
+def enqueue_debounced(conn: sqlite3.Connection, ctx: KidContext, aid: int, flag: str,
+                      counts: Counter[str]) -> None:
+    """Queue a push unless one for the same (assignment, flag) was queued in the last PUSH_DEBOUNCE."""
+    if repo.recent_push_exists(conn, aid, flag, ctx.now - PUSH_DEBOUNCE):
+        return
     repo.enqueue_push(conn, aid, flag, ctx.now, "baseline" if ctx.baseline else "transition")
     counts["pushes_enqueued"] += 1
 
@@ -136,11 +141,11 @@ def apply_flags(conn: sqlite3.Connection, ctx: KidContext, counts: Counter[str])
         old = stored.get(state.id)
         if result.flag == old:
             if old == "missing" and state.portal_status == "missing" and _portal_missing_now(conn, state.id, ctx.now):
-                _enqueue(conn, ctx, state.id, "missing", counts)  # portal evidence arrived on a date-missing record
+                enqueue_debounced(conn, ctx, state.id, "missing", counts)  # portal evidence arrived on a date-missing record
             continue
         repo.set_flag(conn, state.id, result.flag, ctx.now)
         repo.append_event(conn, state.id, at=ctx.now, setter="system", kind="flag",
                           from_value=old, to_value=result.flag)
         counts["flag_changes"] += 1
         if result.flag and _wants_push(result.flag, state):
-            _enqueue(conn, ctx, state.id, result.flag, counts)
+            enqueue_debounced(conn, ctx, state.id, result.flag, counts)

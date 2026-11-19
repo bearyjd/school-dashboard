@@ -314,6 +314,14 @@ def enqueue_push(conn: sqlite3.Connection, assignment_id: int, flag: str, occurr
         (assignment_id, flag, occurrence_at.isoformat(), reason, status, occurrence_at.isoformat()))
 
 
+def recent_push_exists(conn: sqlite3.Connection, assignment_id: int, flag: str, since: datetime) -> bool:
+    """A push row for (assignment, flag) created after `since`; baseline-suppressed rows do not count."""
+    return conn.execute(
+        "SELECT 1 FROM push_outbox WHERE assignment_id = ? AND flag = ? AND julianday(created_at) > julianday(?)"
+        " AND NOT (status = 'suppressed' AND reason = 'baseline') LIMIT 1",
+        (assignment_id, flag, since.isoformat())).fetchone() is not None
+
+
 def pending_pushes(conn: sqlite3.Connection) -> list[Mapping[str, Any]]:
     rows = conn.execute("SELECT * FROM push_outbox WHERE status IN ('pending', 'failed') ORDER BY id")
     return [dict(r) for r in rows.fetchall()]

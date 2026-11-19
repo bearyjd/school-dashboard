@@ -7,7 +7,8 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 
-from . import repo, schema
+from . import repo, repo_history, schema
+from .service_classes import MAX_ALIASES_JSON, current_values, dump_aliases, record_change
 from .service_merge import remerge_in_txn
 from .service_types import Who
 from .normalize import class_key
@@ -63,11 +64,16 @@ def add(conn: sqlite3.Connection, *, kid: str, from_name: str, to_name: str,
         names = _names(row["aliases"]) if row else []
         if all(class_key(n) != class_key(alias) for n in names):
             names = [*names, alias]
+        if len(json.dumps(names, ensure_ascii=False)) > MAX_ALIASES_JSON:
+            raise AliasError("too many alias characters stored for that class")
+        stamp, who = now or datetime.now().astimezone(), Who("system", None)
+        old = current_values(repo_history.class_settings_row(conn, kid, canonical))
         conn.execute(
             "INSERT INTO class_settings (kid, class_key, aliases) VALUES (?, ?, ?)"
             " ON CONFLICT (kid, class_key) DO UPDATE SET aliases = excluded.aliases",
-            (kid, canonical, json.dumps(names)))
-        merged = remerge_in_txn(conn, kid, Who("system", None), now or datetime.now().astimezone())
+            (kid, canonical, dump_aliases(names)))
+        record_change(conn, kid, canonical, who, stamp, old, {**old, "aliases": names})
+        merged = remerge_in_txn(conn, kid, who, stamp).merged
     logger.info("recon alias add: %d aliases now stored for that class, %d records re-merged", len(names), len(merged))
     return AliasRow(kid, canonical, alias)
 
