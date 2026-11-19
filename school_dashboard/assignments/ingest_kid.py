@@ -135,7 +135,8 @@ def _result(kid: str, counts: Counter[str]) -> KidResult:
     return KidResult(kid=kid, ok=True, created=counts["created"], linked=counts["linked"],
                      merged=counts["merged"], ambiguous=counts["ambiguous"], absent=counts["absent"],
                      stage_changes=counts["stage_changes"], flag_changes=counts["flag_changes"],
-                     pushes_enqueued=counts["pushes_enqueued"])
+                     pushes_enqueued=counts["pushes_enqueued"],
+                     pushes_debounced=counts["pushes_debounced"])
 
 
 def run_kid(conn: sqlite3.Connection, kid: str, records: Sequence[SourceRecord], trusted_sources: frozenset[str], *, now: datetime,

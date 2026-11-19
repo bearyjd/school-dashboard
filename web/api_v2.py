@@ -169,6 +169,10 @@ def _written(conn: sqlite3.Connection, now: datetime, aid: int, **extra: Any) ->
 
 @bp.get("/config")
 def config() -> Response:
+    """Public by design: the SPA reads `write_auth` (open/token/unconfigured) to know whether to ask for a token.
+
+    The token value itself is never part of this response.
+    """
     names = ctxmod.roster_names()
     return _ok({"enabled": flagsenv.enabled("RECON_INGEST_ENABLED"), "migrated": ctxmod.is_migrated(),
                 "kids": [{"name": n, "colorIndex": i} for i, n in enumerate(names)],

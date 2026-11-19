@@ -8,7 +8,7 @@ from __future__ import annotations
 import sqlite3
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from difflib import SequenceMatcher
 from itertools import combinations
 from typing import Any, Iterator, Mapping, Sequence
@@ -59,13 +59,14 @@ class ReportInput:
     duplicates: Mapping[str, int]  # kid -> assignments created as possible_duplicate
     outbox: Mapping[str, int]  # status -> count
     baseline_at: str | None = None
+    debounced: int = 0  # pushes skipped by the debounce in the last 24h (counts only)
     schema_version: int = 1
     legacy_rows: int = 0
 
 
 # ---- reader ---------------------------------------------------------------
 
-def read_input(conn: sqlite3.Connection) -> ReportInput:
+def read_input(conn: sqlite3.Connection, now: datetime | None = None) -> ReportInput:
     version = schema.user_version(conn)
     live = " WHERE merged_into IS NULL" if version >= 2 else ""
     live_join = " AND a.merged_into IS NULL" if version >= 2 else ""
@@ -82,9 +83,14 @@ def read_input(conn: sqlite3.Connection) -> ReportInput:
         "SELECT a.kid, COUNT(*) AS n FROM assignment_events e JOIN assignments a ON a.id = e.assignment_id"
         f" WHERE e.kind = 'merge' AND e.detail LIKE 'possible_duplicate%'{live_join} GROUP BY a.kid")}
     outbox = {r["status"]: r["n"] for r in conn.execute(
-        "SELECT status, COUNT(*) AS n FROM push_outbox GROUP BY status")}
+        "SELECT status, COUNT(*) AS n FROM push_outbox WHERE COALESCE(last_error, '') != 'debounced' GROUP BY status")}
+    since = (now - timedelta(hours=24)).isoformat() if now else "0001-01-01T00:00:00"
+    debounced = conn.execute(
+        "SELECT COUNT(*) FROM push_outbox WHERE last_error = 'debounced' AND julianday(created_at) > julianday(?)",
+        (since,)).fetchone()[0]
     legacy = schema.legacy_violations(conn) if version >= 2 else 0
-    return ReportInput(rows, dups, outbox, repo.get_meta(conn, "baseline_at"), version, legacy)
+    return ReportInput(rows, dups, outbox, repo.get_meta(conn, "baseline_at"), schema_version=version,
+                       legacy_rows=legacy, debounced=debounced)
 
 
 # ---- pure builders ---------------------------------------------------------
@@ -175,7 +181,7 @@ def build_report(inp: ReportInput, health: IngestHealth) -> dict[str, Any]:
         "alias_suggestions": alias_suggestions(pairs),
         "health": {"ok": health.ok, "data_as_of": health.data_as_of.isoformat() if health.data_as_of else None,
                    "issue": health.issue},
-        "outbox": dict(sorted(inp.outbox.items())),
+        "outbox": dict(sorted(inp.outbox.items())), "debounced_last_24h": inp.debounced,
         "schema": {"version": inp.schema_version, "legacy_rows_outside_limits": inp.legacy_rows},
     }
 
@@ -186,7 +192,7 @@ def run(db_path: str, *, now: datetime, meta: Mapping[str, Any] | None = None) -
         conn = schema.connect(db_path, readonly=True)
         try:
             repo.require_migrated(conn)
-            inp = read_input(conn)
+            inp = read_input(conn, now)
         finally:
             conn.close()
     except sqlite3.OperationalError as exc:

@@ -46,7 +46,8 @@ def _merged_away_owner(conn: sqlite3.Connection, aid: int, link_id: int) -> int 
 def _settle(conn: sqlite3.Connection, target: int, other: int, link_id: int, floor: int, who: Who,
             now: datetime) -> None:
     current = repo.get_assignment(conn, target)
-    assert current is not None
+    if current is None:
+        raise NotFound("assignment")
     updated = rederive(current, repo.link_records(conn, [target])[target], now, floor)
     repo.update_assignment(conn, updated, now=now)
     events(conn, target, who, now, "split", f"manual with={other} link={link_id}")
@@ -66,7 +67,8 @@ def split_in_txn(conn: sqlite3.Connection, aid: int, link_id: int, who: Who, now
         old_floor = repo_history.latest_manual_stage(conn, aid)
     else:
         owner = repo.get_assignment(conn, restored)
-        assert owner is not None
+        if owner is None:
+            raise NotFound("assignment")
         repo_history.reopen_merged(conn, restored, now)
         new_id = restored
         new_floor = max(repo_history.latest_manual_stage(conn, restored), owner.stage if owner.stage < 4 else 1)

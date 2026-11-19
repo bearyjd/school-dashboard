@@ -314,11 +314,20 @@ def enqueue_push(conn: sqlite3.Connection, assignment_id: int, flag: str, occurr
         (assignment_id, flag, occurrence_at.isoformat(), reason, status, occurrence_at.isoformat()))
 
 
+def record_debounced_push(conn: sqlite3.Connection, assignment_id: int, flag: str, at: datetime) -> None:
+    """Count a push skipped by the debounce as a suppressed row; `recent_push_exists` ignores it."""
+    conn.execute(
+        "INSERT OR IGNORE INTO push_outbox (assignment_id, flag, occurrence_at, reason, status, created_at, last_error)"
+        " VALUES (?, ?, ?, 'transition', 'suppressed', ?, 'debounced')",
+        (assignment_id, flag, at.isoformat(), at.isoformat()))
+
+
 def recent_push_exists(conn: sqlite3.Connection, assignment_id: int, flag: str, since: datetime) -> bool:
     """A push row for (assignment, flag) created after `since`; baseline-suppressed rows do not count."""
     return conn.execute(
         "SELECT 1 FROM push_outbox WHERE assignment_id = ? AND flag = ? AND julianday(created_at) > julianday(?)"
-        " AND NOT (status = 'suppressed' AND reason = 'baseline') LIMIT 1",
+        " AND NOT (status = 'suppressed' AND (reason = 'baseline' OR COALESCE(last_error, '') = 'debounced'))"
+        " LIMIT 1",
         (assignment_id, flag, since.isoformat())).fetchone() is not None
 
 

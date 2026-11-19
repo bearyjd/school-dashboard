@@ -22,7 +22,8 @@ def _ctx(c, now, baseline=False):
 
 
 def _rows(c, flag="missing"):
-    return c.execute("SELECT status, reason FROM push_outbox WHERE assignment_id = 1 AND flag = ?", (flag,)).fetchall()
+    return c.execute("SELECT status, reason FROM push_outbox WHERE assignment_id = 1 AND flag = ?"
+                     " AND COALESCE(last_error, '') != 'debounced'", (flag,)).fetchall()
 
 
 def test_enqueue_is_debounced_for_six_hours(tmp_path):

@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Mapping, Sequence
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 from .adapters.base import clean_text
 from .flags import compute_flag
@@ -21,7 +21,9 @@ DEFAULT_GRACE = 2
 MAX_EVENTS = 200
 _STAGE_LABELS = {1: "Assigned", 2: "Done at home", 3: "Turned in", 4: "Received"}
 _CREDENTIAL_WORDS = ("token", "key", "secret", "password", "pwd", "auth", "session", "sig", "signature", "sid",
-                     "jsessionid", "sessionid", "phpsessid", "apikey", "credential")
+                     "jsessionid", "sessionid", "phpsessid", "apikey", "credential", "authorization", "jwt", "bearer",
+                     "code", "otp", "passcode")
+_INDEX_SUFFIX = re.compile(r"(\[[^\]]*\])+$")
 _REMAINING = re.compile(r"^\s*(\d+)")
 _NO_DAYS: frozenset[date] = frozenset()
 _BUCKET_ORDER = ("needs_action", "do_tonight", "waiting_on_teacher")
@@ -50,12 +52,13 @@ class _Ctx:
 
 def _credential_name(name: str) -> bool:
     """Whole-name match: `key`, `api_key`, `api-key`, `key_id`; never `monkey` or `assignment_id`."""
+    name = _INDEX_SUFFIX.sub("", unquote(unquote(name)).casefold().removeprefix("amp;"))
     return any(name == w or name.endswith((f"_{w}", f"-{w}")) or name.startswith(f"{w}_")
                for w in _CREDENTIAL_WORDS)
 
 
 def _path_param_names(path: str) -> list[str]:
-    return [p.split("=", 1)[0].casefold() for seg in path.split("/") for p in seg.split(";")[1:]]
+    return [p.split("=", 1)[0] for seg in path.split("/") for p in seg.split(";")[1:]]
 
 
 def safe_url(url: str | None) -> str | None:
@@ -64,7 +67,7 @@ def safe_url(url: str | None) -> str | None:
         return None
     try:
         parts = urlsplit(url)
-        names = [n.casefold() for n, _ in (*parse_qsl(parts.query, keep_blank_values=True),
+        names = [n for n, _ in (*parse_qsl(parts.query, keep_blank_values=True),
                                            *parse_qsl(parts.fragment, keep_blank_values=True))]
         names += _path_param_names(parts.path)
         userinfo = "@" in parts.netloc

@@ -16,6 +16,7 @@ class KidResult:
     stage_changes: int = 0
     flag_changes: int = 0
     pushes_enqueued: int = 0
+    pushes_debounced: int = 0
     error: str | None = None
 
 

@@ -122,9 +122,9 @@ def run(db_path: str, results: Sequence[AdapterResult], *, file_hashes: Mapping[
             _set_baseline(conn, now)
     finally:
         conn.close()
-    logger.info("recon ingest: %d kids, %d failed, %d created, %d linked, %d merged, %d flag changes",
+    logger.info("recon ingest: %d kids, %d failed, %d created, %d linked, %d merged, %d flag changes, %d debounced pushes",
                 len(kids), sum(not k.ok for k in kids), sum(k.created for k in kids),
-                sum(k.linked for k in kids), sum(k.merged for k in kids), sum(k.flag_changes for k in kids))
+                sum(k.linked for k in kids), sum(k.merged for k in kids), sum(k.flag_changes for k in kids), sum(k.pushes_debounced for k in kids))
     all_warnings = (*warnings, *(w for o in outcomes for w in o[1]))
     return IngestReport(ok=ok, kids=kids, warnings=all_warnings, baseline=baseline, data_as_of=now.isoformat())
 

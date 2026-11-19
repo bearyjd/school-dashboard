@@ -67,7 +67,7 @@ def render_text(report: Mapping[str, Any]) -> str:
     baseline = report.get("baseline_at")
     lines = ["Assignment merge-quality report",
              f"ingest: {'ok' if health['ok'] else 'NOT OK (' + _c(health['issue']) + ')'}, "
-             f"data as of {_c(health['data_as_of'] or 'unknown')}", f"outbox: {report['outbox'] or 'empty'}",
+             f"data as of {_c(health['data_as_of'] or 'unknown')}", f"outbox: {report['outbox'] or 'empty'}, debounced_last_24h: {report.get('debounced_last_24h', 0)}",
              _schema_line(report.get("schema")),
              f"baseline: set {_c(baseline)}" if baseline else "baseline: NOT set (immediate pushes are off)", ""]
     for kid, stat in report["kids"].items():
