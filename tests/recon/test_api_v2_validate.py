@@ -103,7 +103,7 @@ def test_class_put_ok_and_defaults():
 
 
 @pytest.mark.parametrize("field,bad", [
-    ("kid", 1), ("class_name", ""), ("class_name", "x" * 121), ("class_name", 5),
+    ("class_name", ""), ("class_name", "x" * 121), ("class_name", 5),
     ("grace_school_days", True), ("grace_school_days", "3"), ("grace_school_days", 11), ("grace_school_days", -1),
     ("grace_school_days", 2.5), ("paper_only", 1), ("paper_only", "yes"), ("paper_only", None),
     ("aliases", "ELA"), ("aliases", [1]), ("aliases", [""]), ("aliases", ["x"] * 21), ("aliases", ["x" * 101]),

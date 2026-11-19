@@ -79,7 +79,7 @@ def test_detail_with_attributed_events(api_factory):
     api.post("/api/v2/assignments/1/stage", {"action": "done", "actor": {"role": "parent", "name": "Dana"}})
     d = data(api.get("/api/v2/assignments/1"))["data"]
     assert d["id"] == 1 and d["stage"] == 2
-    ev = d["events"][0]
+    ev = next(e for e in d["events"] if e["kind"] == "stage")
     assert ev["kind"] == "stage" and ev["setter"] == "parent" and ev["actor"] == "Dana"
     assert ev["from"] == "1" and ev["to"] == "2"
     assert set(ev) == {"at", "setter", "actor", "kind", "from", "to", "detail"}
@@ -224,3 +224,25 @@ def test_unexpected_exception_is_500_internal_and_logged_by_type(api_factory, mo
     err(r, 500, "internal")
     assert "SECRET" not in r.get_data(as_text=True) and "Traceback" not in r.get_data(as_text=True)
     assert "RuntimeError" in caplog.text and "SECRET" not in caplog.text
+
+
+def test_damaged_inputs_degrade_instead_of_failing(api_factory, monkeypatch):
+    from school_dashboard import watchdog
+    api = api_factory(one(), setup={"class_settings": [{"kid": "Alex", "class_key": "math 6", "aliases": []}]})
+    api.exec("UPDATE class_settings SET aliases = 'not json'")
+    assert data(api.get("/api/v2/classes?kid=Alex"))["data"][0]["aliases"] == []
+    api.exec("UPDATE class_settings SET aliases = '{\"a\": 1}'")
+    assert data(api.get("/api/v2/classes?kid=Alex"))["data"][0]["aliases"] == []
+
+    def boom():
+        raise ValueError("damaged")
+    monkeypatch.setattr(watchdog, "load_first_seen", boom)
+    (api.state / "sync_meta.json").write_text("[]")
+    s = data(api.get("/api/v2/summary"))["data"]
+    assert s["ingest_ok"] is False
+
+
+def test_not_migrated_when_schema_is_v1(api_factory):
+    api = api_factory(one())
+    api.exec("PRAGMA user_version = 1")
+    err(api.get("/api/v2/summary"), 409, "not_migrated")

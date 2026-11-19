@@ -28,6 +28,8 @@ _MAINTENANCE_RETRY_AFTER = "60"
 # /api/csp-report only counts browser reports; it persists nothing.
 _MAINTENANCE_EXEMPT = frozenset({"/api/chat", csp.REPORT_PATH})
 csp.init_app(app)
+from web.api_v2 import bp as api_v2_bp
+app.register_blueprint(api_v2_bp)
 
 
 @app.before_request

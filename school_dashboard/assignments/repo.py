@@ -329,3 +329,39 @@ def mark_push(conn: sqlite3.Connection, push_id: int, status: str, *, now: datet
                      " WHERE id = ?", (error, push_id))
     else:
         raise ValueError(f"unsupported push status: {status}")
+
+
+# ---- API read helpers --------------------------------------------------------
+
+def assignment_kids(conn: sqlite3.Connection) -> list[str]:
+    """Kids that have at least one live (not merged away) assignment."""
+    rows = conn.execute("SELECT DISTINCT kid FROM assignments WHERE merged_into IS NULL ORDER BY kid").fetchall()
+    return [r["kid"] for r in rows]
+
+
+def class_overview(conn: sqlite3.Connection, kid: str) -> list[dict[str, Any]]:
+    """The kid's classes: every configured class plus every class seen on a live assignment."""
+    names = {r["class_key"]: r["class_name"] for r in conn.execute(
+        "SELECT class_key, MIN(class_name) AS class_name FROM assignments"
+        " WHERE kid = ? AND merged_into IS NULL AND class_key != '' GROUP BY class_key", (kid,))}
+    cfg = {r["class_key"]: r for r in conn.execute(
+        "SELECT class_key, grace_school_days, paper_only, aliases, teacher_name, teacher_email"
+        " FROM class_settings WHERE kid = ?", (kid,))}
+    out: list[dict[str, Any]] = []
+    for key in sorted({*names, *cfg}):
+        row = cfg.get(key)
+        out.append({"class_key": key, "class_name": names.get(key, key),
+                    "grace_school_days": row["grace_school_days"] if row else None,
+                    "paper_only": bool(row["paper_only"]) if row else False,
+                    "aliases": row["aliases"] if row else None,
+                    "teacher_name": row["teacher_name"] if row else None,
+                    "teacher_email": row["teacher_email"] if row else None})
+    return out
+
+
+def calendar_rows(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Calendar rows (date, type, child) for school-day arithmetic; [] when the events table is not there."""
+    try:
+        return [dict(r) for r in conn.execute("SELECT date, type, child FROM events")]
+    except sqlite3.OperationalError:
+        return []

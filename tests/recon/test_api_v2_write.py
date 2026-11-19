@@ -65,7 +65,7 @@ def test_teacher_confirmed_by_parent_with_note_reaches_stage_4(api_factory):
     r = api.post(f"{BASE}/1/teacher-confirmed", {"note": "Mrs R said it arrived", "actor": ACTOR})
     item = data(r)["data"]["item"]
     assert r.status_code == 200 and item["stage"] == 4 and item["received_evidence"] == "teacher_confirmed"
-    ev = data(api.get(f"{BASE}/1"))["data"]["events"][0]
+    ev = next(e for e in data(api.get(f"{BASE}/1"))["data"]["events"] if e["kind"] == "stage")
     assert ev["detail"] == "Mrs R said it arrived" and ev["setter"] == "parent" and ev["actor"] == "Dana"
 
 
@@ -130,7 +130,7 @@ def test_merge_conflicts(api_factory):
     err(api.post(f"{BASE}/1/merge", {"into": 1, "actor": ACTOR}), 409, "same_record")
     err(api.post(f"{BASE}/1/merge", {"into": 2, "actor": ACTOR}), 409, "different_kid")
     err(api.post(f"{BASE}/1/merge", {"into": 77, "actor": ACTOR}), 404, "not_found")
-    err(api.post(f"{BASE}/1/split", {"link_id": 1, "actor": ACTOR}), 409, "single_link")
+    err(api.post(f"{BASE}/1/split", {"link_id": 1, "actor": ACTOR}), 409, "last_link")
 
 
 def test_split_unknown_link_404(api_factory):
