@@ -7,6 +7,7 @@ from typing import Iterator, Optional
 
 from school_dashboard import gc_fallback_alert, gc_ics, maintenance, paths, school_calendar, schoology_autoarchive, schoology_reset, statelock, transition
 from school_dashboard import state
+from school_dashboard.assignments import cli as assignments_cli
 from school_dashboard import html
 from school_dashboard import email
 from school_dashboard import digest as _digest
@@ -357,6 +358,7 @@ def main() -> None:
     transition.add_parser(subs)
     school_calendar.add_parser(subs)
     schoology_reset.add_parser(subs)
+    assignments_cli.add_parser(subs)
 
     args = parser.parse_args()
     if not args.command:
