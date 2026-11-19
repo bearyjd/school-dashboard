@@ -242,6 +242,8 @@ Optional `TRUSTED_PROXY_COUNT` (default 0): number of trusted reverse proxies in
 
 Optional per-source toggles: `SOURCE_IXL_ENABLED`, `SOURCE_SGY_ENABLED`, `SOURCE_GC_ENABLED`, `SOURCE_POWERSCHOOL_ENABLED` (default enabled; `0/false/no/off`, case-insensitive, disables). A disabled source is skipped by `school-sync.sh` and `/api/sync` with no failure alert and recorded in `sync_meta` as `last_result: "paused"` Cached data from a paused source stays in state and digests. (helpers: `school_dashboard/sources.py::source_enabled`, shell `source_enabled`).
 
+Roster config optional `"color"` (one of green, lavender, amber, blue, rose, teal; invalid is ignored with a warning). Defaults by name: Jack green, Penn lavender, Ford amber; other kids fall back positionally (`school_dashboard/kid_colors.py`). `/api/overview` `kids[].color` drives the SPA; digest cards carry `color`.
+
 Roster config (`school-dashboard.json`, `children.<Name>`): optional `"ixl": false` marks a child who left IXL; it is never flagged as `IXL unavailable` (quick check, digests, overview, watchdog `scrape_degraded`). Bool only (anything else is ignored with a warning); default true. A roster child with earlier IXL data but no IXL file now is flagged otherwise, with no auto-expiry. See `docs/ops/spa-redesign-rollout.md`.
 
 `SCHOOL_SYNC_META_PATH` overrides the sync metadata path (default: `/app/state/sync_meta.json`). TWA domain verification: `TWA_PACKAGE_NAME` (default: `cc.grepon.school`), `TWA_CERT_FINGERPRINT` (populate after signing APK).
