@@ -1,0 +1,285 @@
+{
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "baseline_run_suppresses_then_transition_is_pending",
+   "setup": {
+    "baseline_done": false
+   },
+   "runs": [
+    {
+     "now": "2026-11-12T17:00:00-05:00",
+     "ps": {
+      "Alex": {
+       "missing": [
+        {
+         "course": "Math 6",
+         "title": "Pack",
+         "due": "2026-11-10"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "powerschool": "p1"
+     },
+     "expect": {
+      "_baseline": true,
+      "_baseline_at_set": true,
+      "_outbox": {
+       "suppressed": 1,
+       "pending": 0
+      },
+      "_ok": true
+     }
+    },
+    {
+     "now": "2026-11-13T17:00:00-05:00",
+     "ps": {
+      "Alex": {
+       "missing": [
+        {
+         "course": "Math 6",
+         "title": "Pack",
+         "due": "2026-11-10"
+        },
+        {
+         "course": "Math 6",
+         "title": "Lab",
+         "due": "2026-11-11"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "powerschool": "p2"
+     },
+     "expect": {
+      "_baseline": false,
+      "_outbox": {
+       "suppressed": 1,
+       "pending": 1
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "disputed_enqueues_pending",
+   "setup": {
+    "seed": [
+     {
+      "kid": "Alex",
+      "class_name": "ELA 6",
+      "class_key": "ela 6",
+      "title": "Essay",
+      "title_key": "essay",
+      "due_date": "2026-11-10",
+      "stage": 3,
+      "stage_since": "2026-11-11T12:00:00-05:00",
+      "links": [
+       {
+        "source": "schoology",
+        "external_key": "https://sgy.example.invalid/e/1",
+        "norm_status": "submitted",
+        "url": "https://sgy.example.invalid/e/1"
+       }
+      ]
+     }
+    ]
+   },
+   "runs": [
+    {
+     "now": "2026-11-12T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Essay",
+        "course": "ELA 6",
+        "due": "2026-11-10",
+        "status": "missing",
+        "link": "https://sgy.example.invalid/e/1"
+       }
+      ]
+     },
+     "hash": {
+      "schoology": "s1"
+     },
+     "expect": {
+      "Alex|Essay|ELA 6": {
+       "stage": 3,
+       "portal_status": "missing",
+       "flag": "disputed"
+      },
+      "_outbox": {
+       "pending": 1
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "date_only_overdue_and_late_never_enqueue",
+   "runs": [
+    {
+     "now": "2026-11-12T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Old",
+        "course": "Math 6",
+        "due": "2026-11-10",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/o/1"
+       }
+      ]
+     },
+     "ps": {
+      "Alex": {
+       "late": [
+        {
+         "course": "Sci 6",
+         "title": "Late Lab",
+         "due": "2026-11-11"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "schoology": "s1",
+      "powerschool": "p1"
+     },
+     "expect": {
+      "Alex|Old|Math 6": {
+       "flag": "missing",
+       "portal_status": "open"
+      },
+      "Alex|Late Lab|Sci 6": {
+       "flag": "missing",
+       "portal_status": "late"
+      },
+      "_outbox_delta": 0,
+      "_count": 2
+     }
+    }
+   ]
+  },
+  {
+   "id": "reentry_enqueues_again",
+   "runs": [
+    {
+     "now": "2026-11-12T17:00:00-05:00",
+     "ps": {
+      "Alex": {
+       "missing": [
+        {
+         "course": "Math 6",
+         "title": "Pack",
+         "due": "2026-11-25"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "powerschool": "p1"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "flag": "missing"
+      },
+      "_outbox": {
+       "pending": 1
+      }
+     }
+    },
+    {
+     "now": "2026-11-13T17:00:00-05:00",
+     "ps": {
+      "Alex": {
+       "upcoming": [
+        {
+         "course": "Math 6",
+         "title": "Pack",
+         "due": "2026-11-25"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "powerschool": "p2"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "flag": "upcoming",
+       "portal_status": "open"
+      },
+      "_outbox": {
+       "pending": 1
+      }
+     }
+    },
+    {
+     "now": "2026-11-14T17:00:00-05:00",
+     "ps": {
+      "Alex": {
+       "missing": [
+        {
+         "course": "Math 6",
+         "title": "Pack",
+         "due": "2026-11-25"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "powerschool": "p3"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "flag": "missing"
+      },
+      "_outbox": {
+       "pending": 2
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "untrusted_entries_are_completely_inert",
+   "runs": [
+    {
+     "now": "2026-11-12T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Quiz",
+        "course": "Math 6",
+        "due": "2026-11-10",
+        "status": "missing",
+        "link": "https://sgy.example.invalid/x/1"
+       }
+      ]
+     },
+     "sgy_top": {
+      "warnings": [
+       "partial"
+      ]
+     },
+     "hash": {
+      "schoology": "s1"
+     },
+     "expect": {
+      "_count": 0,
+      "_outbox_delta": 0,
+      "_events_delta": 0,
+      "_warnings": [
+       "untrusted"
+      ],
+      "_ok": true
+     }
+    }
+   ]
+  }
+ ]
+}
