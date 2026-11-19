@@ -1,4 +1,5 @@
 """The `school-state update` hook must be failure-proof; push policy gap; stderr equivalence."""
+import argparse
 import json
 import os
 import subprocess
@@ -10,7 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from contract_support import build_state, load, set_roster
-from recon.ingest_support import WED, make_db, ns
+from recon.ingest_support import WED, make_db
 from recon.report_support import REPO
 from recon.test_shadow_hook import _update_in
 
@@ -94,13 +95,13 @@ def test_hook_survives_the_error_recording_failing_too(state_env, monkeypatch):
         raise OSError("disk full")
 
     monkeypatch.setattr(sync_meta, "write_sync_source", no_write)
-    cli._recon_shadow(ns(sgy_file="x", ps_file="y", ixl_dir="z", state_file=None), {})  # must not raise
+    cli._recon_shadow(argparse.Namespace(sgy_file="x", ps_file="y", ixl_dir="z", state_file=None), {})  # must not raise
 
 
 def test_hook_flag_off_returns_without_touching_anything(state_env, monkeypatch):
     from school_dashboard import cli
     monkeypatch.setitem(sys.modules, "school_dashboard.assignments.ingest", None)
-    cli._recon_shadow(ns(), {})
+    cli._recon_shadow(argparse.Namespace(), {})
     assert not (state_env / "sync_meta.json").exists()
 
 
@@ -143,10 +144,12 @@ def test_portal_missing_arriving_on_a_date_missing_record_enqueues_one_push(tmp_
 
 
 def test_that_push_is_suppressed_during_the_baseline_run(tmp_path):
+    from school_dashboard.assignments import schema
     path = _seeded(tmp_path, baseline=False)
-    _ps_run(path, "upcoming", WED, "h1")
-    later = WED + timedelta(days=1)
-    _ps_run(path, "missing", later, "h2")
+    conn = schema.connect(path)
+    conn.execute("UPDATE assignments SET flag = 'missing', flag_since = ?", (WED.isoformat(),))
+    conn.close()                                    # already date-missing, and this is the baseline run
+    _ps_run(path, "missing", WED + timedelta(days=1), "h2")
     rows = _outbox(path)
     assert len(rows) == 1 and rows[0][2:] == ("suppressed", "baseline")
 

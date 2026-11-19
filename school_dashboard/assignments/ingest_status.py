@@ -108,6 +108,18 @@ def _wants_push(flag: str | None, state: AssignmentState) -> bool:
     return flag == "disputed" or (flag == "missing" and state.portal_status == "missing")
 
 
+def _portal_missing_now(conn: sqlite3.Connection, aid: int, now: datetime) -> bool:
+    """True when this run's portal evidence just turned the assignment `missing` (an event stamped `now`)."""
+    return conn.execute(
+        "SELECT 1 FROM assignment_events WHERE assignment_id = ? AND kind = 'portal_status'"
+        " AND to_value = 'missing' AND at = ?", (aid, now.isoformat())).fetchone() is not None
+
+
+def _enqueue(conn: sqlite3.Connection, ctx: KidContext, aid: int, flag: str, counts: Counter[str]) -> None:
+    repo.enqueue_push(conn, aid, flag, ctx.now, "baseline" if ctx.baseline else "transition")
+    counts["pushes_enqueued"] += 1
+
+
 def apply_flags(conn: sqlite3.Connection, ctx: KidContext, counts: Counter[str]) -> None:
     """Store flag transitions (injected now; unverified is a read-time overlay, not applied here)."""
     stored = repo.stored_flags(conn, ctx.kid)
@@ -119,11 +131,12 @@ def apply_flags(conn: sqlite3.Connection, ctx: KidContext, counts: Counter[str])
                                     grace_days=ctx.grace.get(state.class_key, DEFAULT_GRACE))
         old = stored.get(state.id)
         if result.flag == old:
+            if old == "missing" and state.portal_status == "missing" and _portal_missing_now(conn, state.id, ctx.now):
+                _enqueue(conn, ctx, state.id, "missing", counts)  # portal evidence arrived on a date-missing record
             continue
         repo.set_flag(conn, state.id, result.flag, ctx.now)
         repo.append_event(conn, state.id, at=ctx.now, setter="system", kind="flag",
                           from_value=old, to_value=result.flag)
         counts["flag_changes"] += 1
         if result.flag and _wants_push(result.flag, state):
-            repo.enqueue_push(conn, state.id, result.flag, ctx.now, "baseline" if ctx.baseline else "transition")
-            counts["pushes_enqueued"] += 1
+            _enqueue(conn, ctx, state.id, result.flag, counts)

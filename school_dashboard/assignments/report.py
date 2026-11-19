@@ -1,0 +1,165 @@
+"""Merge-quality report: pure builders over plain rows, plus a thin read-only reader.
+
+The report holds titles and class names by design (it is the operator's tool); `report_render.redact`
+swaps them for stable hashes when it has to be shared.
+"""
+from __future__ import annotations
+
+import sqlite3
+from collections import Counter, defaultdict
+from dataclasses import dataclass
+from datetime import date, datetime
+from difflib import SequenceMatcher
+from itertools import combinations
+from typing import Any, Mapping, Sequence
+
+from school_dashboard import sync_meta, watchdog
+
+from . import repo, schema
+from .health import IngestHealth, ingest_health
+from .report_render import redact, render_text
+
+__all__ = ["AssignmentRow", "LinkRow", "ReportInput", "alias_suggestions", "build_report", "read_input",
+           "redact", "render_text", "run", "unmatched_pairs"]
+
+SIMILAR_TITLE = 0.6
+_EVIDENCE_STATUSES = ("missing", "late")
+
+
+@dataclass(frozen=True)
+class LinkRow:
+    source: str
+    norm_status: str
+    live: bool
+
+
+@dataclass(frozen=True)
+class AssignmentRow:
+    id: int
+    kid: str
+    class_name: str | None
+    class_key: str
+    title: str
+    title_key: str
+    due_date: date | None
+    stage: int
+    flag: str | None
+    links: tuple[LinkRow, ...]
+
+    @property
+    def sources(self) -> frozenset[str]:
+        return frozenset(ln.source for ln in self.links)
+
+
+@dataclass(frozen=True)
+class ReportInput:
+    assignments: tuple[AssignmentRow, ...]
+    duplicates: Mapping[str, int]  # kid -> assignments created as possible_duplicate
+    outbox: Mapping[str, int]  # status -> count
+
+
+# ---- reader ---------------------------------------------------------------
+
+def read_input(conn: sqlite3.Connection) -> ReportInput:
+    links: dict[int, list[LinkRow]] = defaultdict(list)
+    for r in conn.execute("SELECT assignment_id, source, norm_status, live FROM source_links ORDER BY id"):
+        links[r["assignment_id"]].append(LinkRow(r["source"], r["norm_status"], bool(r["live"])))
+    rows = tuple(
+        AssignmentRow(id=r["id"], kid=r["kid"], class_name=r["class_name"], class_key=r["class_key"] or "",
+                      title=r["title"], title_key=r["title_key"],
+                      due_date=date.fromisoformat(r["due_date"]) if r["due_date"] else None,
+                      stage=r["stage"], flag=r["flag"], links=tuple(links.get(r["id"], ())))
+        for r in conn.execute("SELECT * FROM assignments ORDER BY id"))
+    dups = {r["kid"]: r["n"] for r in conn.execute(
+        "SELECT a.kid, COUNT(*) AS n FROM assignment_events e JOIN assignments a ON a.id = e.assignment_id"
+        " WHERE e.kind = 'merge' AND e.detail LIKE 'possible_duplicate%' GROUP BY a.kid")}
+    outbox = {r["status"]: r["n"] for r in conn.execute(
+        "SELECT status, COUNT(*) AS n FROM push_outbox GROUP BY status")}
+    return ReportInput(rows, dups, outbox)
+
+
+# ---- pure builders ---------------------------------------------------------
+
+def _covered(row: AssignmentRow) -> bool:
+    """Could any link give stage-4 evidence: a schoology link, or a powerschool link currently missing/late."""
+    return any(ln.source == "schoology" or (ln.source == "powerschool" and ln.live
+                                            and ln.norm_status in _EVIDENCE_STATUSES) for ln in row.links)
+
+
+def _kid_stats(rows: Sequence[AssignmentRow], duplicates: int) -> dict[str, Any]:
+    per_source: dict[str, dict[str, int]] = {}
+    for row in rows:
+        for ln in row.links:
+            stat = per_source.setdefault(ln.source, {"links": 0, "live": 0})
+            stat["links"] += 1
+            stat["live"] += int(ln.live)
+    multi = sum(1 for r in rows if len(r.sources) >= 2)
+    open_rows = [r for r in rows if r.stage < 4]
+    return {
+        "sources": per_source, "assignments": len(rows), "multi_source": multi,
+        "merge_rate": round(multi / len(rows), 3) if rows else 0.0, "possible_duplicates": duplicates,
+        "flags": dict(sorted(Counter(r.flag for r in rows if r.flag).items())),
+        "stages": {str(k): v for k, v in sorted(Counter(r.stage for r in rows).items())},
+        "evidence_coverage": round(sum(_covered(r) for r in open_rows) / len(open_rows), 3) if open_rows else None,
+    }
+
+
+def _pair(a: AssignmentRow, b: AssignmentRow) -> dict[str, Any] | None:
+    if not a.sources or not b.sources or a.sources & b.sources or a.due_date is None or a.due_date != b.due_date:
+        return None
+    ratio = SequenceMatcher(None, a.title_key, b.title_key).ratio()
+    same_title = a.title_key == b.title_key
+    classes_differ = bool(a.class_key and b.class_key and a.class_key != b.class_key)
+    if not ((same_title and classes_differ) or ratio >= SIMILAR_TITLE):
+        return None
+    alias = {"from": a.class_name, "to": b.class_name} if same_title and classes_differ else None
+    return {"kid": a.kid, "title_a": a.title, "title_b": b.title, "class_a": a.class_name,
+            "class_b": b.class_name, "due": a.due_date.isoformat(), "ratio": round(ratio, 3),
+            "sources_a": sorted(a.sources), "sources_b": sorted(b.sources), "suggested_alias": alias}
+
+
+def unmatched_pairs(rows: Sequence[AssignmentRow]) -> list[dict[str, Any]]:
+    by_kid: dict[str, list[AssignmentRow]] = defaultdict(list)
+    for row in rows:
+        by_kid[row.kid].append(row)
+    found = (_pair(a, b) for kid in sorted(by_kid) for a, b in combinations(by_kid[kid], 2))
+    return [p for p in found if p is not None]
+
+
+def alias_suggestions(pairs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    counts: Counter[tuple[str, str, str]] = Counter()
+    for p in pairs:
+        if p["suggested_alias"]:
+            first, second = sorted((p["class_a"], p["class_b"]), key=lambda c: (c.casefold(), c))
+            counts[(p["kid"], first, second)] += 1
+    ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    return [{"kid": k, "class_a": a, "class_b": b, "count": n} for (k, a, b), n in ranked]
+
+
+def build_report(inp: ReportInput, health: IngestHealth) -> dict[str, Any]:
+    by_kid: dict[str, list[AssignmentRow]] = defaultdict(list)
+    for row in inp.assignments:
+        by_kid[row.kid].append(row)
+    pairs = unmatched_pairs(inp.assignments)
+    return {
+        "kids": {kid: _kid_stats(rows, inp.duplicates.get(kid, 0)) for kid, rows in sorted(by_kid.items())},
+        "unmatched_pairs": pairs, "alias_suggestions": alias_suggestions(pairs),
+        "health": {"ok": health.ok, "data_as_of": health.data_as_of.isoformat() if health.data_as_of else None,
+                   "issue": health.issue},
+        "outbox": dict(sorted(inp.outbox.items())),
+    }
+
+
+def run(db_path: str, *, now: datetime, meta: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Read-only report from the database; NotMigratedError when the recon tables are not there."""
+    try:
+        conn = schema.connect(db_path, readonly=True)
+        try:
+            repo.require_migrated(conn)
+            inp = read_input(conn)
+        finally:
+            conn.close()
+    except sqlite3.OperationalError as exc:
+        raise repo.NotMigratedError("legacy items are not migrated; run: school-state assignments migrate") from exc
+    health = ingest_health(sync_meta.read_sync_meta() if meta is None else meta, now=now, tz=watchdog.get_tz())
+    return build_report(inp, health)

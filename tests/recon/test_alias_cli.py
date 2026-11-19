@@ -25,7 +25,7 @@ def test_add_stores_alias_on_the_canonical_class_row_as_a_json_list(state_env, p
     r = cli(state_env, "alias", "add", "--kid", "Alex", "--from", "ELA", "--to", "Language Arts")
     assert r.returncode == 0, r.stderr
     rows = _rows(path)
-    assert [(k, json.loads(a)) for k, _, a in rows] == [("language arts", ["ELA"])]
+    assert [(k, json.loads(a or "[]")) for k, _, a in rows] == [("language arts", ["ELA"])]
 
 
 def test_ingest_reads_exactly_what_the_cli_wrote(state_env, path):
@@ -51,7 +51,7 @@ def test_add_is_idempotent_and_keeps_other_settings_and_aliases(state_env):
     for _ in range(2):
         assert cli(state_env, "alias", "add", "--kid", "Alex", "--from", "ELA", "--to", "Language Arts").returncode == 0
     (key, grace, aliases), = _rows(p)
-    assert (key, grace, json.loads(aliases)) == ("language arts", 4, ["LA", "ELA"])
+    assert (key, grace, json.loads(aliases or "[]")) == ("language arts", 4, ["LA", "ELA"])
 
 
 def test_add_validates_kid_and_names(state_env, path):

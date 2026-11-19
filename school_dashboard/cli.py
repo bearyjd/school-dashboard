@@ -1,5 +1,7 @@
 import argparse
+import importlib
 import json
+import logging
 import os
 import sys
 from contextlib import contextmanager
@@ -15,6 +17,7 @@ from school_dashboard.gcal import fetch_gcal_events
 
 
 EXIT_MAINTENANCE = 3
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -61,8 +64,23 @@ def _update_locked(args: argparse.Namespace) -> None:
           f"{pruned} stale items pruned, "
           f"auto-archived {auto_archived}", file=sys.stderr)
     print(f"State saved: {p}", file=sys.stderr)
-    from school_dashboard.assignments import ingest  # recon v2 shadow ingest: flag-guarded, never raises
-    ingest.run_shadow(args, s)
+    _recon_shadow(args, s)
+
+
+def _recon_shadow(args: argparse.Namespace, s: dict) -> None:
+    """Recon v2 shadow ingest hook: nothing in it may ever change what `update` does or prints."""
+    try:
+        from school_dashboard.assignments import flagsenv
+        if not flagsenv.enabled("RECON_INGEST_ENABLED"):
+            return
+        importlib.import_module("school_dashboard.assignments.ingest").run_shadow(args, s)
+    except Exception as exc:  # ImportError, SyntaxError in recon code, anything before run_shadow's own guard
+        logger.error("recon shadow ingest could not run (%s)", type(exc).__name__)
+        try:
+            from school_dashboard import sync_meta
+            sync_meta.write_sync_source("recon_ingest", "error")
+        except Exception as inner:
+            logger.error("recon shadow ingest: could not record the error (%s)", type(inner).__name__)
 
 
 def cmd_html(args: argparse.Namespace) -> None:

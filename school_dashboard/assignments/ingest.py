@@ -16,7 +16,7 @@ from typing import Any, Callable, Mapping, Sequence
 from school_dashboard import paths, sync_meta, watchdog
 from school_dashboard.state import canonical_name
 
-from . import flagsenv, ingest_io, repo, schema, schooldays
+from . import flagsenv, ingest_io, notify, repo, schema, schooldays
 from .adapters import AdapterResult
 from .health import INGEST_SOURCE
 from .ingest_kid import recompute_kid, run_kid
@@ -139,6 +139,11 @@ def _ingest(args: Any, now: datetime) -> IngestReport:
     return replace(report, warnings=(*report.warnings, *extra))
 
 
+def _send_pending(conn: sqlite3.Connection, now: datetime) -> object:
+    """Default after-ingest step: the outbox sender (a no-op unless RECON_PUSH_ENABLED, baseline and no maintenance)."""
+    return notify.send_pending(conn, now=now)
+
+
 def _after(db_path: str, now: datetime, after_ingest: AfterIngest) -> None:
     try:
         conn = schema.connect(db_path)
@@ -166,6 +171,6 @@ def run_shadow(args: Any, state: Mapping[str, Any], *, now: datetime | None = No
         _record("error")
         return None
     _record("ok" if report.ok else "error")
-    if report.ok and after_ingest is not None:
-        _after(str(paths.db_path()), when, after_ingest)
+    if report.ok:
+        _after(str(paths.db_path()), when, after_ingest or _send_pending)
     return report
