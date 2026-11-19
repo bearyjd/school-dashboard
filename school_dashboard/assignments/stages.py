@@ -49,6 +49,13 @@ def register_scrape(link: LinkState, *, seen: bool, trusted: bool, file_hash: st
                    absent_since=link.absent_since or today, last_miss_hash=file_hash)
 
 
+def mark_absent_uncounted(link: LinkState, today: date) -> LinkState:
+    """Not in this scrape, but the source only shows a window: mark not live, never count a miss."""
+    if not link.live:
+        return link
+    return replace(link, live=False, absent_since=link.absent_since or today)
+
+
 def _real_score(score: str | None) -> bool:
     return score is not None and score.strip().casefold() not in _PLACEHOLDER_SCORES
 

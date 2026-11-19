@@ -566,6 +566,11 @@ def api_overview():
     if not isinstance(gc_data, dict) or "error" in gc_data:
         gc_data = {}
     warnings.extend(gc_warnings(gc_data, clean=True))
+    from school_dashboard.assignments import flagsenv, health
+    if flagsenv.enabled("RECON_INGEST_ENABLED"):
+        warnings.extend(health.ingest_warnings(
+            read_sync_meta(str(paths.sync_meta_path())), now=now, tz=tz,
+            first_seen=watchdog.load_first_seen().get("recon_ingest")))
     db_file = str(paths.db_path())
     try:
         manual = list_items(db_file)

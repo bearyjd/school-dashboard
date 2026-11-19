@@ -48,3 +48,14 @@ def stale_sources(meta: Mapping[str, Any], *, now: datetime, tz: tzinfo,
     return frozenset(
         link for link, sync in SYNC_NAME.items()
         if check_source(sync, _entry(meta, sync), now, tz, first_seen=first_seen.get(sync)) is not None)
+
+
+def ingest_warnings(meta: Mapping[str, Any], *, now: datetime, tz: tzinfo,
+                    first_seen: datetime | None = None) -> list[str]:
+    """One plain line for the overview when the last ingest failed or is stale; [] when healthy or never run."""
+    health = ingest_health(meta, now=now, tz=tz, first_seen=first_seen)
+    if health.ok or health.issue in (None, "missing"):
+        return []
+    if health.issue in ("error", "failing"):
+        return ["Assignment merge: the last run failed, so merged assignment info may be out of date"]
+    return ["Assignment merge: no recent successful run, so merged assignment info may be out of date"]

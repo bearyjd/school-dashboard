@@ -3,12 +3,13 @@ import hashlib
 import json
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
 
 from contract_support import build_state, set_roster
+from school_dashboard import scrape_meta
 from recon.ingest_support import make_db, ns
 from recon.support import local
 
@@ -200,6 +201,7 @@ def _update_in(root, monkeypatch, flag, raising=False):
     """Run `school-state update` over the contract fixtures in its own state dir; (bytes, stdout, meta)."""
     state_dir = root / "state"
     state_dir.mkdir(parents=True)
+    monkeypatch.setattr(scrape_meta, "_utc_now", lambda: datetime(2026, 11, 5, 12, 0, tzinfo=timezone.utc))
     monkeypatch.setenv("SCHOOL_STATE_DIR", str(state_dir))
     set_roster(root, monkeypatch)
     if flag:

@@ -138,13 +138,60 @@ def upsert_link(conn: sqlite3.Connection, assignment_id: int, kid: str, link: Li
          int(link.live), link.last_miss_hash, link.via))
 
 
+def _to_link(r: sqlite3.Row) -> LinkState:
+    return LinkState(source=r["source"], external_key=r["external_key"], norm_status=r["norm_status"],
+                     score=r["score"], url=r["url"], live=bool(r["live"]),
+                     trusted_misses=r["trusted_misses"], absent_since=_date(r["absent_since"]),
+                     last_miss_hash=r["last_miss_hash"], via=r["via"])
+
+
 def links_for(conn: sqlite3.Connection, assignment_id: int) -> list[LinkState]:
     rows = conn.execute("SELECT * FROM source_links WHERE assignment_id = ? ORDER BY id",
                         (assignment_id,)).fetchall()
-    return [LinkState(source=r["source"], external_key=r["external_key"], norm_status=r["norm_status"],
-                      score=r["score"], url=r["url"], live=bool(r["live"]),
-                      trusted_misses=r["trusted_misses"], absent_since=_date(r["absent_since"]),
-                      last_miss_hash=r["last_miss_hash"], via=r["via"]) for r in rows]
+    return [_to_link(r) for r in rows]
+
+
+def link_index(conn: sqlite3.Connection, kid: str) -> dict[tuple[str, str, str], int]:
+    """(source, kid, external_key) -> assignment id for every link of the kid's assignments."""
+    rows = conn.execute(
+        "SELECT sl.source, sl.external_key, sl.assignment_id FROM source_links sl"
+        " JOIN assignments a ON a.id = sl.assignment_id WHERE a.kid = ?", (kid,)).fetchall()
+    return {(r["source"], kid, r["external_key"]): r["assignment_id"] for r in rows}
+
+
+def kid_links(conn: sqlite3.Connection, kid: str, source: str) -> list[tuple[int, LinkState]]:
+    rows = conn.execute(
+        "SELECT sl.* FROM source_links sl JOIN assignments a ON a.id = sl.assignment_id"
+        " WHERE a.kid = ? AND sl.source = ? ORDER BY sl.id", (kid, source)).fetchall()
+    return [(r["assignment_id"], _to_link(r)) for r in rows]
+
+
+def update_link_absence(conn: sqlite3.Connection, assignment_id: int, link: LinkState) -> None:
+    """Write only the liveness columns (raw payload, url and status stay as the last sighting left them)."""
+    conn.execute(
+        "UPDATE source_links SET live = ?, absent_since = ?, trusted_misses = ?, last_miss_hash = ?"
+        " WHERE assignment_id = ? AND source = ? AND external_key = ?",
+        (int(link.live), _iso(link.absent_since), link.trusted_misses, link.last_miss_hash,
+         assignment_id, link.source, link.external_key))
+
+
+# ---- stored flags and class settings -----------------------------------------
+
+def stored_flags(conn: sqlite3.Connection, kid: str) -> dict[int, str | None]:
+    rows = conn.execute("SELECT id, flag FROM assignments WHERE kid = ?", (kid,)).fetchall()
+    return {r["id"]: r["flag"] for r in rows}
+
+
+def set_flag(conn: sqlite3.Connection, assignment_id: int, flag: str | None, since: datetime) -> None:
+    conn.execute("UPDATE assignments SET flag = ?, flag_since = ? WHERE id = ?",
+                 (flag, since.isoformat(), assignment_id))
+
+
+def class_settings_rows(conn: sqlite3.Connection, kid: str) -> list[tuple[str, int | None, str | None]]:
+    """(class_key, grace_school_days, aliases JSON) for the kid's configured classes."""
+    rows = conn.execute("SELECT class_key, grace_school_days, aliases FROM class_settings WHERE kid = ?",
+                        (kid,)).fetchall()
+    return [(r["class_key"], r["grace_school_days"], r["aliases"]) for r in rows]
 
 
 # ---- events (append-only) -------------------------------------------------

@@ -90,12 +90,13 @@ def ixl_payload(spec: Mapping[str, Mapping[str, list]]) -> dict:
 def build_results(run: Mapping[str, Any]):
     """(results, file_hashes) from a run spec holding sgy / ps / ixl compact payloads."""
     from school_dashboard.assignments.adapters import ADAPTERS
+    from school_dashboard.assignments.adapters.powerschool import PowerSchoolAdapter
     results = []
     if "sgy" in run:
         results.append(ADAPTERS["schoology"].parse(sgy_payload(run["sgy"], run.get("sgy_top")),
                                                    resolve_kid=resolve))
     if "ps" in run:
-        results.append(ADAPTERS["powerschool"].parse(ps_payload(run["ps"], run.get("ps_top")),
+        results.append(PowerSchoolAdapter().parse(ps_payload(run["ps"], run.get("ps_top")),
                                                      resolve_kid=resolve, file_ok=run.get("ps_file_ok", True)))
     if "ixl" in run:
         results.append(ADAPTERS["ixl"].parse(ixl_payload(run["ixl"]), resolve_kid=resolve))
@@ -111,6 +112,7 @@ def snapshot(db_path: str) -> dict[str, Any]:
         out: dict[str, Any] = {"assignments": {}}
         for a in repo.list_assignments(conn, include_closed=True):
             row = conn.execute("SELECT flag FROM assignments WHERE id = ?", (a.id,)).fetchone()
+            assert a.id is not None
             links = repo.links_for(conn, a.id)
             out["assignments"][f"{a.kid}|{a.title}|{a.class_name or ''}"] = {
                 "id": a.id, "stage": a.stage, "portal_status": a.portal_status,
@@ -188,7 +190,9 @@ def drive(tmp_path: Path, sc: Mapping[str, Any]) -> None:
     for i, run in enumerate(sc["runs"]):
         before = snapshot(db_path)
         results, hashes = build_results(run)
-        report = ingest.run(db_path, results, file_hashes=hashes, now=dt(run["now"]), no_school_rows=rows)
+        now = dt(run["now"])
+        assert now is not None
+        report = ingest.run(db_path, results, file_hashes=hashes, now=now, no_school_rows=rows)
         check_expect(run["expect"], before, snapshot(db_path), report, f"{sc['_file']}::{sc['id']} run{i + 1}")
 
 

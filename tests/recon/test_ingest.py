@@ -150,18 +150,21 @@ def test_second_connection_holding_the_lock_makes_kids_wait_or_report_busy(tmp_p
 def test_ingest_waits_for_a_short_lock(tmp_path):
     from school_dashboard.assignments import schema
     db_path = make_db(tmp_path)
-    blocker = schema.connect(db_path)
-    blocker.execute("BEGIN IMMEDIATE")
+    locked = threading.Event()
 
-    def release():
+    def hold():
+        blocker = schema.connect(db_path)
+        blocker.execute("BEGIN IMMEDIATE")
+        locked.set()
         time.sleep(0.3)
         blocker.execute("COMMIT")
+        blocker.close()
 
-    t = threading.Thread(target=release)
+    t = threading.Thread(target=hold)
     t.start()
+    assert locked.wait(5)
     report = _run(db_path, {"sgy": SGY, "hash": HASH})
     t.join()
-    blocker.close()
     assert report.ok and len(snapshot(db_path)["assignments"]) == 1
 
 

@@ -61,6 +61,8 @@ def _update_locked(args: argparse.Namespace) -> None:
           f"{pruned} stale items pruned, "
           f"auto-archived {auto_archived}", file=sys.stderr)
     print(f"State saved: {p}", file=sys.stderr)
+    from school_dashboard.assignments import ingest  # recon v2 shadow ingest: flag-guarded, never raises
+    ingest.run_shadow(args, s)
 
 
 def cmd_html(args: argparse.Namespace) -> None:
