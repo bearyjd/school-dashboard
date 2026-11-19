@@ -131,8 +131,54 @@ def gone(status="missing", misses=3, since=date(2026, 11, 18), **kw):
     return mk_link(norm_status=status, live=False, trusted_misses=misses, absent_since=since, **kw)
 
 
-def test_live_graded_link_is_received_by_portal():
-    assert decide(links=[mk_link(norm_status="graded")]) == (4, "portal")
+def test_single_graded_link_without_score_raises_to_stage_3_only():
+    assert decide(links=[mk_link(norm_status="graded")]) == (3, None)
+
+
+def test_single_submitted_link_raises_to_stage_3_only():
+    assert decide(links=[mk_link(norm_status="submitted")]) == (3, None)
+
+
+def test_one_real_score_is_received():
+    assert decide(links=[mk_link(norm_status="open", score="9/10")]) == (4, "portal")
+
+
+@pytest.mark.parametrize("a,b", [("submitted", "submitted"), ("submitted", "graded"), ("graded", "graded")])
+def test_two_different_sources_submitted_or_graded_is_received(a, b):
+    links = [mk_link(norm_status=a), mk_link(source="powerschool", external_key="p1", norm_status=b)]
+    assert decide(links=links) == (4, "portal")
+
+
+def test_two_links_of_the_same_source_are_not_two_sources():
+    links = [mk_link(norm_status="graded"), mk_link(norm_status="graded", external_key="k2")]
+    assert decide(links=links) == (3, None)
+
+
+def test_screenshot_link_does_not_make_the_second_source():
+    links = [mk_link(norm_status="graded"),
+             mk_link(source="powerschool", external_key="p1", norm_status="graded", via="screenshot")]
+    assert decide(links=links) == (3, None)
+
+
+def test_screenshot_score_does_not_count_for_route_a():
+    assert decide(links=[mk_link(norm_status="open", score="95", via="screenshot")])[0] == 1
+
+
+def test_two_sources_with_a_live_missing_link_is_not_received():
+    links = [mk_link(norm_status="graded"), mk_link(source="powerschool", external_key="p1", norm_status="graded"),
+             mk_link(source="powerschool", external_key="p2", norm_status="missing")]
+    assert decide(links=links)[0] == 1
+
+
+def test_real_score_with_a_live_missing_link_is_not_received():
+    links = [mk_link(norm_status="open", score="9/10"), mk_link(external_key="k2", norm_status="missing")]
+    assert decide(links=links)[0] == 1
+
+
+def test_stale_non_live_links_do_not_make_the_second_source():
+    links = [mk_link(norm_status="graded"),
+             mk_link(source="powerschool", external_key="p1", norm_status="graded", live=False)]
+    assert decide(links=links) == (3, None)
 
 
 @pytest.mark.parametrize("score", ["95", "7/10", "0"])
@@ -150,22 +196,27 @@ def test_graded_with_a_live_missing_link_is_not_received():
     assert decide(links=links)[0] == 1
 
 
-def test_graded_plus_live_late_still_received_because_late_casts_no_vote():
+def test_graded_plus_live_late_of_one_source_is_stage_3_not_received():
     links = [mk_link(norm_status="graded"), mk_link(norm_status="late", external_key="k2")]
-    assert decide(links=links) == (4, "portal")
+    assert decide(links=links) == (3, None)
 
 
 def test_screenshot_graded_link_is_not_evidence():
     assert decide(links=[mk_link(norm_status="graded", score="95", via="screenshot")])[0] == 1
 
 
-def test_parent_done_record_with_graded_link_is_received():
-    assert decide({"stage": 2}, [mk_link(norm_status="graded")]) == (4, "portal")
+def test_parent_done_record_with_single_graded_link_stays_stage_3():
+    assert decide({"stage": 2}, [mk_link(norm_status="graded")]) == (3, None)
 
 
 @pytest.mark.parametrize("status", ["missing", "late"])
-def test_cleared_link_with_three_misses_over_two_days_is_received(status):
-    assert decide(links=[gone(status)]) == (4, "portal")
+def test_cleared_link_with_three_misses_over_two_days_never_closes(status):
+    assert decide(links=[gone(status)]) == (1, None)
+
+
+def test_powerschool_only_cleared_record_never_reaches_stage_4():
+    link = gone("missing", misses=9, since=date(2026, 11, 1), source="powerschool")
+    assert decide(links=[link], today=date(2026, 12, 31)) == (1, None)
 
 
 def test_two_misses_are_not_enough():

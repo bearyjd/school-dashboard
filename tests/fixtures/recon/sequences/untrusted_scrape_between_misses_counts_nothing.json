@@ -69,13 +69,14 @@
    "file_hash": "h5",
    "present": {},
    "expect": {
-    "stage": 4,
-    "received_evidence": "portal",
+    "stage": 1,
+    "received_evidence": null,
     "links": {
      "powerschool:p1": {
       "trusted_misses": 3
      }
-    }
+    },
+    "portal_status": "cleared"
    }
   }
  ]

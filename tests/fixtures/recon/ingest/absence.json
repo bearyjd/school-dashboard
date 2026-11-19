@@ -2,7 +2,7 @@
  "synthetic": true,
  "scenarios": [
   {
-   "id": "ps_absent_clears_then_three_trusted_misses_over_two_days_receive",
+   "id": "ps_absent_three_trusted_misses_over_two_days_stays_cleared_never_closed",
    "runs": [
     {
      "now": "2026-11-12T17:00:00-05:00",
@@ -148,10 +148,10 @@
      },
      "expect": {
       "Alex|Pack|Math 6": {
-       "stage": 4,
-       "closed": true,
-       "evidence": "portal",
-       "flag": null,
+       "stage": 1,
+       "closed": false,
+       "evidence": null,
+       "portal_status": "cleared",
        "links": {
         "powerschool": {
          "live": false,
@@ -165,7 +165,7 @@
    ]
   },
   {
-   "id": "three_misses_within_one_day_do_not_receive_until_two_days_pass",
+   "id": "three_misses_within_one_day_then_two_days_stays_cleared_never_closed",
    "runs": [
     {
      "now": "2026-11-12T17:00:00-05:00",
@@ -257,9 +257,10 @@
      },
      "expect": {
       "Alex|Pack|Math 6": {
-       "stage": 4,
-       "closed": true,
-       "evidence": "portal"
+       "stage": 1,
+       "closed": false,
+       "evidence": null,
+       "portal_status": "cleared"
       }
      }
     }

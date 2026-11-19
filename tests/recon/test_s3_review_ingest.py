@@ -282,11 +282,12 @@ def test_run_shadow_logs_warning_count_and_mass_change_count_only(env, monkeypat
 def test_stage_event_to_4_names_the_evidence_sources_not_titles(tmp_path):
     from school_dashboard.assignments import schema
     db = make_db(tmp_path)
-    _run(db, {"sgy": {"Alex": [_row("Essay", status="graded")]}})
+    _run(db, {"sgy": {"Alex": [_row("Essay", status="graded")]},
+              "ps": {"Alex": {"late": [{"title": "Essay", "course": "Math 6", "due": "2026-11-20", "score": "9/10"}]}}})
     conn = schema.connect(db)
     rows = conn.execute("SELECT detail FROM assignment_events WHERE kind = 'stage' AND to_value = '4'").fetchall()
     conn.close()
-    assert [r["detail"] for r in rows] == ["schoology"]
+    assert [r["detail"] for r in rows] == ["powerschool,schoology"]
 
 
 # ---- H: mass-change boundaries --------------------------------------------------------------
