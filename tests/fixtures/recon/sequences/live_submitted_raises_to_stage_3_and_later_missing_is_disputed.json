@@ -1,0 +1,52 @@
+{
+ "synthetic": true,
+ "id": "live_submitted_raises_to_stage_3_and_later_missing_is_disputed",
+ "state": {
+  "stage": 1,
+  "due_date": "2026-11-30",
+  "stage_since": "2026-11-16T12:00:00-05:00",
+  "portal_status": "none"
+ },
+ "links": [
+  {
+   "source": "powerschool",
+   "external_key": "p1",
+   "norm_status": "open"
+  }
+ ],
+ "start": "2026-11-18T06:00:00-05:00",
+ "steps": [
+  {
+   "op": "scrape",
+   "at": "2026-11-18T06:00:00-05:00",
+   "trusted": true,
+   "file_hash": "h1",
+   "present": {
+    "powerschool:p1": {
+     "status": "submitted"
+    }
+   },
+   "expect": {
+    "stage": 3,
+    "received_evidence": null,
+    "flag": "waiting_on_teacher"
+   }
+  },
+  {
+   "op": "scrape",
+   "at": "2026-11-19T06:00:00-05:00",
+   "trusted": true,
+   "file_hash": "h2",
+   "present": {
+    "powerschool:p1": {
+     "status": "missing"
+    }
+   },
+   "expect": {
+    "stage": 3,
+    "portal_status": "missing",
+    "flag": "disputed"
+   }
+  }
+ ]
+}

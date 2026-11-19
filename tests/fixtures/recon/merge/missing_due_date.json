@@ -1,0 +1,125 @@
+{
+ "description": "a record without a due date merges only by link or by full key with a non-empty class",
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "both_undated_same_class_merge_by_key",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": "ELA 6",
+    "title": "Reading log",
+    "due_date": null,
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "ELA 6",
+     "class_key": "ela 6",
+     "title": "Reading log",
+     "title_key": "reading log",
+     "due_date": null
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "key",
+    "assignment_id": 1
+   }
+  },
+  {
+   "id": "both_undated_no_class_never_merge",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": null,
+    "title": "Reading log",
+    "due_date": null,
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": null,
+     "class_key": "",
+     "title": "Reading log",
+     "title_key": "reading log",
+     "due_date": null
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "new",
+    "assignment_id": null
+   }
+  },
+  {
+   "id": "undated_record_vs_dated_candidate_is_new",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": "ELA 6",
+    "title": "Reading log",
+    "due_date": null,
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "ELA 6",
+     "class_key": "ela 6",
+     "title": "Reading log",
+     "title_key": "reading log",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "new",
+    "assignment_id": null
+   }
+  },
+  {
+   "id": "undated_record_still_matches_by_link",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": "ELA 6",
+    "title": "Reading log",
+    "due_date": null,
+    "external_key": "a9"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "ELA 6",
+     "class_key": "ela 6",
+     "title": "Other",
+     "title_key": "other",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [
+    [
+     "schoology",
+     "Alex",
+     "a9",
+     1
+    ]
+   ],
+   "aliases": {},
+   "expect": {
+    "kind": "link",
+    "assignment_id": 1
+   }
+  }
+ ]
+}

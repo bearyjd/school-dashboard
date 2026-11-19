@@ -1,0 +1,91 @@
+{
+ "description": "closed: stage 4 has no flag and no bucket",
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "received_via_graded_link",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 4,
+    "received_evidence": "portal",
+    "due_date": "2026-11-02",
+    "closed_at": "2026-11-10T18:00:00-05:00",
+    "portal_status": "graded"
+   },
+   "links": [
+    {
+     "source": "schoology",
+     "external_key": "k1",
+     "norm_status": "graded",
+     "score": "95"
+    }
+   ],
+   "expect": {
+    "flag": null,
+    "bucket": null
+   }
+  },
+  {
+   "id": "received_via_migration_old_due",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 4,
+    "received_evidence": "migration",
+    "due_date": "2026-11-02",
+    "closed_at": "2026-11-10T18:00:00-05:00"
+   },
+   "links": [],
+   "expect": {
+    "flag": null,
+    "bucket": null
+   }
+  },
+  {
+   "id": "received_via_teacher_confirmed",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 4,
+    "received_evidence": "teacher_confirmed",
+    "due_date": "2026-11-02",
+    "closed_at": "2026-11-10T18:00:00-05:00"
+   },
+   "links": [],
+   "expect": {
+    "flag": null,
+    "bucket": null
+   }
+  },
+  {
+   "id": "closed_task",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 4,
+    "received_evidence": "migration",
+    "due_date": "2026-11-02",
+    "closed_at": "2026-11-10T18:00:00-05:00",
+    "kind": "task"
+   },
+   "links": [],
+   "expect": {
+    "flag": null,
+    "bucket": null
+   }
+  },
+  {
+   "id": "closed_practice",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 4,
+    "received_evidence": "migration",
+    "due_date": "2026-11-02",
+    "closed_at": "2026-11-10T18:00:00-05:00",
+    "kind": "practice"
+   },
+   "links": [],
+   "expect": {
+    "flag": null,
+    "bucket": null
+   }
+  }
+ ]
+}

@@ -1,0 +1,61 @@
+{
+ "synthetic": true,
+ "id": "missing_to_late_is_a_status_change_not_an_absence",
+ "state": {
+  "stage": 1,
+  "due_date": "2026-11-30",
+  "stage_since": "2026-11-16T12:00:00-05:00",
+  "portal_status": "missing"
+ },
+ "links": [
+  {
+   "source": "powerschool",
+   "external_key": "p1",
+   "norm_status": "missing"
+  }
+ ],
+ "start": "2026-11-18T06:00:00-05:00",
+ "steps": [
+  {
+   "op": "scrape",
+   "at": "2026-11-18T06:00:00-05:00",
+   "trusted": true,
+   "file_hash": "h1",
+   "present": {
+    "powerschool:p1": {
+     "status": "missing"
+    }
+   },
+   "expect": {
+    "portal_status": "missing",
+    "flag": "missing"
+   }
+  },
+  {
+   "op": "scrape",
+   "at": "2026-11-19T06:00:00-05:00",
+   "trusted": true,
+   "file_hash": "h2",
+   "present": {
+    "powerschool:p1": {
+     "status": "late"
+    }
+   },
+   "expect": {
+    "stage": 1,
+    "portal_status": "late",
+    "flag": "upcoming",
+    "info": [
+     "late"
+    ],
+    "links": {
+     "powerschool:p1": {
+      "live": true,
+      "trusted_misses": 0,
+      "norm_status": "late"
+     }
+    }
+   }
+  }
+ ]
+}

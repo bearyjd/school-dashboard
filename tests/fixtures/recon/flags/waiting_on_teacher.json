@@ -1,0 +1,139 @@
+{
+ "description": "waiting_on_teacher: stage 2/3 still inside the grace window",
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "stage2_on_last_grace_day",
+   "now": "2026-11-20T18:00:00-05:00",
+   "state": {
+    "stage": 2,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18"
+   },
+   "links": [],
+   "expect": {
+    "flag": "waiting_on_teacher",
+    "bucket": "waiting_on_teacher"
+   }
+  },
+  {
+   "id": "stage3_on_last_grace_day",
+   "now": "2026-11-20T18:00:00-05:00",
+   "state": {
+    "stage": 3,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18",
+    "portal_status": "submitted"
+   },
+   "links": [
+    {
+     "source": "schoology",
+     "external_key": "k1",
+     "norm_status": "submitted"
+    }
+   ],
+   "expect": {
+    "flag": "waiting_on_teacher",
+    "bucket": "waiting_on_teacher"
+   }
+  },
+  {
+   "id": "class_override_five_school_days",
+   "now": "2026-11-23T18:00:00-05:00",
+   "state": {
+    "stage": 2,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18"
+   },
+   "links": [],
+   "expect": {
+    "flag": "waiting_on_teacher",
+    "bucket": "waiting_on_teacher"
+   },
+   "grace_days": 5
+  },
+  {
+   "id": "early_work_grace_counts_from_due_date",
+   "now": "2026-11-23T18:00:00-05:00",
+   "state": {
+    "stage": 2,
+    "stage_since": "2026-11-16T20:00:00-05:00",
+    "due_date": "2026-11-20"
+   },
+   "links": [],
+   "expect": {
+    "flag": "waiting_on_teacher",
+    "bucket": "waiting_on_teacher"
+   }
+  },
+  {
+   "id": "no_school_days_do_not_burn_grace",
+   "now": "2026-11-24T12:00:00-05:00",
+   "state": {
+    "stage": 2,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18"
+   },
+   "links": [],
+   "expect": {
+    "flag": "waiting_on_teacher",
+    "bucket": "waiting_on_teacher"
+   },
+   "no_school": [
+    "2026-11-19",
+    "2026-11-20"
+   ]
+  },
+  {
+   "id": "portal_late_is_informational_not_disputed",
+   "now": "2026-11-20T18:00:00-05:00",
+   "state": {
+    "stage": 3,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18",
+    "portal_status": "late"
+   },
+   "links": [
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "late"
+    }
+   ],
+   "expect": {
+    "flag": "waiting_on_teacher",
+    "bucket": "waiting_on_teacher",
+    "info": [
+     "late"
+    ]
+   }
+  },
+  {
+   "id": "cleared_is_not_disputed",
+   "now": "2026-11-20T18:00:00-05:00",
+   "state": {
+    "stage": 3,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18",
+    "portal_status": "cleared"
+   },
+   "links": [
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "missing",
+     "live": false,
+     "trusted_misses": 1,
+     "absent_since": "2026-11-19"
+    }
+   ],
+   "expect": {
+    "flag": "waiting_on_teacher",
+    "bucket": "waiting_on_teacher",
+    "info": [
+     "cleared_unconfirmed"
+    ]
+   }
+  }
+ ]
+}

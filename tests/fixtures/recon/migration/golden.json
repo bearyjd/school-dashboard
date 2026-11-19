@@ -1,0 +1,23 @@
+{
+ "synthetic": true,
+ "description": "Golden legacy data: 9 items + 4 action_items = 13 rows in; expected 12 created, 1 merged (action a1 into item 1).",
+ "roster": {"Alex": {"grade": "6", "school": "Test"}, "Sam": {"grade": "4", "school": "Test"}, "Jo": {"grade": "2", "school": "Test"}},
+ "items": [
+  {"id": 1, "child": "Alex", "title": "Read ch 5", "due_date": "2026-11-20", "type": "assignment", "source": "manual", "completed": 0, "completed_at": null, "notes": "bring book", "created_at": "2026-11-10 08:00:00"},
+  {"id": 2, "child": "Alex", "title": "Old worksheet", "due_date": "2026-10-02", "type": "assignment", "source": "manual", "completed": 1, "completed_at": "2026-10-01 15:00:00", "notes": null, "created_at": "2026-09-30 08:00:00"},
+  {"id": 3, "child": "Sam", "title": "Permission slip", "due_date": null, "type": "task", "source": "manual", "completed": 0, "completed_at": null, "notes": null, "created_at": "2026-11-12 09:00:00"},
+  {"id": 4, "child": "Sam", "title": "Science lab", "due_date": "2026-10-06", "type": "assignment", "source": "manual", "completed": 1, "completed_at": null, "notes": null, "created_at": "2026-10-05 08:00:00"},
+  {"id": 5, "child": "Jo", "title": "Spelling list", "due_date": "2026-11-19", "type": "practice", "source": "manual", "completed": 0, "completed_at": null, "notes": null, "created_at": "2026-11-11 08:00:00"},
+  {"id": 6, "child": "Zed", "title": "Off roster item", "due_date": "2026-11-22", "type": "assignment", "source": "manual", "completed": 0, "completed_at": null, "notes": null, "created_at": "2026-11-11 08:00:00"},
+  {"id": 7, "child": "Jo", "title": "Field trip form", "due_date": "2026-11-24", "type": "email", "source": "email", "completed": 0, "completed_at": null, "notes": null, "created_at": "2026-11-12 08:00:00"},
+  {"id": 8, "child": "Alex", "title": "Same", "due_date": "2026-11-21", "type": "assignment", "source": "manual", "completed": 0, "completed_at": null, "notes": null, "created_at": "2026-11-12 08:00:00"},
+  {"id": 9, "child": "Alex", "title": "Same", "due_date": "2026-11-21", "type": "assignment", "source": "manual", "completed": 0, "completed_at": null, "notes": null, "created_at": "2026-11-12 08:05:00"}
+ ],
+ "action_items": [
+  {"id": "a1", "child": "Alex", "source": "schoology", "type": "assignment", "summary": "Read ch 5", "due": "2026-11-20", "status": "pending", "created": "2026-11-09T07:00:00"},
+  {"id": "a2", "child": "Sam", "source": "schoology", "type": "assignment", "summary": "Old HW", "due": "2026-10-03", "status": "completed", "created": "2026-10-01T07:00:00", "completed_at": "2026-10-04T10:00:00"},
+  {"id": "a3", "child": "Jo", "source": "schoology", "type": "assignment", "summary": "Quiz", "due": "2026-11-25", "status": "pending", "created": "2026-11-10T07:00:00"},
+  {"id": "a4", "child": "Alex", "source": "schoology", "type": "assignment", "summary": "Same", "due": "2026-11-21", "status": "pending", "created": "2026-11-12T07:00:00"}
+ ],
+ "expect": {"rows_in": 13, "created": 12, "merged": 1}
+}

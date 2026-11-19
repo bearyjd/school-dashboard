@@ -1,0 +1,174 @@
+{
+ "description": "unverified overlay: stale sources or a failed ingest never change the flag itself",
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "stale_linked_source",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-19"
+   },
+   "links": [
+    {
+     "source": "schoology",
+     "external_key": "s1",
+     "norm_status": "open"
+    }
+   ],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight",
+    "unverified": true,
+    "unverified_sources": [
+     "schoology"
+    ]
+   },
+   "stale_sources": [
+    "schoology"
+   ]
+  },
+  {
+   "id": "two_stale_sources_sorted",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-19"
+   },
+   "links": [
+    {
+     "source": "schoology",
+     "external_key": "s1",
+     "norm_status": "open"
+    },
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "open"
+    }
+   ],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight",
+    "unverified": true,
+    "unverified_sources": [
+     "powerschool",
+     "schoology"
+    ]
+   },
+   "stale_sources": [
+    "schoology",
+    "powerschool"
+   ]
+  },
+  {
+   "id": "stale_source_not_linked_is_ignored",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-19"
+   },
+   "links": [
+    {
+     "source": "schoology",
+     "external_key": "s1",
+     "norm_status": "open"
+    }
+   ],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight",
+    "unverified": false,
+    "unverified_sources": []
+   },
+   "stale_sources": [
+    "ixl"
+   ]
+  },
+  {
+   "id": "failed_ingest_marks_recon_ingest",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-19"
+   },
+   "links": [],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight",
+    "unverified": true,
+    "unverified_sources": [
+     "recon_ingest"
+    ]
+   },
+   "ingest_ok": false
+  },
+  {
+   "id": "failed_ingest_and_stale_source_sorted_together",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-19"
+   },
+   "links": [
+    {
+     "source": "schoology",
+     "external_key": "s1",
+     "norm_status": "open"
+    }
+   ],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight",
+    "unverified": true,
+    "unverified_sources": [
+     "recon_ingest",
+     "schoology"
+    ]
+   },
+   "stale_sources": [
+    "schoology"
+   ],
+   "ingest_ok": false
+  },
+  {
+   "id": "fresh_data_is_verified",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-19"
+   },
+   "links": [
+    {
+     "source": "schoology",
+     "external_key": "s1",
+     "norm_status": "open"
+    }
+   ],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight",
+    "unverified": false,
+    "unverified_sources": []
+   }
+  },
+  {
+   "id": "unverified_missing_stays_missing",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-17"
+   },
+   "links": [],
+   "expect": {
+    "flag": "missing",
+    "bucket": "needs_action",
+    "unverified": true,
+    "unverified_sources": [
+     "recon_ingest"
+    ]
+   },
+   "ingest_ok": false
+  }
+ ]
+}

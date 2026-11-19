@@ -1,0 +1,180 @@
+{
+ "description": "done_not_received: stage 2/3 and the grace window has passed",
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "stage2_after_grace",
+   "now": "2026-11-23T18:00:00-05:00",
+   "state": {
+    "stage": 2,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18"
+   },
+   "links": [],
+   "expect": {
+    "flag": "done_not_received",
+    "bucket": "needs_action"
+   }
+  },
+  {
+   "id": "stage3_after_grace_with_live_link",
+   "now": "2026-11-23T18:00:00-05:00",
+   "state": {
+    "stage": 3,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18",
+    "portal_status": "submitted"
+   },
+   "links": [
+    {
+     "source": "schoology",
+     "external_key": "k1",
+     "norm_status": "submitted"
+    }
+   ],
+   "expect": {
+    "flag": "done_not_received",
+    "bucket": "needs_action",
+    "info": []
+   }
+  },
+  {
+   "id": "day_after_deadline_saturday",
+   "now": "2026-11-21T12:00:00-05:00",
+   "state": {
+    "stage": 2,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18"
+   },
+   "links": [],
+   "expect": {
+    "flag": "done_not_received",
+    "bucket": "needs_action"
+   }
+  },
+  {
+   "id": "paper_only_stage3_is_unconfirmed",
+   "now": "2026-11-23T18:00:00-05:00",
+   "state": {
+    "stage": 3,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18",
+    "paper_only": true
+   },
+   "links": [],
+   "expect": {
+    "flag": "done_not_received",
+    "bucket": "needs_action",
+    "info": [
+     "unconfirmed_paper"
+    ]
+   }
+  },
+  {
+   "id": "stage3_with_no_links_is_unconfirmed",
+   "now": "2026-11-23T18:00:00-05:00",
+   "state": {
+    "stage": 3,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18"
+   },
+   "links": [],
+   "expect": {
+    "flag": "done_not_received",
+    "bucket": "needs_action",
+    "info": [
+     "unconfirmed_paper"
+    ]
+   }
+  },
+  {
+   "id": "stage2_paper_only_has_no_unconfirmed_chip",
+   "now": "2026-11-23T18:00:00-05:00",
+   "state": {
+    "stage": 2,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18",
+    "paper_only": true
+   },
+   "links": [],
+   "expect": {
+    "flag": "done_not_received",
+    "bucket": "needs_action",
+    "info": []
+   }
+  },
+  {
+   "id": "grace_zero_flags_next_day",
+   "now": "2026-11-21T12:00:00-05:00",
+   "state": {
+    "stage": 2,
+    "stage_since": "2026-11-20T10:00:00-05:00",
+    "due_date": "2026-11-20"
+   },
+   "links": [],
+   "expect": {
+    "flag": "done_not_received",
+    "bucket": "needs_action"
+   },
+   "grace_days": 0
+  },
+  {
+   "id": "early_work_after_due_plus_grace",
+   "now": "2026-11-25T18:00:00-05:00",
+   "state": {
+    "stage": 2,
+    "stage_since": "2026-11-16T20:00:00-05:00",
+    "due_date": "2026-11-20"
+   },
+   "links": [],
+   "expect": {
+    "flag": "done_not_received",
+    "bucket": "needs_action"
+   }
+  },
+  {
+   "id": "no_school_days_then_grace_expires",
+   "now": "2026-11-25T18:00:00-05:00",
+   "state": {
+    "stage": 2,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18"
+   },
+   "links": [],
+   "expect": {
+    "flag": "done_not_received",
+    "bucket": "needs_action"
+   },
+   "no_school": [
+    "2026-11-19",
+    "2026-11-20"
+   ]
+  },
+  {
+   "id": "stage_since_utc_evening_uses_local_date",
+   "now": "2026-11-23T12:00:00-05:00",
+   "state": {
+    "stage": 2,
+    "stage_since": "2026-11-19T02:00:00+00:00"
+   },
+   "links": [],
+   "expect": {
+    "flag": "done_not_received",
+    "bucket": "needs_action"
+   }
+  },
+  {
+   "id": "stage_since_utc_late_evening_uses_local_date",
+   "now": "2026-11-24T12:00:00-05:00",
+   "state": {
+    "stage": 2,
+    "stage_since": "2026-11-20T03:30:00+00:00"
+   },
+   "links": [],
+   "expect": {
+    "flag": "done_not_received",
+    "bucket": "needs_action"
+   }
+  }
+ ]
+}

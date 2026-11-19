@@ -1,0 +1,163 @@
+{
+ "synthetic": true,
+ "description": "All-completed history with long-past due dates: after migration Needs action must be empty.",
+ "roster": {
+  "Alex": {
+   "grade": "6",
+   "school": "Test"
+  },
+  "Sam": {
+   "grade": "4",
+   "school": "Test"
+  },
+  "Jo": {
+   "grade": "2",
+   "school": "Test"
+  }
+ },
+ "items": [
+  {
+   "id": 1,
+   "child": "Alex",
+   "title": "History Alex 0",
+   "due_date": "2026-09-10",
+   "type": "assignment",
+   "source": "manual",
+   "completed": 1,
+   "completed_at": "2026-09-11 16:00:00",
+   "notes": null,
+   "created_at": "2026-09-01 08:00:00"
+  },
+  {
+   "id": 2,
+   "child": "Alex",
+   "title": "History Alex 1",
+   "due_date": "2026-09-11",
+   "type": "assignment",
+   "source": "manual",
+   "completed": 1,
+   "completed_at": "2026-09-12 16:00:00",
+   "notes": null,
+   "created_at": "2026-09-02 08:00:00"
+  },
+  {
+   "id": 3,
+   "child": "Alex",
+   "title": "History Alex 2",
+   "due_date": "2026-09-12",
+   "type": "assignment",
+   "source": "manual",
+   "completed": 1,
+   "completed_at": "2026-09-13 16:00:00",
+   "notes": null,
+   "created_at": "2026-09-03 08:00:00"
+  },
+  {
+   "id": 4,
+   "child": "Sam",
+   "title": "History Sam 0",
+   "due_date": "2026-09-10",
+   "type": "assignment",
+   "source": "manual",
+   "completed": 1,
+   "completed_at": "2026-09-11 16:00:00",
+   "notes": null,
+   "created_at": "2026-09-01 08:00:00"
+  },
+  {
+   "id": 5,
+   "child": "Sam",
+   "title": "History Sam 1",
+   "due_date": "2026-09-11",
+   "type": "assignment",
+   "source": "manual",
+   "completed": 1,
+   "completed_at": "2026-09-12 16:00:00",
+   "notes": null,
+   "created_at": "2026-09-02 08:00:00"
+  },
+  {
+   "id": 6,
+   "child": "Sam",
+   "title": "History Sam 2",
+   "due_date": "2026-09-12",
+   "type": "assignment",
+   "source": "manual",
+   "completed": 1,
+   "completed_at": "2026-09-13 16:00:00",
+   "notes": null,
+   "created_at": "2026-09-03 08:00:00"
+  },
+  {
+   "id": 7,
+   "child": "Jo",
+   "title": "History Jo 0",
+   "due_date": "2026-09-10",
+   "type": "assignment",
+   "source": "manual",
+   "completed": 1,
+   "completed_at": "2026-09-11 16:00:00",
+   "notes": null,
+   "created_at": "2026-09-01 08:00:00"
+  },
+  {
+   "id": 8,
+   "child": "Jo",
+   "title": "History Jo 1",
+   "due_date": "2026-09-11",
+   "type": "assignment",
+   "source": "manual",
+   "completed": 1,
+   "completed_at": "2026-09-12 16:00:00",
+   "notes": null,
+   "created_at": "2026-09-02 08:00:00"
+  },
+  {
+   "id": 9,
+   "child": "Jo",
+   "title": "History Jo 2",
+   "due_date": "2026-09-12",
+   "type": "assignment",
+   "source": "manual",
+   "completed": 1,
+   "completed_at": "2026-09-13 16:00:00",
+   "notes": null,
+   "created_at": "2026-09-03 08:00:00"
+  }
+ ],
+ "action_items": [
+  {
+   "id": "h0",
+   "child": "Alex",
+   "source": "schoology",
+   "type": "assignment",
+   "summary": "Old Alex 0",
+   "due": "2026-09-20",
+   "status": "completed",
+   "created": "2026-09-15T07:00:00",
+   "completed_at": "2026-09-21T10:00:00"
+  },
+  {
+   "id": "h1",
+   "child": "Sam",
+   "source": "schoology",
+   "type": "assignment",
+   "summary": "Old Sam 1",
+   "due": "2026-09-21",
+   "status": "completed",
+   "created": "2026-09-15T07:00:00",
+   "completed_at": "2026-09-22T10:00:00"
+  },
+  {
+   "id": "h2",
+   "child": "Jo",
+   "source": "schoology",
+   "type": "assignment",
+   "summary": "Old Jo 2",
+   "due": "2026-09-22",
+   "status": "completed",
+   "created": "2026-09-15T07:00:00",
+   "completed_at": "2026-09-23T10:00:00"
+  }
+ ]
+}

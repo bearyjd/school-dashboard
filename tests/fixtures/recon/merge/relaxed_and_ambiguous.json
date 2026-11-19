@@ -1,0 +1,205 @@
+{
+ "description": "relaxed match only when unambiguous; never across two different known classes",
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "same_title_two_classes_never_merge",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": "Science 6",
+    "title": "Quiz",
+    "due_date": "2026-11-20",
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Quiz",
+     "title_key": "quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "new",
+    "assignment_id": null
+   }
+  },
+  {
+   "id": "record_without_class_merges_with_unique_candidate",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": null,
+    "title": "Chapter 5 Quiz",
+    "due_date": "2026-11-20",
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Chapter 5 Quiz",
+     "title_key": "chapter 5 quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "relaxed",
+    "assignment_id": 1
+   }
+  },
+  {
+   "id": "candidate_without_class_merges_with_unique_record",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": "Math 6",
+    "title": "Chapter 5 Quiz",
+    "due_date": "2026-11-20",
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 3,
+     "kid": "Alex",
+     "class_name": null,
+     "class_key": "",
+     "title": "Chapter 5 Quiz",
+     "title_key": "chapter 5 quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "relaxed",
+    "assignment_id": 3
+   }
+  },
+  {
+   "id": "two_relaxed_candidates_are_ambiguous",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": null,
+    "title": "Quiz",
+    "due_date": "2026-11-20",
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Quiz",
+     "title_key": "quiz",
+     "due_date": "2026-11-20"
+    },
+    {
+     "id": 2,
+     "kid": "Alex",
+     "class_name": "Science 6",
+     "class_key": "science 6",
+     "title": "Quiz",
+     "title_key": "quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "ambiguous",
+    "assignment_id": null,
+    "candidate_ids": [
+     1,
+     2
+    ]
+   }
+  },
+  {
+   "id": "ambiguity_ignores_other_kids_and_dates",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": null,
+    "title": "Quiz",
+    "due_date": "2026-11-20",
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Quiz",
+     "title_key": "quiz",
+     "due_date": "2026-11-20"
+    },
+    {
+     "id": 2,
+     "kid": "Sam",
+     "class_name": "Science 6",
+     "class_key": "science 6",
+     "title": "Quiz",
+     "title_key": "quiz",
+     "due_date": "2026-11-20"
+    },
+    {
+     "id": 4,
+     "kid": "Alex",
+     "class_name": "Art",
+     "class_key": "art",
+     "title": "Quiz",
+     "title_key": "quiz",
+     "due_date": "2026-11-21"
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "relaxed",
+    "assignment_id": 1
+   }
+  },
+  {
+   "id": "blank_class_name_counts_as_unknown",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": "  ",
+    "title": "Quiz",
+    "due_date": "2026-11-20",
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Quiz",
+     "title_key": "quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "relaxed",
+    "assignment_id": 1
+   }
+  }
+ ]
+}
