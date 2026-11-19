@@ -179,6 +179,7 @@ def test_open_action_merged_into_completed_item_stays_closed_at_the_items_time()
     p = plan([_item(due_date="2026-11-20", completed=1, completed_at="2026-11-12 08:00:00")],
              [_act(due="2026-11-20")])
     (rec,) = p.records
+    assert rec.state.closed_at is not None
     assert (rec.state.stage, rec.state.closed_at.isoformat()[:19]) == (4, "2026-11-12T08:00:00")
 
 

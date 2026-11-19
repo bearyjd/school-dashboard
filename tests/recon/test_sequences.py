@@ -1,4 +1,7 @@
 """Ordered scrape / tap / clock-tick sequences with expected record state after every step."""
+from collections.abc import Iterator
+from typing import Any
+
 import pytest
 
 from recon.support import run_sequence, scenario_params
@@ -6,20 +9,20 @@ from recon.support import run_sequence, scenario_params
 SEQS = scenario_params("sequences")
 
 
-def _expected(sc):
+def _steps(s: Any) -> Iterator[tuple[dict[str, Any], int, dict[str, Any]]]:
+    sc = s.values[0]
+    assert isinstance(sc, dict)
     for i, step in enumerate(sc["steps"]):
-        yield pytest.param(sc, i, id=f"{sc['_file']}::step{i}-{step['op']}")
+        yield sc, i, step
 
 
-ALL = [p for s in SEQS for p in _expected(s.values[0])]
+def _check(key: str) -> list[Any]:
+    return [pytest.param(sc, i, id=f"{sc['_file']}::step{i}-{step['op']}")
+            for s in SEQS for sc, i, step in _steps(s) if key in step["expect"]]
 
 
 def _observed(sc, i):
     return run_sequence(sc)[i][1]
-
-
-def _check(key):
-    return [p for p in ALL if key in p.values[0]["steps"][p.values[1]]["expect"]]
 
 
 @pytest.mark.parametrize("sc,i", _check("stage"))

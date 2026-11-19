@@ -41,7 +41,9 @@ def ro(dbp):
 def by_item(dbp, item_id):
     c = ro(dbp)
     row = c.execute("SELECT id FROM assignments WHERE legacy_item_id=?", (item_id,)).fetchone()
-    return repo.get_assignment(c, row["id"]), c
+    got = repo.get_assignment(c, row["id"])
+    assert got is not None
+    return got, c
 
 
 # ---- plan_migration (pure) ----
@@ -105,6 +107,7 @@ def test_action_item_matching_two_planned_records_is_not_merged(env):
 def test_merged_action_item_shares_the_record_of_its_item(env):
     run(env)
     a, c = by_item(env[1], 1)
+    assert a.id is not None
     keys = {l.external_key for l in repo.links_for(c, a.id)}
     assert keys == {"item:1", "legacy-action:a1"}
 
@@ -137,18 +140,21 @@ def test_completed_item_becomes_stage_4_with_migration_evidence(env):
 def test_completed_item_closed_at_is_its_completed_at(env):
     run(env)
     a, _ = by_item(env[1], 2)
+    assert a.closed_at is not None
     assert a.closed_at.replace(tzinfo=None) == datetime(2026, 10, 1, 15, 0)
 
 
 def test_completed_item_without_completed_at_falls_back_to_created_at(env):
     run(env)
     a, _ = by_item(env[1], 4)
+    assert a.closed_at is not None
     assert a.closed_at.replace(tzinfo=None) == datetime(2026, 10, 5, 8, 0)
 
 
 def test_completed_item_gets_a_migration_stage_event_at_the_original_time(env):
     run(env)
     a, c = by_item(env[1], 2)
+    assert a.id is not None
     ev = [e for e in repo.events_for(c, a.id) if e["kind"] == "stage"]
     assert [(e["setter"], datetime.fromisoformat(e["at"]).replace(tzinfo=None)) for e in ev] == [("migration", datetime(2026, 10, 1, 15, 0))]
 
@@ -228,6 +234,7 @@ def test_completed_history_leaves_needs_action_empty_for_every_kid(legacy_env):
     c = ro(dbp)
     buckets = []
     for a in repo.list_assignments(c, include_closed=True):
+        assert a.id is not None
         res = compute_flag(a, repo.links_for(c, a.id), now=NOW, no_school=frozenset())
         buckets.append((a.kid, res.bucket))
     assert buckets and {b for _, b in buckets} == {None}
@@ -302,6 +309,7 @@ def _backup_dir(env):
 
 def test_backup_dir_is_created_under_archive_and_reported(env):
     r = run(env)
+    assert r.backup_dir is not None
     assert Path(r.backup_dir) == _backup_dir(env)
 
 

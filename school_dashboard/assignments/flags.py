@@ -25,7 +25,7 @@ def _info(state: AssignmentState, links: Sequence[LinkState]) -> tuple[str, ...]
 
 
 def _flag(state: AssignmentState, now: datetime, no_school: frozenset[date],
-          grace_days: int) -> str | None:
+          grace_days: int) -> str:
     today = school_today(now)
     stage = 1 if state.kind in _EXEMPT_KINDS else state.stage
     if stage == 3 and state.portal_status == "missing":
@@ -50,14 +50,16 @@ def compute_flag(state: AssignmentState, links: Sequence[LinkState], *, now: dat
     if not ingest_ok:
         stale.add("recon_ingest")
     info = _info(state, links)
-    common = dict(unverified=bool(stale), unverified_sources=tuple(sorted(stale)))
+    unverified, unverified_sources = bool(stale), tuple(sorted(stale))
     closed = state.stage == 4 or (state.kind == "task" and state.closed_at is not None)
     if closed:
-        return FlagResult(flag=None, bucket=None, info=info, **common)
+        return FlagResult(flag=None, bucket=None, info=info, unverified=unverified,
+                      unverified_sources=unverified_sources)
     flag = _flag(state, now, no_school, grace_days)
     if flag == "upcoming" and state.due_date is None and state.stage == 1:
         info = info + ("no_due_date",)
-    return FlagResult(flag=flag, bucket=BUCKETS.get(flag), info=info, **common)
+    return FlagResult(flag=flag, bucket=BUCKETS.get(flag), info=info, unverified=unverified,
+                      unverified_sources=unverified_sources)
 
 
 def bucket_counts(results: Iterable[FlagResult]) -> Mapping[str, int]:

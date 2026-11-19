@@ -8,6 +8,7 @@ import json
 from dataclasses import replace
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -34,12 +35,12 @@ def local(y, mo, da, h=0, mi=0) -> datetime:
     return datetime(y, mo, da, h, mi, tzinfo=TZ)
 
 
-STATE_DEFAULTS = dict(
+STATE_DEFAULTS: dict[str, Any] = dict(
     id=1, kid="Alex", class_name="Math 6", class_key="math 6", title="Worksheet", title_key="worksheet",
     due_date=None, kind="assignment", stage=1, stage_since="2026-11-16T12:00:00-05:00",
     received_evidence=None, portal_status="none", portal_conflict=False, closed_at=None, paper_only=False,
 )
-LINK_DEFAULTS = dict(source="schoology", external_key="k1", norm_status="open", score=None, url=None,
+LINK_DEFAULTS: dict[str, Any] = dict(source="schoology", external_key="k1", norm_status="open", score=None, url=None,
                      live=True, trusted_misses=0, absent_since=None, last_miss_hash=None, via="scrape")
 
 
@@ -63,7 +64,7 @@ def mk_link(**over):
 
 def mk_record(**over):
     from school_dashboard.assignments.model import SourceRecord
-    f = dict(source="schoology", kid="Alex", class_name="Math 6", title="Worksheet", due_date=None,
+    f: dict[str, Any] = dict(source="schoology", kid="Alex", class_name="Math 6", title="Worksheet", due_date=None,
              portal_status="open", raw_status="", score=None, link=None, external_key="x1", raw={}, via="scrape")
     f.update(over)
     if isinstance(f["due_date"], str):

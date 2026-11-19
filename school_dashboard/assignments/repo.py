@@ -57,11 +57,18 @@ def _dt(value: str | None) -> datetime | None:
     return datetime.fromisoformat(value) if value else None
 
 
+def _required_dt(value: str | None, column: str) -> datetime:
+    parsed = _dt(value)
+    if parsed is None:
+        raise RepoError(f"assignments.{column} is NULL but the schema forbids it")
+    return parsed
+
+
 def _to_state(row: sqlite3.Row) -> AssignmentState:
     return AssignmentState(
         id=row["id"], kid=row["kid"], class_name=row["class_name"], class_key=row["class_key"] or "",
         title=row["title"], title_key=row["title_key"], due_date=_date(row["due_date"]), kind=row["kind"],
-        stage=row["stage"], stage_since=_dt(row["stage_since"]), received_evidence=row["received_evidence"],
+        stage=row["stage"], stage_since=_required_dt(row["stage_since"], "stage_since"), received_evidence=row["received_evidence"],
         portal_status=row["portal_status"], portal_conflict=bool(row["portal_conflict"]),
         closed_at=_dt(row["closed_at"]), paper_only=bool(row["paper_only_flag"]),
     )
@@ -149,6 +156,8 @@ def append_event(conn: sqlite3.Connection, assignment_id: int, *, at: datetime, 
         "INSERT INTO assignment_events (assignment_id, at, setter, actor, kind, source, from_value,"
         " to_value, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (assignment_id, at.isoformat(), setter, actor, kind, source, from_value, to_value, detail))
+    if not cur.lastrowid:
+        raise RepoError("assignment event insert had no effect")
     return int(cur.lastrowid)
 
 

@@ -48,7 +48,7 @@ def _export(args: argparse.Namespace) -> int:
 
 def cmd_assignments(args: argparse.Namespace) -> None:
     handlers = {"migrate": _migrate, "export": _export}
-    handler = handlers.get(getattr(args, "assignments_command", None))
+    handler = handlers.get(getattr(args, "assignments_command", None) or "")
     if handler is None:
         sys.stderr.write("usage: school-state assignments {migrate|export} [--json]\n")
         sys.exit(EXIT_FAILED)

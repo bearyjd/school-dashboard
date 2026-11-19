@@ -4,6 +4,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -13,6 +14,12 @@ from school_dashboard.assignments import repo, schema
 
 PKG = Path(__file__).resolve().parents[2] / "school_dashboard" / "assignments"
 TABLES = {"assignments", "source_links", "assignment_events", "class_settings", "note_drafts", "push_outbox", "recon_meta"}
+
+
+def _get(conn, aid):
+    got = repo.get_assignment(conn, aid)
+    assert got is not None
+    return got
 
 
 def _tables(c):
@@ -100,7 +107,7 @@ def test_stage_check_constraint_rejects_stage_5(conn):
 
 def test_portal_status_cleared_is_storable(conn):
     aid = add_assignment(conn, portal_status="cleared")
-    assert repo.get_assignment(conn, aid).portal_status == "cleared"
+    assert _get(conn, aid).portal_status == "cleared"
 
 
 def test_event_for_missing_assignment_violates_foreign_key(conn):
@@ -117,7 +124,8 @@ def test_legacy_item_id_is_unique(conn):
 # ---- assignments ----
 def test_insert_then_get_round_trips_the_state(conn):
     aid = add_assignment(conn, title="Quiz", title_key="quiz", due_date="2026-11-20")
-    got = repo.get_assignment(conn, aid)
+    got = _get(conn, aid)
+    assert got.due_date is not None
     assert (got.id, got.kid, got.title, got.due_date.isoformat(), got.stage) == (aid, "Alex", "Quiz", "2026-11-20", 1)
 
 
@@ -128,14 +136,14 @@ def test_get_assignment_unknown_id_is_none(conn):
 def test_update_assignment_persists_new_stage(conn):
     from dataclasses import replace
     aid = add_assignment(conn)
-    repo.update_assignment(conn, replace(repo.get_assignment(conn, aid), stage=3), now=NOW)
-    assert repo.get_assignment(conn, aid).stage == 3
+    repo.update_assignment(conn, replace(_get(conn, aid), stage=3), now=NOW)
+    assert _get(conn, aid).stage == 3
 
 
 def test_update_assignment_writes_updated_at(conn):
     from dataclasses import replace
     aid = add_assignment(conn)
-    repo.update_assignment(conn, replace(repo.get_assignment(conn, aid), stage=2), now=local(2026, 11, 19, 9, 0))
+    repo.update_assignment(conn, replace(_get(conn, aid), stage=2), now=local(2026, 11, 19, 9, 0))
     row = conn.execute("SELECT updated_at FROM assignments WHERE id=?", (aid,)).fetchone()
     assert "2026-11-19" in row["updated_at"]
 
@@ -158,7 +166,7 @@ def test_list_assignments_can_include_closed(conn):
 def test_paper_only_comes_from_class_settings(conn):
     aid = add_assignment(conn, class_key="math 6", paper_only=False)
     conn.execute("INSERT INTO class_settings (kid, class_key, paper_only) VALUES ('Alex', 'math 6', 1)")
-    assert repo.get_assignment(conn, aid).paper_only is True
+    assert _get(conn, aid).paper_only is True
 
 
 # ---- links / events / meta ----
@@ -381,3 +389,21 @@ def test_waiting_tap_commits_rather_than_failing_within_default_timeout(db_path,
         add_event(tap, aid, kind="stage", setter="kid")
     t.join()
     assert [e["kind"] for e in repo.events_for(conn, aid)] == ["portal_status", "stage"]
+
+
+def test_null_stage_since_row_is_refused_not_silently_accepted():
+    with pytest.raises(repo.RepoError, match="stage_since"):
+        repo._required_dt(None, "stage_since")
+
+
+def test_append_event_without_a_rowid_is_refused():
+    class _Cur:
+        lastrowid = None
+
+    class _Conn:
+        def execute(self, *_args: object) -> _Cur:
+            return _Cur()
+
+    conn: Any = _Conn()
+    with pytest.raises(repo.RepoError, match="event insert had no effect"):
+        repo.append_event(conn, 1, at=NOW, setter="t", kind="stage")

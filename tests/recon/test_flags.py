@@ -36,7 +36,7 @@ def test_exempt_kinds_never_get_reconciliation_flags(sc):
     assert compute_scenario_flag(sc).flag not in sc["expect"]["flag_not_in"]
 
 
-def R(bucket, flag="x"):
+def R(bucket: str | None, flag: str | None = "x") -> FlagResult:
     return FlagResult(flag=flag, bucket=bucket, unverified=False, unverified_sources=(), info=())
 
 
