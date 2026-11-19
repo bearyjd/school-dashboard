@@ -155,11 +155,12 @@ check_compose_image_tag() {
 
 preflight() {
     if [[ "$DRY" -eq 1 ]]; then
-        note "[dry-run] preflight: no $STATE_DIR/sync.running.*, no $STATE_DIR/maintenance.json, env and compose files exist,"
+        note "[dry-run] preflight: state dir exists, no $STATE_DIR/sync.running.*, no $STATE_DIR/maintenance.json, env and compose files exist,"
         note "[dry-run]            compose has no /app/web mount and only :latest images,"
         note "[dry-run]            >= ${MIN_FREE_GB}G free on $DEPLOY_DIR, the Docker root dir (docker info) and $BACKUP_ROOT"
         return
     fi
+    [[ -d "$STATE_DIR" ]] || die "state dir $STATE_DIR is missing; nothing to back up"
     preflight_quiet
     [[ -f "$ENV_FILE" && -f "$COMPOSE_FILE" ]] || die "missing $ENV_FILE or $COMPOSE_FILE"
     if grep -q '/app/web' "$COMPOSE_FILE"; then die "compose file mounts /app/web; it would shadow the image (see runbook)"; fi
@@ -237,6 +238,7 @@ run_gates() {  # sets FAILS; $1 = ISO time the (re)start began; $2 = smoke (0|1)
         note "[dry-run]        docker logs --since <start> $CONTAINER readable and 0 tracebacks;"
         [[ "$with_wd" -eq 0 ]] || note "[dry-run]        watchdog --dry-run --json: no problem beyond the pre-deploy baseline + KNOWN_WATCHDOG_PROBLEMS"
         [[ "$with_smoke" -eq 0 ]] || note "[dry-run]        $SMOKE_SCRIPT --container $CONTAINER"
+        note "[dry-run] info only (not a gate): docker inspect --format '{{.State.Health.Status}}' $CONTAINER"
         return 0
     fi
     for p in /api/dashboard /api/overview /api/readiness /api/sync/status /api/sync/meta /app/ /legacy; do
@@ -277,6 +279,8 @@ run_gates() {  # sets FAILS; $1 = ISO time the (re)start began; $2 = smoke (0|1)
             tail -n 5 -- "$TMP/smoke.out" | sed 's/^/        smoke: /' || true
         fi
     fi
+    # informational only (never a gate): the image HEALTHCHECK needs a few intervals to turn "healthy"
+    note "  INFO container health: $(docker inspect --format '{{.State.Health.Status}}' "$CONTAINER" 2>/dev/null || echo unknown)"
     [[ "$FAILS" -eq 0 ]]
 }
 
@@ -367,10 +371,22 @@ else
     watchdog_snapshot "$TMP/wd.base"
 fi
 
+# Copy every top-level state entry except the nightly backups and restore snapshots
+# (they would be duplicated into each deploy backup). A symlinked state dir is followed.
+copy_state() (
+    shopt -s nullglob dotglob
+    for entry in "$STATE_DIR"/*; do
+        case "${entry##*/}" in
+            backups|.pre-restore-*) note "excluded from state copy: ${entry##*/}"; continue ;;
+        esac
+        run cp -a -- "$entry" "$BACKUP_DIR/state/" || exit 1
+    done
+)
+
 note "backup -> $BACKUP_DIR (state, env mode 0600, compose); env contents are never printed"
 run mkdir -m 700 -- "$BACKUP_DIR" || die "cannot create the backup dir"
 run mkdir -m 700 -- "$BACKUP_DIR/state" || die "backup failed (state dir)"
-run cp -a -- "$STATE_DIR/." "$BACKUP_DIR/state/" || die "backup failed (state copy)"
+copy_state || die "backup failed (state copy)"
 if [[ "$DRY" -eq 1 ]]; then
     note "[dry-run] if $STATE_DIR/school.db exists: sqlite3 .backup into the backup, PRAGMA integrity_check must say ok (else exit 2 before the pull)"
 elif [[ -f "$STATE_DIR/school.db" ]]; then

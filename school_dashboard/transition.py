@@ -1,10 +1,14 @@
 """`school-state transition ...`: maintenance mode, backup, restore and dry-run."""
 import argparse
 import json
+import logging
+import os
 import sys
 from pathlib import Path
 
-from school_dashboard import backup, dry_run, maintenance
+from school_dashboard import backup, backup_prune, dry_run, maintenance, paths
+
+logger = logging.getLogger(__name__)
 
 EXIT_USAGE = 2
 EXIT_INACTIVE = 10  # `maintenance check`: 0 active, 10 inactive; anything else = failure
@@ -18,7 +22,11 @@ def add_parser(subs) -> argparse.ArgumentParser:
     ms = p_m.add_subparsers(dest="maintenance_command")
     p_on = ms.add_parser("on", help="Enable maintenance mode (idempotent)")
     p_on.add_argument("--reason", default="", help="Why maintenance is on")
-    ms.add_parser("off", help="Disable maintenance mode")
+    p_on.add_argument("--json", action="store_true",
+                      help="Print {operation_id, already_active} as JSON on stdout")
+    p_off = ms.add_parser("off", help="Disable maintenance mode")
+    p_off.add_argument("--operation-id", default=None,
+                       help="Only clear the flag if it still has this operation id")
     ms.add_parser("status", help="Show maintenance status")
     ms.add_parser("check", help="Exit 0 = ACTIVE, 10 = inactive; ANY other code means the check failed (callers must treat it as active)")
     p_m.set_defaults(func=cmd_transition)
@@ -28,6 +36,10 @@ def add_parser(subs) -> argparse.ArgumentParser:
     p_b.add_argument("--wait-idle", type=float, default=0, metavar="SECONDS",
                      help="Wait up to SECONDS for a running sync to finish (default 0: refuse)")
     p_b.set_defaults(func=cmd_transition)
+
+    p_p = ts.add_parser("prune-backups", help="Delete old completed backups under <state>/backups (keeps the newest N)")
+    p_p.add_argument("--keep", type=int, default=None, help="Backups to keep (default: env BACKUP_KEEP, else 14)")
+    p_p.set_defaults(func=cmd_transition)
 
     p_r = ts.add_parser("restore", help="Verify and restore a backup")
     p_r.add_argument("backup_dir", type=Path)
@@ -49,15 +61,19 @@ def add_parser(subs) -> argparse.ArgumentParser:
 def _maintenance(args: argparse.Namespace) -> int:
     cmd = getattr(args, "maintenance_command", None)
     if cmd == "on":
+        already = maintenance.status() is not None
         info = maintenance.enable(args.reason)
+        if args.json:
+            print(json.dumps({"operation_id": info["operation_id"], "already_active": already}))
         print(f"Maintenance ON (operation {info['operation_id']})", file=sys.stderr)
         if maintenance.sync_in_flight():
             print("Warning: a sync appears to be running (sync.running); it will stop at its next "
                   "step. Use 'backup --wait-idle SECONDS' to wait for it.", file=sys.stderr)
         return 0
     if cmd == "off":
-        removed = maintenance.disable()
-        print("Maintenance OFF" if removed else "Maintenance was not active", file=sys.stderr)
+        removed = maintenance.disable(args.operation_id)
+        print("Maintenance OFF" if removed else "Maintenance was not cleared (not active, or a different operation id)",
+              file=sys.stderr)
         return 0
     if cmd == "status":
         info = maintenance.status()
@@ -72,6 +88,18 @@ def _maintenance(args: argparse.Namespace) -> int:
 def _backup(args: argparse.Namespace) -> int:
     dest = backup.create_backup(args.dest, args.wait_idle)
     print(f"Backup written: {dest}")
+    return 0
+
+
+def _prune(args: argparse.Namespace) -> int:
+    try:
+        keep = args.keep if args.keep is not None else backup_prune.parse_keep(os.environ.get("BACKUP_KEEP"))
+        removed = backup_prune.prune_backups(paths.state_dir() / "backups", keep)
+    except ValueError as exc:
+        logger.error("prune-backups refused, nothing deleted: %s", exc)
+        print(f"Error: {exc}; nothing was deleted", file=sys.stderr)
+        return EXIT_USAGE
+    print(f"Pruned {len(removed)} backup(s); keeping the newest {keep}")
     return 0
 
 
@@ -96,9 +124,9 @@ def _dry_run(args: argparse.Namespace) -> int:
 
 def cmd_transition(args: argparse.Namespace) -> None:
     sub = getattr(args, "transition_command", None)
-    handlers = {"maintenance": _maintenance, "backup": _backup, "restore": _restore, "dry-run": _dry_run}
+    handlers = {"maintenance": _maintenance, "backup": _backup, "prune-backups": _prune, "restore": _restore, "dry-run": _dry_run}
     if sub not in handlers:
-        print("usage: school-state transition maintenance|backup|restore|dry-run", file=sys.stderr)
+        print("usage: school-state transition maintenance|backup|prune-backups|restore|dry-run", file=sys.stderr)
         sys.exit(EXIT_USAGE)
     try:
         code = handlers[sub](args)

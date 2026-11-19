@@ -7,6 +7,7 @@ from contextlib import closing
 from datetime import date, timedelta
 from pathlib import Path
 
+from school_dashboard import db
 from school_dashboard.overview_items import DONE_STATUSES, parse_date
 from school_dashboard.state import canonical_name, get_roster
 
@@ -38,7 +39,7 @@ def get_checklist(
     test_events: list[dict] = []
     if db_path and Path(db_path).exists():
         try:
-            with closing(sqlite3.connect(db_path)) as conn:
+            with closing(db.open_conn(db_path)) as conn:
                 conn.row_factory = sqlite3.Row
                 rows = conn.execute(
                     "SELECT date, title, type, child FROM events "

@@ -59,6 +59,9 @@ docker compose exec dashboard tail -f /tmp/digest.log
 | 7:00am (daily) | Morning digest → ntfy.sh | `/tmp/digest.log` |
 | 3:30pm (weekdays) | Afternoon homework check → ntfy.sh | `/tmp/digest.log` |
 | 8:30pm (daily) | Night prep digest → ntfy.sh | `/tmp/digest.log` |
+| 8:30am, 4:30pm, 5:05pm, 10:05pm (daily) | Staleness + digest watchdog | `state/watchdog.log` |
+| 3:15am (daily) | Scheduled state backup + pruning (`sync/run-backup.sh`) | `state/backup.log` |
+| 3:45am (daily) | Log rotation (`python3 -m school_dashboard.logrotate`) | `state/logrotate.log` |
 
 ## One-off Commands
 
@@ -99,6 +102,48 @@ credentials; restore verifies sha256 and DB integrity before writing.
 - Live restore saves the previous files in `<state>/.pre-restore-<ts>/` (0700),
   publishes the DB last, and rolls back from that snapshot on failure. Delete the
   snapshot once the restore is verified.
+
+### Scheduled backups, retention & log rotation
+
+`sync/run-backup.sh` (cron 3:15am daily) opens a maintenance window with
+`maintenance on --json`, remembers its `operation_id`, runs
+`school-state transition backup --wait-idle 300`, clears the window and then runs
+`school-state transition prune-backups`. A trap on EXIT/INT/TERM/HUP clears the flag
+on every exit path, but only if it still carries our `operation_id` (an operator's or
+deploy's window is never removed). **SIGKILL/OOM cannot be trapped**: the flag then
+stays on (it has no TTL) and blocks syncs, digests and API writes until someone runs
+`school-state transition maintenance off`; the watchdog raises a `maintenance_stuck`
+alert once the window has been on for more than 2h (works even though the watchdog
+otherwise skips under maintenance). If maintenance is already on (or the check
+fails) the backup is skipped, logged and an ntfy alert is sent; failures also alert.
+Backups go to `$STATE_DIR/backups/<UTC stamp>/` (0700) inside the mounted state
+volume, so they survive container recreation; `school.db` is copied with the SQLite
+backup API (consistent in WAL mode) and `integrity_check`ed, and only the allowlisted
+data files are included (never env/secrets/tokens). Retention: newest `BACKUP_KEEP`
+(default 14; must be an integer >= 1, otherwise `prune-backups` exits 2, logs an
+error and deletes nothing) completed backups. Pruning touches only direct children
+named exactly like a backup stamp that are real directories with a `manifest.json`
+(the newest is always kept), plus stale `.<stamp>.partial-<hex>` staging dirs older
+than 24h; foreign names, symlinks and fresh partials are left alone. `scripts/deploy.sh`
+backups skip `state/backups/` and `.pre-restore-*`. Deploy backups in
+`/root/school-backups` are separate and not pruned here.
+
+**Manual restore from a deploy backup with `cp`:** the live DB is in WAL mode, so
+first stop the app and delete `state/school.db-wal` and `state/school.db-shm`, then
+copy `school.db` in; a stale `-wal` left beside a replaced DB file can corrupt it or
+resurrect old rows. (`school-state transition restore` does this for you.)
+
+Watchdog also still lacks a backup-freshness rule (not implemented): a future rule
+should alert when the newest `backups/*/manifest.json` is older than ~36h.
+
+The DB runs in WAL mode (`PRAGMA journal_mode=WAL`, 30 s busy timeout), set on the
+first connect after upgrade; expect `school.db-wal` / `school.db-shm` beside it.
+Back up/copy via `transition backup`, never a raw `cp` of a live DB.
+
+Log rotation: `python3 -m school_dashboard.logrotate` (cron 3:45am) rotates every
+regular `$STATE_DIR/*.log` over `LOG_MAX_BYTES` (default 5 MiB) with copytruncate
+semantics (wrappers append with `>>`; a few lines written during the copy may be
+lost), keeping 4 gzip'd rotations (`x.log.1.gz` newest .. `x.log.4.gz`).
 
 ### Transition dry run
 

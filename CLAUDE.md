@@ -49,6 +49,8 @@ npm --prefix web/spa run e2e      # screenshots -> $E2E_SHOTS (default web/spa/t
 python3 scripts/spa-qa-server.py --port 5099   # same synthetic server for manual preview at /app/
 ```
 
+**Production server (`docker/entrypoint.sh`):** `exec python3 -m gunicorn -w 1 --threads 8 --timeout 120 --graceful-timeout 8 -b 0.0.0.0:5000 web.app:app` (the Flask dev server is no longer used). Keep EXACTLY ONE worker process: `web/app.py` holds the sync state (`_sync_lock`, `_sync_status`, the `/api/sync` token `FailureLimiter`) in process memory, so extra workers could run two syncs at once and disagree on `/api/sync/status`. Scale with `--threads`, never `-w`. 8 threads so slow `/api/chat` calls (60 s) cannot starve the healthcheck; `--graceful-timeout 8` finishes inside Docker's default 10 s stop grace. `request.remote_addr` and `TRUSTED_PROXY_COUNT` behave as before (no `--forwarded-allow-ips`/ProxyFix). `/api/chat` is a non-streaming JSON reply (60 s upstream timeout), well inside `--timeout 120`. `tests/test_entrypoint_gunicorn.py` pins this.
+
 **Run `pytest tests/` from the repo root (the documented command).** `pyproject.toml` now sets `testpaths = ["tests"]`, so bare `pytest` is also safe; the note below explains the original trap, which is fixed.
 Verified 2026-07-07: bare `pytest` fails collection with
 `ImportPathMismatchError` / `ModuleNotFoundError: No module named 'tests.test_summary'`
@@ -72,6 +74,18 @@ CI: `.github/workflows/tests.yml` runs `pytest tests/` (job `pytest`), the SPA l
 bundle-budget checks (job `spa`) and the Playwright screens + axe suite (job `e2e`, non-blocking via
 `continue-on-error`). `.github/workflows/docker.yml` only builds and pushes the Docker image on push
 to `main`.
+
+## Pinned dependencies (`requirements.lock`)
+
+Builds are reproducible: the Dockerfile base image is pinned by digest (tag kept in a comment) and
+`pip install -c requirements.lock ...` pins every Python package to the versions production runs
+(plain `name==version`, no hashes, because `--require-hashes` would break the editable vendor installs).
+`pyproject.toml` keeps its `>=` ranges; `tests/test_lockfile.py` checks the lock satisfies them. The
+`playwright` pin also fixes the Chromium build that `playwright install chromium` downloads.
+Regenerate with `scripts/update-lock.sh` (clean venv, same installs as the Dockerfile; `--upgrade`
+floats everything to the newest versions), review the diff, and rebuild. Renovate opens a weekly
+grouped `python-deps` PR and bumps the base image digest (no automerge). Vendor submodules are not
+part of the lock.
 
 ## GameChanger calendar-feed (ICS) fallback
 
@@ -173,7 +187,7 @@ vendor/
 docker/
   Dockerfile            python:3.12-slim + gog v0.12.0 binary + Playwright/Chromium + pip scrapers
   entrypoint.sh         loads config/env → starts cron → starts Flask on :5000
-  crontab               6:00am + 2:30pm weekday syncs
+  crontab               6:00am + 2:30pm weekday syncs; digests; watchdog (8:30/16:30/17:05/22:05); 3:15am `run-backup.sh`; 3:45am `logrotate`
 
 **Docker environment:** `TZ=America/New_York` (required for correct digest timing and event display)
 ```
@@ -300,15 +314,22 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
   status`/`/api/sync/meta` handlers and in the SPA. If asked to change staleness
   behavior, search `web/app.py` and `web/spa/` for where `last_run` timestamps get
   compared to `datetime.now()`, not `sync_meta.py`.
-- **Vendor pinning:** `vendor/{ixl-scrape,schoology-scrape,gc,powerschool-scrape}` are git submodules
-  pinned to a specific commit each (see `.gitmodules` for URLs). `git submodule
-  update --remote vendor/<name>` moves the pin to that submodule's current default-
-  branch HEAD — this is a manual, unreviewed judgment call with **no automated
-  check** that the new version's JSON output shape still matches what this repo's
-  `state.py`/`readiness.py`/`digest.py` expect (see contract-test gap above). Treat
-  any submodule bump as requiring a manual read of that vendor repo's own
-  CHANGELOG/diff before merging, until `.agent_native/agent_roadmap.md` item 4 is
-  addressed.
+- **Vendor pinning (verified 2026-11-09):** `vendor/{ixl-scrape,schoology-scrape,gc,powerschool-scrape}` are git
+  submodules; the Dockerfile `COPY`s them and `pip install -e`s each, so the image's scraper versions are whatever
+  the submodule checkout contained at build time. **`.github/workflows/docker.yml` runs
+  `git submodule update --remote vendor/ixl-scrape vendor/schoology-scrape` before building**, so those two ship
+  the default-branch HEAD at build time, not the pinned commit (this is how prod ran `sgy 0.4.8` while the index
+  pinned v0.4.7). `gc` and `powerschool-scrape` ship exactly their pin. Keep the pins at what ships: bump the
+  index once a floated scraper's HEAD has been built. The parent-dir `gc-scrape/`, `ixl-scrape/`,
+  `schoology-scrape/` clones are separate upstream checkouts and never what ships. Known behaviour of sgy 0.4.8
+  (what prod runs): the per-course warmup set is populated even if the warmup request fails, so a failed warmup
+  is not retried for that course within a run.
+  Safe bump: in the submodule, `git fetch` then `git log --oneline HEAD..origin/HEAD`; read the diff for changes
+  to the `--json` output shape; `tests/test_contract_*.py` use recorded fixtures, so they do not catch a real shape
+  change (update the fixture if the vendor changed it); check out the new commit, then `git add vendor/<name>`.
+  `tests/test_vendor_pins.py` fails on an empty/uninitialised submodule (the image would silently lack that
+  scraper) and, in CI (`VENDOR_PINS_STRICT=1`, vendors installed with `--no-deps`), on an installed version
+  differing from the vendor's own `pyproject.toml`. Locally run `git submodule update --init` first.
 - **Schoology auto-archive (`schoology_autoarchive.py`, run by `school-state update` after the sgy merge):**
   pending schoology items carry `last_seen`/`missed`; `missed` only increments on a *trusted* scrape (no
   top-level `warnings`, child entry parses, not suspiciously empty). Archived (removed from state, appended to
@@ -329,7 +350,11 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
 
 ## Staleness Watchdog (`watchdog.py`)
 
-`school-state watchdog [--dry-run] [--json]` (cron 8:30 + 16:30 daily via `sync/run-watchdog.sh`, maintenance-gated like run-digest.sh) pushes an ntfy alert when a source is overdue. Pure functions `expected_sync`/`check_source`/`plan_alerts` take an injected `now`; `run()` is the I/O shell. `sync_meta` now records `last_ok` (moves only on `ok`; legacy entries fall back to `last_run` when `last_result == "ok"`). Rules: `never_ok` (no success on record), `failing` (last result error and last_ok > 24h), `stale` (last_ok < latest scheduled sync - 90 min, judged only once the run is 90 min past due; schedule const `SYNC_SCHEDULE`, weekdays only, zone from `TZ`). Disabled sources (`SOURCE_*_ENABLED=0`), unconfigured gc/powerschool are skipped; `school-state.json` mtime is checked as pseudo-source `state` — only a backstop, since manual actions also rewrite that file. `never_ok` waits until one scheduled sync + grace has passed since the source's `first_seen`. `state/watchdog.json` = `{alerts: {source: {issue, first_alerted, last_alerted}}, first_seen: {source: iso}}`; one dedupe key per source (failing/stale label flips do not re-alert; re-alert after 24h; single recovered push). Exit 0 healthy/skipped, 1 problems, 2 internal error (failed push via `requests.post` + `raise_for_status`, or unset `NTFY_TOPIC` logged as ERROR; alert state left unwritten so it retries). Silence: `SOURCE_<NAME>_ENABLED=0` or `WATCHDOG_ENABLED=0`. Keep `SYNC_SCHEDULE` in step with `docker/crontab`. Extra rule `scrape_degraded` (`check_scrape_degraded`, pure, injected `now`): `school-state update` records `scrape_meta` in the state (`{ixl|schoology: {unavailable: {child|"*": {reason, since}}}}`, `school_dashboard/scrape_meta.py`; `since` is kept while an entry stays unavailable, dropped on recovery); when the oldest `since` of a source is >= 24h old one problem is raised with dedupe key `ixl_scrape` / `sgy_scrape` (same 24h re-alert and recovery push; skipped with `SOURCE_*_ENABLED=0`, `WATCHDOG_ENABLED=0`, maintenance). The same entries appear as plain-language warnings (with their age) in `/api/overview` `warnings` and `/api/dashboard` `scrape_warnings`; the quick check says `IXL unavailable` / `Schoology unavailable` for those children.
+`school-state watchdog [--dry-run] [--json]` (cron 8:30, 16:30, 17:05 + 22:05 daily via `sync/run-watchdog.sh`, maintenance-gated like run-digest.sh) pushes an ntfy alert when a source is overdue. Pure functions `expected_sync`/`check_source`/`plan_alerts` take an injected `now`; `run()` is the I/O shell. `sync_meta` now records `last_ok` (moves only on `ok`; legacy entries fall back to `last_run` when `last_result == "ok"`). Rules: `never_ok` (no success on record), `failing` (last result error and last_ok > 24h), `stale` (last_ok < latest scheduled sync - 90 min, judged only once the run is 90 min past due; schedule const `SYNC_SCHEDULE`, weekdays only, zone from `TZ`). Disabled sources (`SOURCE_*_ENABLED=0`), unconfigured gc/powerschool are skipped; `school-state.json` mtime is checked as pseudo-source `state` — only a backstop, since manual actions also rewrite that file. `never_ok` waits until one scheduled sync + grace has passed since the source's `first_seen`. `state/watchdog.json` = `{alerts: {source: {issue, first_alerted, last_alerted}}, first_seen: {source: iso}}`; one dedupe key per source (failing/stale label flips do not re-alert; re-alert after 24h; single recovered push). Exit 0 healthy/skipped, 1 problems, 2 internal error (failed push via `requests.post` + `raise_for_status`, or unset `NTFY_TOPIC` logged as ERROR; alert state left unwritten so it retries). Silence: `SOURCE_<NAME>_ENABLED=0` or `WATCHDOG_ENABLED=0`. Keep `SYNC_SCHEDULE` in step with `docker/crontab`. Extra rule `scrape_degraded` (`check_scrape_degraded`, pure, injected `now`): `school-state update` records `scrape_meta` in the state (`{ixl|schoology: {unavailable: {child|"*": {reason, since}}}}`, `school_dashboard/scrape_meta.py`; `since` is kept while an entry stays unavailable, dropped on recovery); when the oldest `since` of a source is >= 24h old one problem is raised with dedupe key `ixl_scrape` / `sgy_scrape` (same 24h re-alert and recovery push; skipped with `SOURCE_*_ENABLED=0`, `WATCHDOG_ENABLED=0`, maintenance). The same entries appear as plain-language warnings (with their age) in `/api/overview` `warnings` and `/api/dashboard` `scrape_warnings`; the quick check says `IXL unavailable` / `Schoology unavailable` for those children. Dead-man's switch for digests: `check_digest_delivery`/`DIGEST_SCHEDULE` (kept in step with the `run-digest.sh`/`run-weekly.sh` lines of `docker/crontab`, drift fails `tests/test_watchdog_digest.py`) raise `digest_missing` (dedupe key `digest_<kind>`, e.g. `digest_morning`) when the newest `digests` row for that digest's title (the table has no kind column) is older than the latest scheduled run + 90 min; judged in UTC (DST-safe), skipped without a DB/digests table, and a run scheduled before the rule's `first_seen` is never judged. `send_ntfy` stores a row for a delivered digest even with zero cards (nothing due is a real outcome); only the `(fallback)` push stores none. A zero-card digest keeps the static mode link (no `?digest=` carousel link). The on-demand `/api/sync` quick check is titled `Quick Check`, so it never satisfies the afternoon `Homework Check` rule. Titles are matched exactly (a `<title> (fallback)` push does not count as delivered), and a digest skipped during maintenance may alert once after maintenance ends. An unreadable DB keeps open digest alerts and `first_seen` as they were (no false recovery). Silence with `WATCHDOG_DIGESTS_ENABLED=0`. Maintenance rule: `check_maintenance_stuck` (pure, injected `now`) raises `maintenance_stuck` (dedupe key `maintenance_stuck`, same 24h re-alert and recovery push) when `maintenance.json`'s `since` is more than 2h old (the alert entry stores the window's `operation_id` as `window`; a different window re-alerts immediately even within 24h, entries without `window` keep the plain dedupe); it runs BEFORE the skip-under-maintenance path (`_maintenance_run`, which preserves all other alert/first_seen keys, including carried-forward digest ones), so a stuck flag (e.g. a SIGKILLed `run-backup.sh`) is alerted even though every other check is skipped; under 2h it still skips silently.
+
+## Scheduled Backup, WAL & Log Rotation
+
+`sync/run-backup.sh` (cron 3:15am daily; operation-id-guarded maintenance window, backups in `$STATE_DIR/backups/<UTC stamp>/`, `BACKUP_KEEP` default 14 via `school-state transition prune-backups`), `python3 -m school_dashboard.logrotate` (cron 3:45am; `$STATE_DIR/*.log` over `LOG_MAX_BYTES` default 5 MiB, copytruncate, 4 gzip rotations). SQLite uses WAL + 30s busy timeout via `db.open_conn` (every non-`mode=ro` connect must use it; `tests/test_db_wal.py` guards this). Details: `docs/RUNBOOK.md`.
 
 ## Credential Handling (`secrets/`)
 

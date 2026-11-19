@@ -9,6 +9,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Optional
 
+from school_dashboard import db
 from school_dashboard.overview_items import parse_date
 from school_dashboard.powerschool import clean_text
 from school_dashboard.state import canonical_name
@@ -106,7 +107,7 @@ def school_events(db_path: str, today: date, days: int) -> list[dict]:
         return []
     end = today + timedelta(days=days)
     try:
-        conn = sqlite3.connect(db_path)
+        conn = db.open_conn(db_path)
         try:
             rows = conn.execute(
                 "SELECT date, title, type, child FROM events WHERE date >= ? AND date < ?"

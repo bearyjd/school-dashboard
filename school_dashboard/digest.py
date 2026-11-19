@@ -6,12 +6,12 @@ import os
 import sqlite3
 from contextlib import closing
 from datetime import date, datetime, timedelta
-from typing import Literal
+from typing import Callable, Literal
 from pathlib import Path
 
 import requests
 
-from school_dashboard import maintenance, powerschool
+from school_dashboard import db, maintenance, powerschool
 from school_dashboard import scrape_meta
 from school_dashboard.state import canonical_name, get_roster
 from school_dashboard.llm import chat_completion
@@ -44,15 +44,19 @@ def _query_db_events(db_path: str, target_date: str) -> list[dict]:
     if not Path(db_path).exists():
         return []
     try:
-        with closing(sqlite3.connect(db_path)) as conn:
+        with closing(db.open_conn(db_path)) as conn:
             conn.row_factory = sqlite3.Row
-            rows = conn.execute(
+            rows = [dict(r) for r in conn.execute(
                 "SELECT date, title, type, child FROM events WHERE date = ? ORDER BY title",
                 (target_date,),
-            ).fetchall()
-            return _collapse_events([dict(r) for r in rows])
-    except Exception:
+            ).fetchall()]
+    except (sqlite3.Error, OSError) as exc:
+        if isinstance(exc, sqlite3.OperationalError) and "no such table" in str(exc):
+            _log.debug("Digest events table not present in %s", db_path)
+        else:
+            _log.warning("Failed to query digest events for %s from %s", target_date, db_path, exc_info=True)
         return []
+    return _collapse_events(rows)
 
 
 def _collapse_events(rows: list[dict]) -> list[dict]:
@@ -64,8 +68,12 @@ def _collapse_events(rows: list[dict]) -> list[dict]:
     """
     merged: dict[tuple, dict] = {}
     for r in rows:
-        key = (r["title"], r["type"])
-        names = [n.strip() for n in (r.get("child") or "").split(",") if n.strip()]
+        if not isinstance(r, dict):
+            continue
+        key = (r.get("title"), r.get("type"))
+        child = r.get("child")
+        child = child if isinstance(child, str) else ("" if child is None else str(child))
+        names = [n.strip() for n in child.split(",") if n.strip()]
         prev = merged.get(key)
         if prev is None:
             merged[key] = {**r, "_names": list(dict.fromkeys(names)), "_all": not names}
@@ -651,6 +659,7 @@ Known facts:
 _DEEP_LINKS: dict[str, str] = {
     "Morning Briefing": "?mode=all&time=week",
     "Homework Check": "?mode=schoology&time=week",
+    "Quick Check": "?mode=schoology&time=week",
     "Night Prep": "?mode=all&time=today",
     "Week in Review": "?mode=all&time=week",
     "Week Ahead": "?mode=all&time=week",
@@ -737,17 +746,19 @@ def send_ntfy(
     if maintenance.is_active():
         _log.info("Maintenance mode active; skipping digest store and ntfy send")
         return
-    if cards and db_path:
+    if cards is not None and db_path:  # [] still records the row: the watchdog treats it as delivery
+        deep = _DEEP_LINKS.get(title, "")
+        static_url = f"{DASHBOARD_BASE}/{deep}" if deep else DASHBOARD_BASE
         try:
             from school_dashboard.db import init_digests_table, create_digest, purge_old_digests
             init_digests_table(db_path)
             purge_old_digests(db_path, days=7)
             digest_id = create_digest(db_path, title, cards)
-            url = f"{DASHBOARD_BASE}/?digest={digest_id}"
+            # an empty digest has no carousel to open: keep the mode link
+            url = f"{DASHBOARD_BASE}/?digest={digest_id}" if cards else static_url
         except Exception as exc:
             _log.warning("Digest DB error, falling back to static link: %s", exc)
-            deep = _DEEP_LINKS.get(title, "")
-            url = f"{DASHBOARD_BASE}/{deep}" if deep else DASHBOARD_BASE
+            url = static_url
     else:
         deep = _DEEP_LINKS.get(title, "")
         url = f"{DASHBOARD_BASE}/{deep}" if deep else DASHBOARD_BASE
@@ -772,4 +783,37 @@ def send_ntfy(
         timeout=15,
     )
     if not resp.ok:
-        _log.warning("ntfy delivery failed: %s %s", resp.status_code, resp.text[:200])
+        _log.error("ntfy delivery failed: %s %s", resp.status_code, resp.text[:200])
+    resp.raise_for_status()
+
+
+FALLBACK_NOTE = "AI summary unavailable - showing the basic homework check instead.\n\n"
+
+
+class DigestFallbackSent(RuntimeError):
+    """The LLM digest could not be built; the no-LLM quick check was sent instead."""
+
+
+def deliver_digest(
+    build: Callable[[], tuple[str, list[dict]]],
+    *,
+    topic: str,
+    title: str,
+    state_path: str,
+    db_path: str | None,
+) -> tuple[str, list[dict]]:
+    """Build a digest and push it. If the build (LLM) fails, push the deterministic
+    quick check titled "<title> (fallback)" and raise DigestFallbackSent so callers
+    still record a failure. Delivery errors propagate from send_ntfy."""
+    try:
+        text, cards = build()
+    except Exception as exc:
+        _log.error("Digest build failed for %r; sending no-LLM fallback", title, exc_info=True)
+        if maintenance.is_active():
+            _log.info("Maintenance mode active; fallback for %r skipped, nothing sent", title)
+            raise
+        quick, _ = build_quick_check(state_path)
+        send_ntfy(topic=topic, message=FALLBACK_NOTE + quick, title=f"{title} (fallback)")
+        raise DigestFallbackSent(f"{title}: LLM digest failed ({exc}); fallback sent") from exc
+    send_ntfy(topic=topic, message=text, title=title, cards=cards, db_path=db_path)
+    return text, cards

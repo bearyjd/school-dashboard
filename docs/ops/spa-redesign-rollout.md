@@ -100,6 +100,19 @@ Settings come from `DEPLOY_DIR`, `CONTAINER`, `BASE_URL`, `BACKUP_ROOT`, `MIN_FR
 Afterwards, `node scripts/live-check.mjs https://<host>` (needs `npm --prefix web/spa ci` and a Playwright Chromium) checks 375 and 1440 px,
 both themes, saves screenshots under `web/spa/test-results/live-shots` (ignored by version control; override with `LIVE_SHOTS`) and prints counts only.
 
+## Container healthcheck and log limits
+
+- The image has a `HEALTHCHECK` (every 60s, 10s timeout, 60s start period, 3 retries) that runs
+  `curl` against `GET http://127.0.0.1:5000/api/sync/status`. That route needs no token and is not
+  affected by maintenance mode (only non-GET `/api/` writes get the 503).
+- Check it: `docker inspect --format '{{.State.Health.Status}}' school-dashboard-1`
+  (`starting`, `healthy` or `unhealthy`). `scripts/deploy.sh` prints it as an `INFO` line; it is not a gate.
+- Docker only marks the container `unhealthy`; `restart: unless-stopped` does not restart on that.
+  Restart by hand (`docker restart school-dashboard-1`) or add a watcher.
+- The repo `docker-compose.yml` caps the json-file log (`max-size: 10m`, `max-file: 3`). The host's
+  `/opt/school/docker-compose.yml` is a separate file: add the same `logging:` block to it by hand, then
+  `docker compose up -d`. The healthcheck ships in the image, so it needs no host edit.
+
 ## Source banners and the watchdog
 
 The "No successful sync yet" banner (a source that has never synced) depends on the watchdog: it needs
@@ -132,6 +145,8 @@ docker compose up -d --force-recreate
 ```
 
 Do not run `docker compose pull` before rolling back, or `:latest` is overwritten again. The `pre-redesign` image serves the `web/` baked into it, which is not necessarily what the old host `web/` mount was serving at the time. Installed PWAs return to the old layout after their service worker updates.
+
+The image runs gunicorn (one worker, 8 threads; see `docker/entrypoint.sh`). Rolling back to an image built before this change brings back the Flask dev server; behaviour is otherwise the same.
 
 ## Classic view retirement
 

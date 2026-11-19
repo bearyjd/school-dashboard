@@ -14,7 +14,7 @@ from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, gc_warnings, powerschool_warnings, scrape_warnings
 from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
-from school_dashboard import csp, maintenance, paths, powerschool
+from school_dashboard import csp, db, maintenance, paths, powerschool
 from school_dashboard.csp import CSP_REPORT_ONLY  # noqa: F401  (re-exported for tests and docs)
 from school_dashboard.rate_limit import FailureLimiter, client_key, trusted_client_ip, trusted_proxy_count
 from school_dashboard.sources import source_enabled
@@ -67,7 +67,7 @@ def load_upcoming_events(days: int = 30) -> list[dict]:
     try:
         from_date = date.today().isoformat()
         end_date = (date.today() + timedelta(days=days)).isoformat()
-        conn = sqlite3.connect(paths.db_path())
+        conn = db.open_conn(str(paths.db_path()))
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(
             "SELECT date, title, type, child FROM events WHERE date >= ? AND date < ? ORDER BY date",
@@ -76,7 +76,11 @@ def load_upcoming_events(days: int = 30) -> list[dict]:
         rows = [dict(r) for r in cursor.fetchall()]
         conn.close()
         return rows
-    except Exception:
+    except (sqlite3.Error, OSError) as exc:
+        if isinstance(exc, sqlite3.OperationalError) and "no such table" in str(exc):
+            app.logger.debug("Events table not present in the school DB")
+        else:
+            app.logger.warning("Failed to load upcoming events from the school DB", exc_info=True)
         return []
 
 
@@ -85,8 +89,8 @@ def load_facts() -> list[dict]:
         p = paths.facts_path()
         if p.exists():
             return json.loads(p.read_text())
-    except Exception:
-        pass
+    except (OSError, ValueError):
+        app.logger.warning("Failed to load facts file", exc_info=True)
     return []
 
 
@@ -322,7 +326,8 @@ def api_agent_inline():
             action_type, payload_str = rest.split(" ", 1)
             action = {"type": action_type, "payload": json.loads(payload_str)}
             clean_lines = lines[:-1]
-        except Exception:
+        except ValueError:  # includes json.JSONDecodeError and a missing payload on split
+            app.logger.warning("Ignoring malformed ACTION line in model reply")
             action = None
             clean_lines = lines
     else:
@@ -723,6 +728,28 @@ def _run_gc_scrape(script: str) -> None:
         raise subprocess.CalledProcessError(rc, script)
 
 
+def _send_sync_digest(digest: str, ntfy_topic: str, state_path: str,
+                      db_path: str, gc_path: str) -> None:
+    """Push the post-sync digest ("quick" or "full"); raises on build/delivery failure."""
+    if digest == "quick":
+        from school_dashboard.digest import build_quick_check, send_ntfy
+        text, cards = build_quick_check(state_path)
+        send_ntfy(topic=ntfy_topic, message=text, title="Quick Check",
+                  cards=cards, db_path=db_path)
+    elif digest == "full":
+        from school_dashboard.digest import build_afternoon_digest, send_ntfy
+        litellm_url = os.environ.get("LITELLM_URL", "")
+        if litellm_url:
+            text, cards = build_afternoon_digest(
+                state_path=state_path, db_path=db_path, litellm_url=litellm_url,
+                api_key=os.environ.get("LITELLM_API_KEY", ""),
+                model=os.environ.get("LITELLM_MODEL", "claude-sonnet"),
+                gc_path=gc_path,
+            )
+            send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
+                      cards=cards, db_path=db_path)
+
+
 def _run_sync_background(sources: str, digest: str) -> None:
     """Run scrapers in a background thread, update state, optionally send digest."""
     global _sync_status
@@ -859,24 +886,11 @@ def _run_sync_background(sources: str, digest: str) -> None:
         if ntfy_topic and digest != "none":
             if _sync_paused_for_maintenance():
                 return
-            if digest == "quick":
-                from school_dashboard.digest import build_quick_check, send_ntfy
-                text, cards = build_quick_check(state_path)
-                send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
-                          cards=cards or None, db_path=db_path if cards else None)
-            elif digest == "full":
-                from school_dashboard.digest import build_afternoon_digest, send_ntfy
-                litellm_url = os.environ.get("LITELLM_URL", "")
-                api_key = os.environ.get("LITELLM_API_KEY", "")
-                model = os.environ.get("LITELLM_MODEL", "claude-sonnet")
-                if litellm_url:
-                    text, cards = build_afternoon_digest(
-                        state_path=state_path, db_path=db_path,
-                        litellm_url=litellm_url, api_key=api_key, model=model,
-                        gc_path=gc_path,
-                    )
-                    send_ntfy(topic=ntfy_topic, message=text, title="Homework Check",
-                              cards=cards, db_path=db_path)
+            try:
+                _send_sync_digest(digest, ntfy_topic, state_path, db_path, gc_path)
+            except Exception:
+                app.logger.error("Sync digest delivery failed", exc_info=True)
+                errors.append("digest delivery failed")
 
         all_paused = bool(source_list) and not any(source_enabled(s) for s in source_list)
         _sync_status["last_result"] = "error" if errors else "ok (all paused)" if all_paused else "ok"

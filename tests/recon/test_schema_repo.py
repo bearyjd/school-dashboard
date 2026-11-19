@@ -58,9 +58,15 @@ def test_readonly_connection_rejects_writes(db_path):
         c.execute("INSERT INTO items (child, title) VALUES ('Alex', 'x')")
 
 
-def test_readonly_connection_does_not_switch_to_wal(db_path):
-    schema.connect(db_path, readonly=True).close()
-    assert sqlite3.connect(db_path).execute("PRAGMA journal_mode").fetchone()[0].lower() != "wal"
+def test_readonly_connection_does_not_switch_to_wal(tmp_path):
+    # v1's own connections now switch school.db to WAL, so start from a plain rollback-journal file.
+    plain = str(tmp_path / "plain.db")
+    seed = sqlite3.connect(plain)
+    seed.execute("CREATE TABLE t (x)")
+    seed.commit()
+    seed.close()
+    schema.connect(plain, readonly=True).close()
+    assert sqlite3.connect(plain).execute("PRAGMA journal_mode").fetchone()[0].lower() != "wal"
 
 
 def test_ensure_schema_returns_version_and_sets_user_version(conn):

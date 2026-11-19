@@ -38,20 +38,25 @@ fi
 
 if DIGEST_MODE="$MODE" python3 -c "
 import os
-from school_dashboard.digest import build_weekly_digest, send_ntfy
+from school_dashboard.digest import build_weekly_digest, deliver_digest
 mode = os.environ['DIGEST_MODE']
 title = 'Week in Review' if mode == 'friday' else 'Week Ahead'
-text, cards = build_weekly_digest(
-    mode,
-    os.environ['SCHOOL_STATE_PATH'],
-    os.environ['SCHOOL_DB_PATH'],
-    os.environ['SCHOOL_FACTS_PATH'],
-    os.environ['LITELLM_URL'],
-    os.environ['LITELLM_API_KEY'],
-    os.environ['LITELLM_MODEL'],
-    gc_path=os.environ['SCHOOL_GC_PATH'],
+deliver_digest(
+    lambda: build_weekly_digest(
+        mode,
+        os.environ['SCHOOL_STATE_PATH'],
+        os.environ['SCHOOL_DB_PATH'],
+        os.environ['SCHOOL_FACTS_PATH'],
+        os.environ['LITELLM_URL'],
+        os.environ['LITELLM_API_KEY'],
+        os.environ['LITELLM_MODEL'],
+        gc_path=os.environ['SCHOOL_GC_PATH'],
+    ),
+    topic=os.environ['NTFY_TOPIC'],
+    title=title,
+    state_path=os.environ['SCHOOL_STATE_PATH'],
+    db_path=os.environ['SCHOOL_DB_PATH'],
 )
-send_ntfy(os.environ['NTFY_TOPIC'], text, title, cards=cards, db_path=os.environ['SCHOOL_DB_PATH'])
 " >> "$LOGFILE" 2>&1; then
     echo "[$TS] weekly $MODE OK" >> "$LOGFILE"
 else

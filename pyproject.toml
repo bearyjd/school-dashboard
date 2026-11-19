@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-server = ["flask>=3.0"]
+server = ["flask>=3.0", "gunicorn>=23,<27"]
 
 [project.scripts]
 school-state = "school_dashboard.cli:main"

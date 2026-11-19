@@ -8,8 +8,22 @@ from typing import Optional
 from school_dashboard import maintenance
 
 
+BUSY_TIMEOUT_SECONDS = 30
+
+
+def open_conn(db_path: str) -> sqlite3.Connection:
+    """Connection with a 30s busy timeout and persistent WAL journaling.
+
+    An existing rollback-journal DB is switched to WAL on its first connect.
+    """
+    conn = sqlite3.connect(db_path, timeout=BUSY_TIMEOUT_SECONDS)
+    conn.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_SECONDS * 1000}")
+    conn.execute("PRAGMA journal_mode=WAL")
+    return conn
+
+
 def _connect(db_path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
+    conn = open_conn(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 

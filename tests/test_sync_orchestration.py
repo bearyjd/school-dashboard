@@ -7,8 +7,10 @@ Stub behaviour is steered by FAKE_* env vars; every stub call is appended to cal
 """
 import json
 import os
+import signal
 import site
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -30,7 +32,11 @@ MAINTENANCE_FLAG = '{"operation_id": "x", "since": "2026-01-01T00:00:00+00:00", 
 BODIES = {
     "ixl": 'cat "$FAKE_DATA/ixl.json"',
     # FAKE_SGY_MAINTENANCE: switch maintenance on while the sync is already running.
-    "sgy": ('[ -n "${FAKE_SGY_MAINTENANCE:-}" ] && echo \'' + MAINTENANCE_FLAG
+    # FAKE_SGY_PARTIAL: write a truncated document plus stderr, then fail. FAKE_SGY_BADJSON: truncated, exit 0.
+    "sgy": ('if [ -n "${FAKE_SGY_SLEEP:-}" ]; then echo started > "$FAKE_DATA/sgy.started"; sleep 30; exit 1; fi\n'
+            'if [ -n "${FAKE_SGY_PARTIAL:-}" ]; then printf \'{"trunc\'; echo "sgy boom: parse error" >&2; echo "sgy boom line2" >&2; exit 1; fi\n'
+            'if [ -n "${FAKE_SGY_BADJSON:-}" ]; then printf \'{"trunc\'; exit 0; fi\n'
+            '[ -n "${FAKE_SGY_MAINTENANCE:-}" ] && echo \'' + MAINTENANCE_FLAG
             + '\' > "$SCHOOL_STATE_DIR/maintenance.json"\ncat "$FAKE_DATA/sgy.json"'),
     "powerschool": 'cat "$FAKE_DATA/powerschool.json"',
     "gc": ('case "$1" in\n  teams) cat "$FAKE_DATA/gc-teams.json" ;;\n'
@@ -227,3 +233,89 @@ def test_failed_state_update_is_fatal(env):
     assert (env.state / "school-state.json").read_text() == "{ this is not json"  # not overwritten
     assert env.results()["ixl"] == "ok"  # scrapes were recorded before the merge failed
     assert not list(env.state.glob("sync.running.*"))
+
+
+PREVIOUS_SGY = '{"previous": true}'
+
+
+def _sgy_file(env) -> Path:
+    return Path(env.env["SGY_FILE"])
+
+
+def _assert_no_sgy_temp_files(env) -> None:
+    sgy = _sgy_file(env)
+    assert not list(sgy.parent.glob(f"{sgy.name}.*"))  # mktemp "${SGY_FILE}.XXXXXX"
+    assert not list(env.state.glob(".sgy-stderr.*"))
+
+
+def test_sgy_failure_mid_write_keeps_previous_file_and_logs_stderr(env):
+    _sgy_file(env).write_text(PREVIOUS_SGY)
+    r = env.run(FAKE_SGY_PARTIAL="1")
+    assert r.returncode == 0, r.stderr
+    assert _sgy_file(env).read_text() == PREVIOUS_SGY
+    assert env.results()["sgy"] == "error"
+    assert "WARN: SGY scrape had errors" in r.stderr
+    assert "sgy boom: parse error" in (env.state / "school-sync.log").read_text()
+    assert "sgy boom: parse error" not in r.stdout
+    _assert_no_sgy_temp_files(env)
+
+
+def test_sgy_success_replaces_previous_file(env):
+    _sgy_file(env).write_text(PREVIOUS_SGY)
+    r = env.run()
+    assert r.returncode == 0, r.stderr
+    assert env.results()["sgy"] == "ok"
+    assert "previous" not in json.loads(_sgy_file(env).read_text())
+
+
+def test_sgy_invalid_json_is_not_installed(env):
+    _sgy_file(env).write_text(PREVIOUS_SGY)
+    r = env.run(FAKE_SGY_BADJSON="1")
+    assert r.returncode == 0, r.stderr
+    assert _sgy_file(env).read_text() == PREVIOUS_SGY
+    assert env.results()["sgy"] == "error"
+    assert "WARN: SGY scrape had errors" in r.stderr
+    assert "empty or invalid JSON" in r.stderr  # exit 0, empty stderr: the reason is still stated
+    _assert_no_sgy_temp_files(env)
+
+
+def test_sgy_still_runs_when_stderr_tempfile_cannot_be_created(env):
+    real = subprocess.run(["which", "mktemp"], capture_output=True, text=True).stdout.strip()
+    wrapper = env.bin / "mktemp"
+    wrapper.write_text(f'#!/bin/sh\ncase "$*" in *.sgy-stderr*) exit 1;; esac\nexec {real} "$@"\n')
+    wrapper.chmod(0o755)
+    _sgy_file(env).write_text(PREVIOUS_SGY)
+    r = env.run()
+    assert r.returncode == 0, r.stderr
+    assert env.results()["sgy"] == "ok"
+    assert "previous" not in json.loads(_sgy_file(env).read_text())
+
+
+def test_sigterm_mid_scrape_leaks_no_sgy_temp_files(env):
+    started = env.data / "sgy.started"
+    proc = subprocess.Popen(["bash", str(SCRIPT)], env={**env.env, "FAKE_SGY_SLEEP": "1"}, cwd=REPO,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    try:
+        for _ in range(300):
+            if started.exists():
+                break
+            time.sleep(0.1)
+        assert started.exists(), "fake sgy never started"
+        assert list(_sgy_file(env).parent.glob(f"{_sgy_file(env).name}.*"))  # temp file exists mid-scrape
+        os.killpg(proc.pid, signal.SIGTERM)  # script and its sleeping child, like a timeout kill
+        proc.wait(timeout=30)
+    finally:
+        if proc.poll() is None:
+            os.killpg(proc.pid, signal.SIGKILL)
+    _assert_no_sgy_temp_files(env)
+    assert not list(env.state.glob("sync.running.*"))
+
+
+def test_sync_meta_write_failure_is_logged_but_non_fatal(env):
+    real = subprocess.run(["which", "python3"], capture_output=True, text=True).stdout.strip()
+    wrapper = env.bin / "python3"
+    wrapper.write_text(f'#!/bin/sh\ncase "$*" in *write_sync_source*) echo "meta boom" >&2; exit 1;; esac\nexec {real} "$@"\n')
+    wrapper.chmod(0o755)
+    r = env.run()
+    assert r.returncode == 0, r.stderr
+    assert "WARN: could not record sync result for sgy (ok)" in r.stderr
