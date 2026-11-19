@@ -95,8 +95,10 @@ def test_insert_rule_accepts_good(tmp_path, table, col, val):
     over = {col: val}
     if table == "source_links":
         over["kid_external"] = "Alex|other"
-    if table in ("class_settings",):
+    if table == "class_settings":
         over["class_key"] = "other"
+    if table == "push_outbox":
+        over["occurrence_at"] = "y"
     insert(c, table, **over)
 
 

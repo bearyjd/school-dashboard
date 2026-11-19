@@ -4,9 +4,9 @@ from __future__ import annotations
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime
-from typing import Any, Iterator, Mapping
+from typing import Any, Iterator, Mapping, Sequence
 
-from school_dashboard.assignments.model import AssignmentState, LinkState
+from school_dashboard.assignments.model import AssignmentRecord, AssignmentState, LinkRecord, LinkState
 
 
 class BusyError(RuntimeError):
@@ -113,7 +113,7 @@ def get_assignment(conn: sqlite3.Connection, assignment_id: int) -> AssignmentSt
 def list_assignments(conn: sqlite3.Connection, kid: str | None = None,
                      include_closed: bool = False) -> list[AssignmentState]:
     rows = conn.execute(
-        _ASSIGNMENT_SELECT + " WHERE (? IS NULL OR a.kid = ?) AND (? = 1 OR a.stage < 4) ORDER BY a.id",
+        _ASSIGNMENT_SELECT + " WHERE (? IS NULL OR a.kid = ?) AND (? = 1 OR a.stage < 4) AND a.merged_into IS NULL ORDER BY a.id",
         (kid, kid, int(include_closed))).fetchall()
     return [_to_state(r) for r in rows]
 
@@ -212,6 +212,78 @@ def events_for(conn: sqlite3.Connection, assignment_id: int) -> list[dict[str, A
     rows = conn.execute("SELECT * FROM assignment_events WHERE assignment_id = ? ORDER BY id",
                         (assignment_id,)).fetchall()
     return [dict(r) for r in rows]
+
+
+# ---- read model, merge and settings helpers -------------------------------------
+
+_DUPLICATE_SQL = (
+    "SELECT e.assignment_id FROM assignment_events e WHERE e.kind = 'merge' AND e.detail LIKE 'possible_duplicate%'"
+    " AND NOT EXISTS (SELECT 1 FROM assignment_events m WHERE m.assignment_id = e.assignment_id"
+    " AND m.kind IN ('merge', 'split') AND m.detail = 'manual' AND m.id > e.id)")
+
+
+def assignment_records(conn: sqlite3.Connection, kid: str | None = None,
+                       include_closed: bool = True) -> list[AssignmentRecord]:
+    dups = {r["assignment_id"] for r in conn.execute(_DUPLICATE_SQL)}
+    return [AssignmentRecord(a, a.id in dups) for a in list_assignments(conn, kid, include_closed)]
+
+
+def link_records(conn: sqlite3.Connection, assignment_ids: Sequence[int]) -> dict[int, list[LinkRecord]]:
+    out: dict[int, list[LinkRecord]] = {i: [] for i in assignment_ids}
+    for aid in assignment_ids:
+        rows = conn.execute("SELECT * FROM source_links WHERE assignment_id = ? ORDER BY id", (aid,)).fetchall()
+        out[aid] = [LinkRecord(r["id"], r["raw_status"], _to_link(r)) for r in rows]
+    return out
+
+
+def link_raw_json(conn: sqlite3.Connection, link_id: int) -> str | None:
+    row = conn.execute("SELECT raw_json FROM source_links WHERE id = ?", (link_id,)).fetchone()
+    return row["raw_json"] if row else None
+
+
+def move_links(conn: sqlite3.Connection, from_id: int, to_id: int) -> None:
+    """The only place whole link sets move (manual merge)."""
+    conn.execute("UPDATE source_links SET assignment_id = ? WHERE assignment_id = ?", (to_id, from_id))
+
+
+def move_link(conn: sqlite3.Connection, link_id: int, to_id: int) -> None:
+    conn.execute("UPDATE source_links SET assignment_id = ? WHERE id = ?", (to_id, link_id))
+
+
+def merged_into(conn: sqlite3.Connection, assignment_id: int) -> int | None:
+    row = conn.execute("SELECT merged_into FROM assignments WHERE id = ?", (assignment_id,)).fetchone()
+    return row["merged_into"] if row else None
+
+
+def mark_merged(conn: sqlite3.Connection, source_id: int, into_id: int, now: datetime) -> None:
+    conn.execute("UPDATE assignments SET merged_into = ?, closed_at = ?, updated_at = ?, flag = NULL, flag_since = ?"
+                 " WHERE id = ?", (into_id, now.isoformat(), now.isoformat(), now.isoformat(), source_id))
+
+
+def kid_has_assignments(conn: sqlite3.Connection, kid: str) -> bool:
+    return conn.execute("SELECT 1 FROM assignments WHERE kid = ? LIMIT 1", (kid,)).fetchone() is not None
+
+
+def class_grace(conn: sqlite3.Connection) -> dict[tuple[str, str], int]:
+    rows = conn.execute("SELECT kid, class_key, grace_school_days FROM class_settings"
+                        " WHERE grace_school_days IS NOT NULL").fetchall()
+    return {(r["kid"], r["class_key"]): r["grace_school_days"] for r in rows}
+
+
+def aliases_json(conn: sqlite3.Connection, kid: str, class_key: str) -> str | None:
+    row = conn.execute("SELECT aliases FROM class_settings WHERE kid = ? AND class_key = ?",
+                       (kid, class_key)).fetchone()
+    return row["aliases"] if row else None
+
+
+def put_class_settings(conn: sqlite3.Connection, kid: str, class_key: str, *, grace: int | None, paper_only: bool,
+                       aliases: str | None, teacher_name: str | None, teacher_email: str | None) -> None:
+    conn.execute(
+        "INSERT INTO class_settings (kid, class_key, grace_school_days, paper_only, aliases, teacher_name,"
+        " teacher_email) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (kid, class_key) DO UPDATE SET"
+        " grace_school_days = excluded.grace_school_days, paper_only = excluded.paper_only,"
+        " aliases = excluded.aliases, teacher_name = excluded.teacher_name, teacher_email = excluded.teacher_email",
+        (kid, class_key, grace, int(paper_only), aliases, teacher_name, teacher_email))
 
 
 # ---- meta -----------------------------------------------------------------

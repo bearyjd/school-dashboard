@@ -200,7 +200,8 @@ def test_remerge_needs_disjoint_sources_and_a_due_date(tmp_path):
     assert service.remerge_kid(c, "Alex", None, **kw()) == ()
     (tmp_path / "b").mkdir()
     c2 = open_conn(tmp_path / "b",
-                   [sgy("Essay", "Algebra", "s1", due=None), ps("Essay", "Math 6", "p1", due=None)])
+                   [{**sgy("Essay", "Algebra", "s1"), "due_date": None},
+                    {**ps("Essay", "Math 6", "p1"), "due_date": None}])
     add_alias(c2)
     assert service.remerge_kid(c2, "Alex", None, **kw()) == ()
 

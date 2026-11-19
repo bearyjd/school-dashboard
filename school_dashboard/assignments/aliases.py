@@ -5,8 +5,11 @@ import json
 import logging
 import sqlite3
 from dataclasses import dataclass
+from datetime import datetime
 
-from . import repo
+from . import repo, schema
+from .service_merge import remerge_in_txn
+from .service_types import Who
 from .normalize import class_key
 
 logger = logging.getLogger(__name__)
@@ -40,7 +43,8 @@ def _require_migrated(conn: sqlite3.Connection) -> None:
         raise repo.NotMigratedError("legacy items are not migrated; run: school-state assignments migrate") from exc
 
 
-def add(conn: sqlite3.Connection, *, kid: str, from_name: str, to_name: str) -> AliasRow:
+def add(conn: sqlite3.Connection, *, kid: str, from_name: str, to_name: str,
+        now: datetime | None = None) -> AliasRow:
     """Make `from_name` an alias of the class `to_name` for `kid`; idempotent, one transaction."""
     alias, canonical = from_name.strip(), class_key(to_name)
     if not alias or not canonical or not class_key(alias):
@@ -53,6 +57,7 @@ def add(conn: sqlite3.Connection, *, kid: str, from_name: str, to_name: str) -> 
     if conn.execute("SELECT 1 FROM assignments WHERE kid = ? LIMIT 1", (kid,)).fetchone() is None:
         raise AliasError("unknown kid: no assignments for that name")
     with repo.transaction(conn):
+        schema.ensure_schema(conn)
         row = conn.execute("SELECT aliases FROM class_settings WHERE kid = ? AND class_key = ?",
                            (kid, canonical)).fetchone()
         names = _names(row["aliases"]) if row else []
@@ -62,7 +67,8 @@ def add(conn: sqlite3.Connection, *, kid: str, from_name: str, to_name: str) -> 
             "INSERT INTO class_settings (kid, class_key, aliases) VALUES (?, ?, ?)"
             " ON CONFLICT (kid, class_key) DO UPDATE SET aliases = excluded.aliases",
             (kid, canonical, json.dumps(names)))
-    logger.info("recon alias add: %d aliases now stored for that class", len(names))
+        merged = remerge_in_txn(conn, kid, Who("system", None), now or datetime.now().astimezone())
+    logger.info("recon alias add: %d aliases now stored for that class, %d records re-merged", len(names), len(merged))
     return AliasRow(kid, canonical, alias)
 
 

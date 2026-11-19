@@ -56,12 +56,19 @@ def _kid_lines(kid: str, stat: Mapping[str, Any]) -> list[str]:
     return lines
 
 
+def _schema_line(info: Mapping[str, Any] | None) -> str:
+    if not info:
+        return "schema: unknown"
+    return f"schema: v{int(info['version'])}, {int(info['legacy_rows_outside_limits'])} legacy rows outside the new limits"
+
+
 def render_text(report: Mapping[str, Any]) -> str:
     health = report["health"]
     baseline = report.get("baseline_at")
     lines = ["Assignment merge-quality report",
              f"ingest: {'ok' if health['ok'] else 'NOT OK (' + _c(health['issue']) + ')'}, "
              f"data as of {_c(health['data_as_of'] or 'unknown')}", f"outbox: {report['outbox'] or 'empty'}",
+             _schema_line(report.get("schema")),
              f"baseline: set {_c(baseline)}" if baseline else "baseline: NOT set (immediate pushes are off)", ""]
     for kid, stat in report["kids"].items():
         lines += _kid_lines(kid, stat)

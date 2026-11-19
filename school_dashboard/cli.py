@@ -9,7 +9,6 @@ from typing import Iterator, Optional
 
 from school_dashboard import gc_fallback_alert, gc_ics, maintenance, paths, school_calendar, schoology_autoarchive, schoology_reset, statelock, transition
 from school_dashboard import state
-from school_dashboard.assignments import cli as assignments_cli
 from school_dashboard import html
 from school_dashboard import email
 from school_dashboard import digest as _digest
@@ -276,6 +275,23 @@ def cmd_gc_fallback_alert(args: argparse.Namespace) -> None:
         gc_fallback_alert.maybe_alert(args.ics_teams, args.total)
 
 
+def _assignments_unavailable(args: argparse.Namespace) -> None:
+    print("Error: the assignments command is unavailable (its module failed to load; see the log)", file=sys.stderr)
+    sys.exit(1)
+
+
+def _register_assignments(subs: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    """Register `assignments` lazily: a broken module must not take the other commands down."""
+    try:
+        from school_dashboard.assignments import cli as assignments_cli
+        assignments_cli.add_parser(subs)
+    except Exception as exc:
+        logger.error("assignments CLI unavailable (%s)", type(exc).__name__)
+        stub = subs.add_parser("assignments", help="Unavailable: the module failed to load")
+        stub.add_argument("rest", nargs=argparse.REMAINDER)
+        stub.set_defaults(func=_assignments_unavailable)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="school-state", description="School situational awareness state manager")
     parser.add_argument("--state-file", type=str, default=None, help="State file path (default: $SCHOOL_STATE_PATH or /app/state/school-state.json)")
@@ -358,7 +374,7 @@ def main() -> None:
     transition.add_parser(subs)
     school_calendar.add_parser(subs)
     schoology_reset.add_parser(subs)
-    assignments_cli.add_parser(subs)
+    _register_assignments(subs)
 
     args = parser.parse_args()
     if not args.command:

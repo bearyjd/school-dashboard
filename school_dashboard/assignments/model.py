@@ -8,6 +8,9 @@ from typing import Any, Mapping
 PORTAL_STATUSES = ("none", "open", "submitted", "graded", "missing", "late", "cleared")
 SETTERS = ("parent", "kid", "portal", "email", "system", "migration")
 KINDS = ("assignment", "task", "practice")
+EVENT_KINDS = ("stage", "portal_status", "flag", "edit", "merge", "split")
+LINK_VIAS = ("scrape", "screenshot", "manual", "legacy")
+PUSH_STATUSES = ("pending", "sent", "failed", "suppressed")
 FLAGS = ("disputed", "missing", "done_not_received", "waiting_on_teacher", "do_tonight", "upcoming")
 BUCKETS = {
     "do_tonight": "do_tonight",
@@ -78,3 +81,20 @@ class FlagResult:
     unverified: bool
     unverified_sources: tuple[str, ...]
     info: tuple[str, ...]  # late, cleared_unconfirmed, unconfirmed_paper, conflict, no_due_date
+
+
+@dataclass(frozen=True)
+class LinkRecord:
+    """A source link as the read model shows it (id and raw status included)."""
+
+    id: int
+    raw_status: str | None
+    state: LinkState
+
+
+@dataclass(frozen=True)
+class AssignmentRecord:
+    """An assignment plus the read-only facts the read model needs."""
+
+    state: AssignmentState
+    possible_duplicate: bool = False

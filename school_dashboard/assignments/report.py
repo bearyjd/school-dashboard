@@ -59,11 +59,16 @@ class ReportInput:
     duplicates: Mapping[str, int]  # kid -> assignments created as possible_duplicate
     outbox: Mapping[str, int]  # status -> count
     baseline_at: str | None = None
+    schema_version: int = 1
+    legacy_rows: int = 0
 
 
 # ---- reader ---------------------------------------------------------------
 
 def read_input(conn: sqlite3.Connection) -> ReportInput:
+    version = schema.user_version(conn)
+    live = " WHERE merged_into IS NULL" if version >= 2 else ""
+    live_join = " AND a.merged_into IS NULL" if version >= 2 else ""
     links: dict[int, list[LinkRow]] = defaultdict(list)
     for r in conn.execute("SELECT assignment_id, source, norm_status, live FROM source_links ORDER BY id"):
         links[r["assignment_id"]].append(LinkRow(r["source"], r["norm_status"], bool(r["live"])))
@@ -72,13 +77,14 @@ def read_input(conn: sqlite3.Connection) -> ReportInput:
                       title=r["title"], title_key=r["title_key"],
                       due_date=date.fromisoformat(r["due_date"]) if r["due_date"] else None,
                       stage=r["stage"], flag=r["flag"], links=tuple(links.get(r["id"], ())))
-        for r in conn.execute("SELECT * FROM assignments ORDER BY id"))
+        for r in conn.execute(f"SELECT * FROM assignments{live} ORDER BY id"))
     dups = {r["kid"]: r["n"] for r in conn.execute(
         "SELECT a.kid, COUNT(*) AS n FROM assignment_events e JOIN assignments a ON a.id = e.assignment_id"
-        " WHERE e.kind = 'merge' AND e.detail LIKE 'possible_duplicate%' GROUP BY a.kid")}
+        f" WHERE e.kind = 'merge' AND e.detail LIKE 'possible_duplicate%'{live_join} GROUP BY a.kid")}
     outbox = {r["status"]: r["n"] for r in conn.execute(
         "SELECT status, COUNT(*) AS n FROM push_outbox GROUP BY status")}
-    return ReportInput(rows, dups, outbox, repo.get_meta(conn, "baseline_at"))
+    legacy = schema.legacy_violations(conn) if version >= 2 else 0
+    return ReportInput(rows, dups, outbox, repo.get_meta(conn, "baseline_at"), version, legacy)
 
 
 # ---- pure builders ---------------------------------------------------------
@@ -170,6 +176,7 @@ def build_report(inp: ReportInput, health: IngestHealth) -> dict[str, Any]:
         "health": {"ok": health.ok, "data_as_of": health.data_as_of.isoformat() if health.data_as_of else None,
                    "issue": health.issue},
         "outbox": dict(sorted(inp.outbox.items())),
+        "schema": {"version": inp.schema_version, "legacy_rows_outside_limits": inp.legacy_rows},
     }
 
 

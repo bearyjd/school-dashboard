@@ -46,7 +46,9 @@ def test_item_shape_and_label():
 
 @pytest.mark.parametrize("stage,label", [(1, "Assigned"), (2, "Done at home"), (3, "Turned in"), (4, "Received")])
 def test_stage_labels(stage, label):
-    assert item(rec(1, stage=stage, due_date="2026-11-30"), {1: [lk(1)]})["stage_label"] == label
+    out = build([rec(1, stage=stage, due_date="2026-11-30")], {1: [lk(1)]},
+                 filters=readmodel.ListFilters(include_closed=True))
+    assert out[0]["stage_label"] == label
 
 
 def test_paper_stage_3_is_marked_unconfirmed():
@@ -118,7 +120,8 @@ def test_filters_and_paging():
 def test_detail_adds_events_newest_first_capped():
     events = [{"at": f"2026-11-{d:02d}", "setter": "parent", "actor": "Dana", "kind": "stage", "from_value": "1",
                "to_value": "2", "detail": None} for d in range(1, 29)] * 8
-    out = readmodel.build_detail(rec(1), [], events, **BASE)
+    out = readmodel.build_detail(rec(1), [], events, now=NOW, no_school_by_kid={}, grace_by_class={},
+                                 stale_sources=frozenset(), ingest=OK)
     assert len(out["events"]) == 200 and out["events"][0]["at"] == events[-1]["at"]
     assert set(out["events"][0]) == {"at", "setter", "actor", "kind", "from", "to", "detail"}
 

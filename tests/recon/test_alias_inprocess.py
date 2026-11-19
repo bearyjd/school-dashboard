@@ -36,10 +36,9 @@ def test_add_and_list_round_trip_and_bad_json_is_replaced(conn):
 
 def test_add_rejects_bad_input(conn):
     from school_dashboard.assignments import aliases
-    for kw in ({"from_name": "", "to_name": "X"}, {"from_name": "X", "to_name": " "},
-               {"from_name": "ela", "to_name": "ELA"}):
+    for src, dst in (("", "X"), ("X", " "), ("ela", "ELA")):
         with pytest.raises(aliases.AliasError):
-            aliases.add(conn, kid="Alex", **kw)
+            aliases.add(conn, kid="Alex", from_name=src, to_name=dst)
     with pytest.raises(aliases.AliasError):
         aliases.add(conn, kid="Zed", from_name="A", to_name="B")
 
@@ -53,7 +52,7 @@ def test_cli_handlers_in_process(conn, capsys):
     assert _main("alias", "add", "--kid", "Zed", "--from", "A", "--to", "B") == 2
     assert _main("report", "--json", "--redact") == 0
     out = capsys.readouterr()
-    assert "Essay" not in out.out and "1 unmatched pairs" in out.err
+    assert "Essay" not in out.out and "0 unmatched pairs" in out.err  # the alias merged the pair
     assert _main("report") == 0
 
 

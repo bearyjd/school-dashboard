@@ -46,6 +46,11 @@ def _open(db_path: str) -> sqlite3.Connection:
     except NotMigratedError:
         conn.close()
         raise
+    try:
+        schema.ensure_schema(conn)  # a database migrated under schema v1 is upgraded in place
+    except BaseException:
+        conn.close()
+        raise
     return conn
 
 

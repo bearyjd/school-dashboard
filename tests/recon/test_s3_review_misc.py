@@ -69,7 +69,7 @@ def test_exactly_ten_rows_has_no_more_line(penv):
 
 
 def test_long_title_is_cut_to_120_chars_with_an_ellipsis(penv):
-    conn = _pending(penv, ["L" * 500])
+    conn = _pending(penv, ["L" * 300])
     send = MagicMock()
     _send(conn, send)
     line = send.call_args.args[1]
@@ -77,7 +77,7 @@ def test_long_title_is_cut_to_120_chars_with_an_ellipsis(penv):
 
 
 def test_body_never_exceeds_3500_bytes_and_only_sent_rows_are_marked(penv):
-    conn = _pending(penv, ["\U0001F600" * 300 + str(i) for i in range(10)])
+    conn = _pending(penv, ["\U0001F600" * 290 + str(i) for i in range(10)])
     send = MagicMock()
     _send(conn, send)
     body = send.call_args.args[1]
