@@ -14,6 +14,7 @@ import requests
 from school_dashboard import maintenance, powerschool
 from school_dashboard import scrape_meta
 from school_dashboard.state import canonical_name, get_roster
+from school_dashboard.kid_colors import with_child_colors
 from school_dashboard.llm import chat_completion
 
 _log = logging.getLogger(__name__)
@@ -742,7 +743,10 @@ def send_ntfy(
             from school_dashboard.db import init_digests_table, create_digest, purge_old_digests
             init_digests_table(db_path)
             purge_old_digests(db_path, days=7)
-            digest_id = create_digest(db_path, title, cards)
+            roster = get_roster()
+            colored = with_child_colors(
+                cards, {r["name"]: r["color"] for r in roster if r.get("color")}, [r["name"] for r in roster])
+            digest_id = create_digest(db_path, title, colored)
             url = f"{DASHBOARD_BASE}/?digest={digest_id}"
         except Exception as exc:
             _log.warning("Digest DB error, falling back to static link: %s", exc)
