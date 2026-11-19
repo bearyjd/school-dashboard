@@ -85,3 +85,13 @@ def legacy_env(state_env, tmp_path, monkeypatch):
     dbp = state_env / "school.db"
     db.init_db(str(dbp))
     return state_env, str(dbp), state_env / "school-state.json", cfg
+
+
+@pytest.fixture
+def api_factory(tmp_path, monkeypatch):
+    """Callable building a Flask test client over a synthetic recon DB (see api_support.make_api)."""
+    from recon.api_support import make_api
+
+    def build(seed=(), **kw):
+        return make_api(tmp_path, monkeypatch, seed, **kw)
+    return build
