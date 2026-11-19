@@ -61,7 +61,7 @@ def test_flag_off_returns_none_and_touches_nothing(env):
     from school_dashboard.assignments import ingest
     state_dir, inputs = env
     _write(inputs)
-    assert ingest.run_shadow(_args(state_dir, inputs), {}, now=NOW) is None
+    assert ingest.run_shadow(_args(state_dir, inputs), now=NOW) is None
     assert not (state_dir / "school.db").exists()
     assert not (state_dir / "sync_meta.json").exists()
 
@@ -71,7 +71,7 @@ def test_falsy_flag_values_stay_off(env, monkeypatch, value):
     from school_dashboard.assignments import ingest
     state_dir, inputs = env
     monkeypatch.setenv("RECON_INGEST_ENABLED", value)
-    assert ingest.run_shadow(_args(state_dir, inputs), {}, now=NOW) is None
+    assert ingest.run_shadow(_args(state_dir, inputs), now=NOW) is None
     assert not (state_dir / "sync_meta.json").exists()
 
 
@@ -81,7 +81,7 @@ def test_happy_path_ingests_and_records_ok(env, monkeypatch):
     monkeypatch.setenv("RECON_INGEST_ENABLED", "1")
     make_db(state_dir)
     _write(inputs)
-    report = ingest.run_shadow(_args(state_dir, inputs), {}, now=NOW)
+    report = ingest.run_shadow(_args(state_dir, inputs), now=NOW)
     assert report is not None and report.ok
     assert _count(state_dir) == 2
     assert _meta(state_dir)["recon_ingest"]["last_result"] == "ok"
@@ -96,12 +96,12 @@ def test_file_hashes_are_sha256_of_the_bytes(env, monkeypatch):
     _write(inputs)
     seen = {}
 
-    def spy(db_path, results, *, file_hashes, now, no_school_rows):
+    def spy(db_path, results, *, file_hashes, now, no_school_rows, roster=None):
         seen.update(file_hashes)
         return ingest.IngestReport(True, (), (), False, "x")
 
     monkeypatch.setattr(ingest, "run", spy)
-    ingest.run_shadow(_args(state_dir, inputs), {}, now=NOW)
+    ingest.run_shadow(_args(state_dir, inputs), now=NOW)
     assert seen["schoology"] == hashlib.sha256((inputs / "sgy.json").read_bytes()).hexdigest()
     assert seen["powerschool"] == hashlib.sha256((inputs / "ps.json").read_bytes()).hexdigest()
 
@@ -112,7 +112,7 @@ def test_stale_powerschool_file_is_not_trusted(env, monkeypatch):
     monkeypatch.setenv("RECON_INGEST_ENABLED", "1")
     make_db(state_dir)
     _write(inputs, ps_stamp="2026-11-10T10:00:00-05:00")
-    report = ingest.run_shadow(_args(state_dir, inputs), {}, now=NOW)
+    report = ingest.run_shadow(_args(state_dir, inputs), now=NOW)
     assert report is not None and report.ok
     assert _count(state_dir) == 1  # only the Schoology row
     assert any("powerschool" in w for w in report.warnings)
@@ -123,7 +123,7 @@ def test_missing_files_contribute_nothing_with_a_warning(env, monkeypatch):
     state_dir, inputs = env
     monkeypatch.setenv("RECON_INGEST_ENABLED", "1")
     make_db(state_dir)
-    report = ingest.run_shadow(_args(state_dir, inputs), {}, now=NOW)
+    report = ingest.run_shadow(_args(state_dir, inputs), now=NOW)
     assert report is not None and report.ok and report.kids == ()
     assert any("schoology" in w for w in report.warnings) and any("powerschool" in w for w in report.warnings)
     assert _count(state_dir) == 0
@@ -135,13 +135,13 @@ def test_calendar_not_covering_today_warns(env, monkeypatch):
     monkeypatch.setenv("RECON_INGEST_ENABLED", "1")
     make_db(state_dir)
     _write(inputs)
-    report = ingest.run_shadow(_args(state_dir, inputs), {}, now=NOW)
+    report = ingest.run_shadow(_args(state_dir, inputs), now=NOW)
     assert report is not None and "school calendar does not cover today" in report.warnings
     from school_dashboard.assignments import schema
     conn = schema.connect(str(state_dir / "school.db"))
     conn.execute("INSERT INTO events (date, title, type, child) VALUES ('2026-12-01', 'Day off', 'NO_SCHOOL', NULL)")
     conn.close()
-    again = ingest.run_shadow(_args(state_dir, inputs), {}, now=NOW)
+    again = ingest.run_shadow(_args(state_dir, inputs), now=NOW)
     assert again is not None and "school calendar does not cover today" not in again.warnings
 
 
@@ -151,7 +151,7 @@ def test_not_migrated_is_recorded_as_error_with_a_clear_message(env, monkeypatch
     monkeypatch.setenv("RECON_INGEST_ENABLED", "1")
     _write(inputs)
     caplog.set_level(logging.ERROR)
-    assert ingest.run_shadow(_args(state_dir, inputs), {}, now=NOW) is None
+    assert ingest.run_shadow(_args(state_dir, inputs), now=NOW) is None
     assert _meta(state_dir)["recon_ingest"]["last_result"] == "error"
     assert "school-state assignments migrate" in caplog.text
     assert not (state_dir / "school.db").exists()
@@ -169,7 +169,7 @@ def test_failure_never_raises_never_prints_and_logs_type_name_only(env, monkeypa
 
     monkeypatch.setattr(ingest, "run", boom)
     caplog.set_level(logging.ERROR)
-    assert ingest.run_shadow(_args(state_dir, inputs), {}, now=NOW) is None
+    assert ingest.run_shadow(_args(state_dir, inputs), now=NOW) is None
     assert capsys.readouterr().out == ""
     assert "RuntimeError" in caplog.text and "secret detail" not in caplog.text
     assert _meta(state_dir)["recon_ingest"]["last_result"] == "error"
@@ -182,18 +182,18 @@ def test_after_ingest_seam_runs_after_success_only(env, monkeypatch):
     make_db(state_dir)
     _write(inputs)
     calls = []
-    ingest.run_shadow(_args(state_dir, inputs), {}, now=NOW, after_ingest=lambda conn, now: calls.append(now))
+    ingest.run_shadow(_args(state_dir, inputs), now=NOW, after_ingest=lambda conn, now: calls.append(now))
     assert calls == [NOW]
 
     def failing(conn, now):
         raise OSError("push exploded")
 
-    report = ingest.run_shadow(_args(state_dir, inputs), {}, now=NOW, after_ingest=failing)
+    report = ingest.run_shadow(_args(state_dir, inputs), now=NOW, after_ingest=failing)
     assert report is not None  # a sender failure is not an ingest failure
     assert _meta(state_dir)["recon_ingest"]["last_result"] == "ok"
     monkeypatch.setattr(ingest, "run", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x")))
     calls.clear()
-    ingest.run_shadow(_args(state_dir, inputs), {}, now=NOW, after_ingest=lambda conn, now: calls.append(now))
+    ingest.run_shadow(_args(state_dir, inputs), now=NOW, after_ingest=lambda conn, now: calls.append(now))
     assert calls == []
 
 

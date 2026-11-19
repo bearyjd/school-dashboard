@@ -298,7 +298,7 @@ def test_oversized_state_file_is_an_input_error(env, monkeypatch):
     monkeypatch.setattr(migrate, "MAX_STATE_BYTES", 10)
     with pytest.raises(migrate.MigrationInputError, match="too large"):
         run(env, dry_run=True)
-    assert migrate.MAX_STATE_BYTES == 10
+    assert_no_v2(env[1])  # refused before anything was touched
 
 
 def test_state_size_limit_constant_is_50_mib():

@@ -95,13 +95,13 @@ def test_hook_survives_the_error_recording_failing_too(state_env, monkeypatch):
         raise OSError("disk full")
 
     monkeypatch.setattr(sync_meta, "write_sync_source", no_write)
-    cli._recon_shadow(argparse.Namespace(sgy_file="x", ps_file="y", ixl_dir="z", state_file=None), {})  # must not raise
+    cli._recon_shadow(argparse.Namespace(sgy_file="x", ps_file="y", ixl_dir="z", state_file=None))  # must not raise
 
 
 def test_hook_flag_off_returns_without_touching_anything(state_env, monkeypatch):
     from school_dashboard import cli
     monkeypatch.setitem(sys.modules, "school_dashboard.assignments.ingest", None)
-    cli._recon_shadow(argparse.Namespace(), {})
+    cli._recon_shadow(argparse.Namespace())
     assert not (state_env / "sync_meta.json").exists()
 
 

@@ -189,11 +189,11 @@ def test_run_shadow_default_after_ingest_is_the_sender_and_a_noop_when_off(env, 
               state_file=str(env / "school-state.json"))
     monkeypatch.delenv("RECON_PUSH_ENABLED")
     with patch("requests.post") as post:
-        assert ingest.run_shadow(args, {}, now=WED) is not None
+        assert ingest.run_shadow(args, now=WED) is not None
     post.assert_not_called()
     assert [s[0] for s in _status(conn)] == ["pending"] * 3
     monkeypatch.setenv("RECON_PUSH_ENABLED", "1")
     with patch("requests.post") as post:
-        assert ingest.run_shadow(args, {}, now=WED + timedelta(minutes=1)) is not None
+        assert ingest.run_shadow(args, now=WED + timedelta(minutes=1)) is not None
     assert post.call_count == 2
     assert [s[0] for s in _status(conn)] == ["sent"] * 3

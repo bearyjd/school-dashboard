@@ -98,7 +98,7 @@ def test_health_is_reported_and_missing_ingest_is_not_ok(tmp_path):
     assert bad["ok"] is False and bad["issue"] == "error"
 
 
-def test_redaction_hides_titles_and_classes_and_is_stable(tmp_path):
+def test_redaction_hides_titles_and_classes_and_is_consistent_within_one_report(tmp_path):
     from school_dashboard.assignments import report
     path = db_with(tmp_path, [sgy("Essay Draft", "Language Arts", "s1"), ps("Essay Draft", "ELA", "p1")])
     redacted = report.redact(_rep(path))
@@ -106,7 +106,7 @@ def test_redaction_hides_titles_and_classes_and_is_stable(tmp_path):
     for secret in (*SYNTH_TITLES, *SYNTH_CLASSES, "essay draft", "language arts"):
         assert secret not in text, secret
     again = report.redact(_rep(path))
-    assert again == redacted
+    assert again != redacted  # random per-run salt: hashes are not comparable across reports
     pair = redacted["unmatched_pairs"][0]
     assert pair["title_a"] == pair["title_b"] and pair["class_a"] != pair["class_b"]
     assert pair["suggested_alias"] is not None
