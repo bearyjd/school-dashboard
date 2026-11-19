@@ -11,7 +11,7 @@ import { Tabs } from '../design/Tabs'
 import { AsOfTag, KidFilter, OverviewFrame } from '../components/OverviewFrame'
 import { OVERVIEW_KEY, useOverview } from '../lib/overview'
 import { useUrlState } from '../lib/urlState'
-import { eventMatchesKid, formatDay, formatTime, itemFreshness, itemMatchesKid, kidIndex, kidParser, sourceLabel } from '../lib/view'
+import { eventMatchesKid, formatDay, formatTime, itemFreshness, itemMatchesKid, kidColor, kidParser, sourceLabel } from '../lib/view'
 import './ListPage.css'
 
 export type ListKind = 'tonight' | 'overdue' | 'missing' | 'events'
@@ -231,7 +231,7 @@ function ItemsTable({ data, kind, kid, setKid }: TableProps) {
                         )}
                       </td>
                     )}
-                    <td><KidChip name={i.kid} index={kidIndex(data, i.kid)} wide /></td>
+                    <td><KidChip name={i.kid} color={kidColor(data, i.kid)} wide /></td>
                     <td data-col="what" className="list__what">{i.title}</td>
                     <td className="list__wrap">{i.course}</td>
                     <td className="list__nowrap">{formatDay(i.due)}</td>
@@ -297,7 +297,7 @@ function EventsTable({ data, kid, setKid, past, setPast }: EventsTableProps) {
                 <tr key={`${e.date}-${e.time}-${e.title}-${n}`}>
                   <td className="list__chips">
                     {e.kids.length === 0 ? <span>{e.unassigned ? 'Unassigned' : 'Everyone'}</span>
-                      : e.kids.map(k => <KidChip key={k} name={k} index={kidIndex(data, k)} wide />)}
+                      : e.kids.map(k => <KidChip key={k} name={k} color={kidColor(data, k)} wide />)}
                   </td>
                   <td data-col="what" className="list__what">{e.title}</td>
                   <td className="list__nowrap">{formatDay(e.date)}{e.time && ` ${formatTime(e.time)}`}</td>

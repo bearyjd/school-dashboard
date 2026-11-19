@@ -5,7 +5,7 @@ import { Banner } from '../design/Banner'
 import { FreshnessTag } from '../design/FreshnessTag'
 import { formatAge } from '../lib/age'
 import { KidChip } from '../design/KidChip'
-import { ageHoursSince, kidIndex, problemSources, sourceLabel } from '../lib/view'
+import { ageHoursSince, kidColor, problemSources, sourceLabel } from '../lib/view'
 import './OverviewFrame.css'
 
 /** Banner per stale or failing source, with its age. */
@@ -52,7 +52,7 @@ export function KidFilter({ data, value, onChange }: KidFilterProps) {
       <button type="button" className="pill" aria-pressed={value === ''} onClick={() => onChange('')}>Everyone</button>
       {data.kids.map(k => (
         <button key={k.name} type="button" className="pill" aria-pressed={value === k.name} onClick={() => onChange(k.name)}>
-          <KidChip name={k.name} index={kidIndex(data, k.name)} wide />
+          <KidChip name={k.name} color={kidColor(data, k.name)} wide />
         </button>
       ))}
     </div>

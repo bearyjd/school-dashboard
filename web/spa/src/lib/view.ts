@@ -43,8 +43,8 @@ export function kidParser(data: Overview | undefined): (raw: string | null) => s
   return raw => (raw && data?.kids.some(k => k.name === raw) ? raw : '')
 }
 
-export function kidIndex(data: Overview, name: string): number {
-  return data.kids.find(k => k.name === name)?.colorIndex ?? 0
+export function kidColor(data: Overview, name: string): string {
+  return data.kids.find(k => k.name === name)?.color ?? ''
 }
 
 export function itemMatchesKid(item: OverviewItem, kid: string): boolean {
