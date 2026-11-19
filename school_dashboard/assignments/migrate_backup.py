@@ -33,13 +33,17 @@ def _new_dir(archive_root: Path, now: datetime) -> Path:
     raise BackupError("could not allocate a backup directory")
 
 
+def _integrity_result(conn: sqlite3.Connection) -> str:
+    return str(conn.execute("PRAGMA integrity_check").fetchone()[0])
+
+
 def _copy_database(db_path: str, dest: Path) -> None:
-    src = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    src = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
     dst = sqlite3.connect(str(dest))
     try:
         src.backup(dst)
         dst.execute("PRAGMA journal_mode=DELETE")
-        result = dst.execute("PRAGMA integrity_check").fetchone()[0]
+        result = _integrity_result(dst)
     finally:
         dst.close()
         src.close()

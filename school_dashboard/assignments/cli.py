@@ -60,8 +60,11 @@ def cmd_assignments(args: argparse.Namespace) -> None:
     except migrate.MigrationInputError as exc:
         sys.stderr.write(f"Error: {exc}\n")
         code = EXIT_INPUT
-    except (migrate.MigrationError, OSError) as exc:
+    except migrate.MigrationError as exc:
         sys.stderr.write(f"Error: {exc}\n")
+        code = EXIT_FAILED
+    except OSError as exc:
+        sys.stderr.write(f"Error: file system failure ({type(exc).__name__})\n")
         code = EXIT_FAILED
     sys.exit(code)
 

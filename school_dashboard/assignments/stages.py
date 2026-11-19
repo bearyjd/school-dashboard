@@ -36,12 +36,14 @@ def apply_tap(state: AssignmentState, action: str, setter: str, now: datetime) -
 
 def register_scrape(link: LinkState, *, seen: bool, trusted: bool, file_hash: str, today: date,
                     new_status: str | None = None, new_score: str | None = None) -> LinkState:
+    if not trusted:
+        return link
     if seen:
         return replace(
             link, live=True, trusted_misses=0, absent_since=None, last_miss_hash=None,
             norm_status=new_status if new_status is not None else link.norm_status,
             score=new_score if new_score is not None else link.score)
-    if not trusted or link.via == "screenshot" or link.last_miss_hash == file_hash:
+    if link.via == "screenshot" or link.last_miss_hash == file_hash:
         return link
     return replace(link, live=False, trusted_misses=link.trusted_misses + 1,
                    absent_since=link.absent_since or today, last_miss_hash=file_hash)

@@ -221,3 +221,16 @@ def test_stage_4_with_live_missing_link_is_reopened_to_stage_1(evidence):
 def test_absence_never_reopens_migration_or_teacher_confirmed(evidence):
     st = {"stage": 4, "received_evidence": evidence}
     assert decide(st, [gone(misses=1, since=TODAY)]) == (4, evidence)
+
+
+# ---- review round 1 ----
+@pytest.mark.parametrize("status,score", [("graded", None), ("open", "95")])
+def test_absent_link_with_graded_or_scored_last_status_is_not_received_by_rule_a(status, score):
+    link = mk_link(live=False, norm_status=status, score=score, trusted_misses=1, absent_since=TODAY)
+    assert stages.portal_decision(mk_state(stage=1), [link], TODAY) == (1, None)
+
+
+@pytest.mark.parametrize("kw", [dict(new_status="graded", new_score="95"), dict()])
+def test_untrusted_seen_scrape_changes_nothing(kw):
+    link = mk_link(live=False, trusted_misses=2, absent_since=date(2026, 11, 18), last_miss_hash="h0")
+    assert scrape(link, seen=True, trusted=False, **kw) == link

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from pathlib import Path
 from typing import Callable
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,7 @@ def _is_wal_file(db_path: str) -> bool:
 def connect(db_path: str, *, readonly: bool = False) -> sqlite3.Connection:
     """Open `db_path` with the shared policy (Row factory, FK on, busy timeout, WAL, autocommit)."""
     if readonly and not _is_wal_file(db_path):
-        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, isolation_level=None)
+        conn = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True, isolation_level=None)
     elif readonly:
         # A mode=ro handle cannot remove the -wal/-shm files it creates; query_only still forbids writes.
         conn = sqlite3.connect(db_path, isolation_level=None)

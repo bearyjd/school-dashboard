@@ -17,6 +17,8 @@ from school_dashboard.assignments.model import LinkState
 
 logger = logging.getLogger(__name__)
 
+MAX_STATE_BYTES = 50 * 1024 * 1024
+
 __all__ = ["MigrationReport", "MigrationRefused", "MigrationError", "MigrationInputError",
            "plan_migration", "run", "export"]
 
@@ -57,15 +59,23 @@ def _has_table(conn: sqlite3.Connection, name: str) -> bool:
                         (name,)).fetchone() is not None
 
 
-def _load_action_items(state_path: str) -> list[dict[str, Any]]:
+def _load_action_items(state_path: str) -> tuple[list[dict[str, Any]], str]:
+    """The state file's action_items and the sha256 of the exact bytes they were parsed from."""
     try:
-        data = json.loads(Path(state_path).read_text())
-    except (OSError, ValueError) as exc:
+        size = Path(state_path).stat().st_size
+    except OSError as exc:
+        raise MigrationInputError(f"state file unreadable ({type(exc).__name__})") from exc
+    if size > MAX_STATE_BYTES:
+        raise MigrationInputError("state file is too large to migrate")
+    try:
+        raw = Path(state_path).read_bytes()
+        data = json.loads(raw)
+    except (OSError, ValueError, RecursionError) as exc:
         raise MigrationInputError(f"state file unreadable ({type(exc).__name__})") from exc
     actions = data.get("action_items", []) if isinstance(data, dict) else None
     if not isinstance(actions, list) or not all(isinstance(a, dict) and "id" in a for a in actions):
         raise MigrationInputError("state file has no valid action_items list")
-    return actions
+    return actions, hashlib.sha256(raw).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -145,11 +155,19 @@ def _verify(conn: sqlite3.Connection, plan: MigrationPlan, before: tuple[int, in
     return sha_after
 
 
-def _apply(db_path: str, plan: MigrationPlan, expected_keys: set[str], sha_before: str,
-           now: datetime) -> str:
-    conn = schema.connect(db_path)
+def _state_sha(state_path: str) -> str:
+    return hashlib.sha256(Path(state_path).read_bytes()).hexdigest()
+
+
+def _apply(db_path: str, state_path: str, plan: MigrationPlan, expected_keys: set[str], sha_before: str,
+           state_sha: str, now: datetime) -> str:
+    conn = None
     try:
+        conn = schema.connect(db_path)
         with repo.transaction(conn):
+            _preflight()  # the gate may have changed since the plan was made; the write lock is held now
+            if _state_sha(state_path) != state_sha:
+                raise MigrationError("state file changed since the plan was made")
             schema.ensure_schema(conn)
             before = (_count(conn, "assignments"), _count(conn, "source_links"))
             if _items_sha(conn) != sha_before:
@@ -159,10 +177,11 @@ def _apply(db_path: str, plan: MigrationPlan, expected_keys: set[str], sha_befor
             sha_after = _verify(conn, plan, before, expected_keys, sha_before)
             repo.set_meta(conn, "migrated_at", now.isoformat())
         return sha_after
-    except (sqlite3.Error, repo.RepoError, repo.BusyError) as exc:
+    except (sqlite3.Error, repo.RepoError, repo.BusyError, OSError) as exc:
         raise MigrationError(f"migration rolled back ({type(exc).__name__})") from exc
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
 
 
 def _preflight() -> None:
@@ -176,14 +195,17 @@ def run(db_path: str, state_path: str, *, dry_run: bool, now: datetime,
         archive_dir: str | None = None) -> MigrationReport:
     if not dry_run:
         _preflight()
-    actions = _load_action_items(state_path)
+    actions, state_sha = _load_action_items(state_path)
     snap = _snapshot(db_path)
     todo_items = [i for i in snap.items if i["id"] not in snap.item_ids_done]
     todo_actions = [a for a in actions if str(a["id"]) not in snap.action_ids_done]
     plan = plan_migration(todo_items, todo_actions, now=now, resolve_kid=state_mod.canonical_name)
     rows_in = len(snap.items) + len(actions)
-    already = rows_in - plan.rows_in
-    warnings = _roster_warnings(plan.per_kid)
+    already = (len(snap.item_ids_done & {i["id"] for i in snap.items})
+               + len(snap.action_ids_done & {str(a["id"]) for a in actions}))
+    if rows_in != len(plan.records) + len(plan.merged) + already:
+        raise MigrationError("row accounting invariant violated: rows in != created + merged + already migrated")
+    warnings = plan.warnings + _roster_warnings(plan.per_kid)
     backup_dir, sha_after = None, snap.sha
     if not dry_run and (plan.records or not snap.migrated):
         root = Path(archive_dir) if archive_dir else paths.state_dir() / "archive"
@@ -192,7 +214,7 @@ def run(db_path: str, state_path: str, *, dry_run: bool, now: datetime,
         except migrate_backup.BackupError as exc:
             raise MigrationError(str(exc)) from exc
         keys = {f"item:{i['id']}" for i in snap.items} | {f"legacy-action:{a['id']}" for a in actions}
-        sha_after = _apply(db_path, plan, keys, snap.sha, now)
+        sha_after = _apply(db_path, state_path, plan, keys, snap.sha, state_sha, now)
     logger.info("migration %s: rows_in=%d created=%d merged=%d already=%d", "dry-run" if dry_run else "done",
                 rows_in, len(plan.records), len(plan.merged), already)
     return MigrationReport(dry_run, rows_in, len(plan.records), plan.merged, plan.per_kid, warnings,
