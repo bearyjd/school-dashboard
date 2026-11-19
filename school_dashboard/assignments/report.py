@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from difflib import SequenceMatcher
 from itertools import combinations
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterator, Mapping, Sequence
 
 from school_dashboard import sync_meta, watchdog
 
@@ -23,6 +23,8 @@ __all__ = ["AssignmentRow", "LinkRow", "ReportInput", "alias_suggestions", "buil
            "redact", "render_text", "run", "unmatched_pairs"]
 
 SIMILAR_TITLE = 0.6
+MAX_PAIRS = 500
+TITLE_COMPARE_CHARS = 120
 _EVIDENCE_STATUSES = ("missing", "late")
 
 
@@ -56,6 +58,7 @@ class ReportInput:
     assignments: tuple[AssignmentRow, ...]
     duplicates: Mapping[str, int]  # kid -> assignments created as possible_duplicate
     outbox: Mapping[str, int]  # status -> count
+    baseline_at: str | None = None
 
 
 # ---- reader ---------------------------------------------------------------
@@ -75,7 +78,7 @@ def read_input(conn: sqlite3.Connection) -> ReportInput:
         " WHERE e.kind = 'merge' AND e.detail LIKE 'possible_duplicate%' GROUP BY a.kid")}
     outbox = {r["status"]: r["n"] for r in conn.execute(
         "SELECT status, COUNT(*) AS n FROM push_outbox GROUP BY status")}
-    return ReportInput(rows, dups, outbox)
+    return ReportInput(rows, dups, outbox, repo.get_meta(conn, "baseline_at"))
 
 
 # ---- pure builders ---------------------------------------------------------
@@ -107,7 +110,7 @@ def _kid_stats(rows: Sequence[AssignmentRow], duplicates: int) -> dict[str, Any]
 def _pair(a: AssignmentRow, b: AssignmentRow) -> dict[str, Any] | None:
     if not a.sources or not b.sources or a.sources & b.sources or a.due_date is None or a.due_date != b.due_date:
         return None
-    ratio = SequenceMatcher(None, a.title_key, b.title_key).ratio()
+    ratio = SequenceMatcher(None, a.title_key[:TITLE_COMPARE_CHARS], b.title_key[:TITLE_COMPARE_CHARS]).ratio()
     same_title = a.title_key == b.title_key
     classes_differ = bool(a.class_key and b.class_key and a.class_key != b.class_key)
     if not ((same_title and classes_differ) or ratio >= SIMILAR_TITLE):
@@ -118,12 +121,31 @@ def _pair(a: AssignmentRow, b: AssignmentRow) -> dict[str, Any] | None:
             "sources_a": sorted(a.sources), "sources_b": sorted(b.sources), "suggested_alias": alias}
 
 
-def unmatched_pairs(rows: Sequence[AssignmentRow]) -> list[dict[str, Any]]:
-    by_kid: dict[str, list[AssignmentRow]] = defaultdict(list)
+def _candidates(rows: Sequence[AssignmentRow]) -> Iterator[tuple[AssignmentRow, AssignmentRow]]:
+    """Pairs that could be the same assignment: same kid and due date (bucketed, never all-pairs)."""
+    buckets: dict[tuple[str, date], list[AssignmentRow]] = defaultdict(list)
     for row in rows:
-        by_kid[row.kid].append(row)
-    found = (_pair(a, b) for kid in sorted(by_kid) for a, b in combinations(by_kid[kid], 2))
-    return [p for p in found if p is not None]
+        if row.due_date is not None and row.sources:
+            buckets[(row.kid, row.due_date)].append(row)
+    for key in sorted(buckets):
+        yield from combinations(buckets[key], 2)
+
+
+def _find_pairs(rows: Sequence[AssignmentRow], limit: int = MAX_PAIRS) -> tuple[list[dict[str, Any]], bool]:
+    """(at most `limit` pairs, whether more existed)."""
+    out: list[dict[str, Any]] = []
+    for a, b in _candidates(rows):
+        pair = _pair(a, b)
+        if pair is None:
+            continue
+        if len(out) >= limit:
+            return out, True
+        out.append(pair)
+    return out, False
+
+
+def unmatched_pairs(rows: Sequence[AssignmentRow], limit: int = MAX_PAIRS) -> list[dict[str, Any]]:
+    return _find_pairs(rows, limit)[0]
 
 
 def alias_suggestions(pairs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
@@ -140,10 +162,11 @@ def build_report(inp: ReportInput, health: IngestHealth) -> dict[str, Any]:
     by_kid: dict[str, list[AssignmentRow]] = defaultdict(list)
     for row in inp.assignments:
         by_kid[row.kid].append(row)
-    pairs = unmatched_pairs(inp.assignments)
+    pairs, truncated = _find_pairs(inp.assignments)
     return {
         "kids": {kid: _kid_stats(rows, inp.duplicates.get(kid, 0)) for kid, rows in sorted(by_kid.items())},
-        "unmatched_pairs": pairs, "alias_suggestions": alias_suggestions(pairs),
+        "unmatched_pairs": pairs, "unmatched_truncated": truncated, "baseline_at": inp.baseline_at,
+        "alias_suggestions": alias_suggestions(pairs),
         "health": {"ok": health.ok, "data_as_of": health.data_as_of.isoformat() if health.data_as_of else None,
                    "issue": health.issue},
         "outbox": dict(sorted(inp.outbox.items())),

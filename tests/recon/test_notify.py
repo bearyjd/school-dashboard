@@ -161,7 +161,7 @@ def test_default_sender_posts_high_priority_with_timeout_and_raise_for_status(en
     headers = post.call_args.kwargs["headers"]
     assert headers["Priority"] == "high" and headers["Click"] == DASHBOARD_BASE
     assert headers["Title"] == "School: needs action"
-    assert post.call_args.kwargs["timeout"] > 0
+    assert post.call_args.kwargs["timeout"] == (5, 10)
     assert resp.raise_for_status.call_count == 2
     assert [s[0] for s in _status(conn)] == ["sent"] * 3
 

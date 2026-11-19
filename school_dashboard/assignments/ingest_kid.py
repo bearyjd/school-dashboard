@@ -15,6 +15,7 @@ from .model import AssignmentState, LinkState, SourceRecord
 from .normalize import class_key, title_key
 
 _KIND = {"ixl": "practice"}
+MAX_RAW_JSON_BYTES = 8 * 1024
 
 
 @dataclass
@@ -49,7 +50,9 @@ def build_context(conn: sqlite3.Connection, kid: str, *, now: datetime, no_schoo
 
 
 def _raw_json(rec: SourceRecord) -> str:
-    return json.dumps(rec.raw, default=str, sort_keys=True)
+    raw = json.dumps(rec.raw, default=str, sort_keys=True)
+    size = len(raw.encode("utf-8"))
+    return raw if size <= MAX_RAW_JSON_BYTES else json.dumps({"truncated": True, "bytes": size})
 
 
 def _link_for(conn: sqlite3.Connection, aid: int, rec: SourceRecord) -> LinkState:

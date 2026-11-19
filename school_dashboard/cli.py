@@ -37,6 +37,7 @@ def locked_state(state_file: Optional[str]) -> Iterator[None]:
 def cmd_update(args: argparse.Namespace) -> None:
     with locked_state(args.state_file):
         _update_locked(args)
+    _recon_shadow(args)  # after the state lock is released: ingest and push may take a while
 
 
 def _load_for_write(state_file: Optional[str]) -> dict:
@@ -64,16 +65,15 @@ def _update_locked(args: argparse.Namespace) -> None:
           f"{pruned} stale items pruned, "
           f"auto-archived {auto_archived}", file=sys.stderr)
     print(f"State saved: {p}", file=sys.stderr)
-    _recon_shadow(args, s)
 
 
-def _recon_shadow(args: argparse.Namespace, s: dict) -> None:
+def _recon_shadow(args: argparse.Namespace) -> None:
     """Recon v2 shadow ingest hook: nothing in it may ever change what `update` does or prints."""
     try:
         from school_dashboard.assignments import flagsenv
         if not flagsenv.enabled("RECON_INGEST_ENABLED"):
             return
-        importlib.import_module("school_dashboard.assignments.ingest").run_shadow(args, s)
+        importlib.import_module("school_dashboard.assignments.ingest").run_shadow(args)
     except Exception as exc:  # ImportError, SyntaxError in recon code, anything before run_shadow's own guard
         logger.error("recon shadow ingest could not run (%s)", type(exc).__name__)
         try:

@@ -568,9 +568,13 @@ def api_overview():
     warnings.extend(gc_warnings(gc_data, clean=True))
     from school_dashboard.assignments import flagsenv, health
     if flagsenv.enabled("RECON_INGEST_ENABLED"):
-        warnings.extend(health.ingest_warnings(
-            read_sync_meta(str(paths.sync_meta_path())), now=now, tz=tz,
-            first_seen=watchdog.load_first_seen().get("recon_ingest")))
+        try:
+            warnings.extend(health.ingest_warnings(
+                read_sync_meta(str(paths.sync_meta_path())), now=now, tz=tz,
+                first_seen=watchdog.load_first_seen().get("recon_ingest")))
+        except Exception as exc:  # a malformed sync_meta must not take the overview down
+            app.logger.error("assignment merge status unavailable (%s)", type(exc).__name__)
+            warnings.append("Assignment merge status unavailable")
     db_file = str(paths.db_path())
     try:
         manual = list_items(db_file)

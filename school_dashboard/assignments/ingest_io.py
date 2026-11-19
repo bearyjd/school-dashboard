@@ -17,6 +17,8 @@ from . import repo, schema
 from .adapters import ADAPTERS, AdapterResult
 from .adapters.powerschool import PowerSchoolAdapter
 
+MAX_SCRAPE_BYTES = 20 * 1024 * 1024
+
 Resolve = Callable[[str], str]
 Loaded = tuple[AdapterResult | None, str | None, str | None]  # (result, file hash, warning)
 
@@ -28,12 +30,15 @@ def _sha(data: bytes) -> str:
 def _read_json(path: Path) -> tuple[bytes | None, Any, str | None]:
     """(bytes, payload, problem)."""
     try:
-        raw = path.read_bytes()
+        with path.open("rb") as fh:
+            raw = fh.read(MAX_SCRAPE_BYTES + 1)  # bounded read: never trusts a size seen before reading
     except OSError:
         return None, None, "file missing or unreadable"
+    if len(raw) > MAX_SCRAPE_BYTES:
+        return None, None, "file too large"
     try:
         return raw, json.loads(raw), None
-    except ValueError:
+    except (ValueError, RecursionError):
         return raw, None, "file is not valid JSON"
 
 

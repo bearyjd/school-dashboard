@@ -13,6 +13,7 @@ from typing import Any
 
 from school_dashboard import paths, sync_meta, watchdog
 from school_dashboard.assignments import aliases, migrate, repo, report, schema
+from school_dashboard.assignments.adapters.base import clean_text
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,8 @@ def _alias(args: argparse.Namespace) -> int:
             return EXIT_OK
         rows = [dataclasses.asdict(r) | {"class": r.class_key} for r in aliases.list_aliases(conn, args.kid)]
         _out(json.dumps(rows, indent=2) + "\n" if args.json else
-             "".join(f"{r['kid']}: {r['alias']} -> {r['class']}\n" for r in rows))
+             "".join(f"{clean_text(r['kid'], 120)}: {clean_text(r['alias'], 120)} -> {clean_text(r['class'], 120)}\n"
+                    for r in rows))
         return EXIT_OK
     finally:
         conn.close()

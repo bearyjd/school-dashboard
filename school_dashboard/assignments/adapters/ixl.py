@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..model import SourceRecord
-from .base import AdapterResult, counted, empty_result, resolve_name, text
+from .base import AdapterResult, clean_text, counted, empty_result, resolve_name, text
 
 _COUNT_KEYS = ("assigned", "done", "remaining")
 
@@ -32,8 +32,9 @@ def payload_problem(data: Any) -> str | None:
 
 def _records(kid: str, totals: dict[str, Any]) -> list[SourceRecord]:
     out: list[SourceRecord] = []
-    for subject, counts in totals.items():
-        if not counts["assigned"] > 0:
+    for raw_subject, counts in totals.items():
+        subject = clean_text(raw_subject, 60)
+        if not subject or not counts["assigned"] > 0:
             continue
         remaining = int(counts["remaining"])
         out.append(SourceRecord(

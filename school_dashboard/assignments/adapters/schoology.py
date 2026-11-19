@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..model import SourceRecord
-from .base import (AdapterResult, counted, empty_result, hash_key, http_link, parse_due,
+from .base import (AdapterResult, clean_text, counted, empty_result, hash_key, http_link, parse_due,
                    resolve_name, text)
 
 _STATUS = {
@@ -52,11 +52,11 @@ def _external_key(raw_link: str, link: str | None, fallback: str) -> str:
 
 
 def _record(kid: str, row: dict[str, Any], counts: dict[str, int]) -> SourceRecord | None:
-    title = text(row.get("title"))
+    title = clean_text(row.get("title"), 300)
     if not title:
         counts["assignments without a title skipped"] += 1
         return None
-    course = text(row.get("course")) or None
+    course = clean_text(row.get("course"), 120) or None
     due, bad_due = parse_due(row.get("due_date"))
     counts["unparseable due dates"] += bad_due
     status = row.get("status")
@@ -67,7 +67,7 @@ def _record(kid: str, row: dict[str, Any], counts: dict[str, int]) -> SourceReco
     link = http_link(raw_link)
     return SourceRecord(
         source="schoology", kid=kid, class_name=course, title=title, due_date=due,
-        portal_status=mapped or "open", raw_status=status if isinstance(status, str) else "",
+        portal_status=mapped or "open", raw_status=clean_text(status, 80),
         score=None, link=link,
         external_key=_external_key(raw_link, link, hash_key(course, title, due)),
         raw=dict(row))

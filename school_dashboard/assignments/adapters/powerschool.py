@@ -7,8 +7,7 @@ from school_dashboard.powerschool import first_name
 
 from ..model import SourceRecord
 from ..stages import _real_score
-from .base import (AdapterResult, counted, empty_result, hash_key, parse_due, resolve_name,
-                   text)
+from .base import (AdapterResult, clean_text, counted, empty_result, hash_key, parse_due, resolve_name)
 
 _LISTS = (("missing", "missing"), ("late", "late"), ("upcoming", "open"))
 
@@ -17,7 +16,7 @@ def _items_problem(entry: dict[str, Any]) -> str | None:
     """Mirrors state._ps_item_problem plus blank titles; lists must already be lists."""
     for name, _ in _LISTS:
         for item in entry[name]:
-            if not isinstance(item, dict) or not text(item.get("title")) or "due" not in item:
+            if not isinstance(item, dict) or not clean_text(item.get("title"), 300) or "due" not in item:
                 return "item without a title or due field"
     return None
 
@@ -30,12 +29,12 @@ def _entry_problem(entry: dict[str, Any]) -> str | None:
 
 def _record(kid: str, item: dict[str, Any], list_name: str, status: str,
             counts: dict[str, int]) -> SourceRecord:
-    title = text(item.get("title"))
-    course = text(item.get("course")) or None
+    title = clean_text(item.get("title"), 300)
+    course = clean_text(item.get("course"), 120) or None
     due, bad_due = parse_due(item.get("due"))
     counts["unparseable due dates"] += bad_due
     raw_score = item.get("score")
-    score = str(raw_score) if raw_score is not None else None
+    score = (clean_text(str(raw_score), 160) or None) if raw_score is not None else None
     if _real_score(score):
         status = "graded"
     return SourceRecord(

@@ -84,3 +84,9 @@ def portal_decision(state: AssignmentState, links: Sequence[LinkState],
     if any(ln.norm_status == "submitted" for ln in live):
         return max(state.stage, 3), state.received_evidence
     return state.stage, state.received_evidence
+
+
+def evidence_sources(links: Sequence[LinkState], today: date) -> tuple[str, ...]:
+    """Source names of the links that give portal evidence for stage 4 (graded or cleared); never titles."""
+    return tuple(sorted({ln.source for ln in links if ln.via != "screenshot" and (
+        (ln.live and (ln.norm_status == "graded" or _real_score(ln.score))) or _cleared_enough(ln, today))}))

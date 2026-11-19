@@ -79,14 +79,17 @@ def _decide(state: AssignmentState, links: list[LinkState], ctx: KidContext) -> 
     return new
 
 
-def _log_changes(conn: sqlite3.Connection, ctx: KidContext, old: AssignmentState, new: AssignmentState) -> None:
+def _log_changes(conn: sqlite3.Connection, ctx: KidContext, old: AssignmentState, new: AssignmentState,
+                 links: list[LinkState]) -> None:
     assert new.id is not None
     if old.portal_status != new.portal_status:
         repo.append_event(conn, new.id, at=ctx.now, setter="portal", kind="portal_status",
                           from_value=old.portal_status, to_value=new.portal_status)
     if old.stage != new.stage:
         repo.append_event(conn, new.id, at=ctx.now, setter="portal", kind="stage",
-                          from_value=str(old.stage), to_value=str(new.stage), detail=new.received_evidence)
+                          from_value=str(old.stage), to_value=str(new.stage),
+                          detail=(",".join(stages.evidence_sources(links, ctx.today)) if new.stage == 4 else "")
+                          or new.received_evidence)
 
 
 def refresh_status(conn: sqlite3.Connection, ctx: KidContext, working: Mapping[int, AssignmentState], touched: set[int],
@@ -95,11 +98,12 @@ def refresh_status(conn: sqlite3.Connection, ctx: KidContext, working: Mapping[i
     for aid, state in working.items():
         if state.stage >= 4 and aid not in touched:
             continue
-        new = _decide(state, repo.links_for(conn, aid), ctx)
+        links = repo.links_for(conn, aid)
+        new = _decide(state, links, ctx)
         if new == state:
             continue
         repo.update_assignment(conn, new, now=ctx.now)
-        _log_changes(conn, ctx, state, new)
+        _log_changes(conn, ctx, state, new, links)
         counts["stage_changes"] += int(new.stage != state.stage)
 
 

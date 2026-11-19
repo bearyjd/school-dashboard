@@ -49,9 +49,15 @@ class MigrationInputError(ValueError):
     """The database or state file is missing or malformed."""
 
 
+_ITEMS_SQL = "SELECT * FROM items ORDER BY id"
+
+
+def _rows_sha(rows: Sequence[Any]) -> str:
+    return hashlib.sha256(json.dumps([list(r) for r in rows], default=str).encode()).hexdigest()
+
+
 def _items_sha(conn: sqlite3.Connection) -> str:
-    rows = [list(r) for r in conn.execute("SELECT * FROM items ORDER BY id").fetchall()]
-    return hashlib.sha256(json.dumps(rows, default=str).encode()).hexdigest()
+    return _rows_sha(conn.execute(_ITEMS_SQL).fetchall())
 
 
 def _has_table(conn: sqlite3.Connection, name: str) -> bool:
@@ -59,22 +65,34 @@ def _has_table(conn: sqlite3.Connection, name: str) -> bool:
                         (name,)).fetchone() is not None
 
 
+def _check_action_ids(actions: Sequence[Mapping[str, Any]]) -> None:
+    """Every action item needs a distinct non-empty str or int id (counts-only messages, before any write)."""
+    ids = [a["id"] for a in actions]
+    bad = sum(1 for i in ids if isinstance(i, bool) or not isinstance(i, (str, int)) or not str(i).strip())
+    if bad:
+        raise MigrationInputError(f"state file has {bad} action item(s) with a missing, empty or invalid id")
+    dupes = len(ids) - len({str(i) for i in ids})
+    if dupes:
+        raise MigrationInputError(f"state file has {dupes} action item(s) with a duplicate id")
+
+
 def _load_action_items(state_path: str) -> tuple[list[dict[str, Any]], str]:
     """The state file's action_items and the sha256 of the exact bytes they were parsed from."""
     try:
-        size = Path(state_path).stat().st_size
+        with Path(state_path).open("rb") as fh:
+            raw = fh.read(MAX_STATE_BYTES + 1)  # bounded read: no separate size check that could go stale
     except OSError as exc:
         raise MigrationInputError(f"state file unreadable ({type(exc).__name__})") from exc
-    if size > MAX_STATE_BYTES:
+    if len(raw) > MAX_STATE_BYTES:
         raise MigrationInputError("state file is too large to migrate")
     try:
-        raw = Path(state_path).read_bytes()
         data = json.loads(raw)
-    except (OSError, ValueError, RecursionError) as exc:
+    except (ValueError, RecursionError) as exc:
         raise MigrationInputError(f"state file unreadable ({type(exc).__name__})") from exc
     actions = data.get("action_items", []) if isinstance(data, dict) else None
     if not isinstance(actions, list) or not all(isinstance(a, dict) and "id" in a for a in actions):
         raise MigrationInputError("state file has no valid action_items list")
+    _check_action_ids(actions)
     return actions, hashlib.sha256(raw).hexdigest()
 
 
@@ -97,8 +115,9 @@ def _snapshot(db_path: str) -> _Snapshot:
     try:
         if not _has_table(conn, "items"):
             raise MigrationInputError("database has no items table")
-        items = [dict(r) for r in conn.execute("SELECT * FROM items ORDER BY id").fetchall()]
-        sha = _items_sha(conn)
+        rows = conn.execute(_ITEMS_SQL).fetchall()  # the plan rows and their sha come from this one read
+        items = [dict(r) for r in rows]
+        sha = _rows_sha(rows)
         if not _has_table(conn, "assignments"):
             return _Snapshot(items, frozenset(), frozenset(), False, sha)
         ids = frozenset(r[0] for r in conn.execute(

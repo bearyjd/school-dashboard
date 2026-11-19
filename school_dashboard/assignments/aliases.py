@@ -2,11 +2,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from dataclasses import dataclass
 
 from . import repo
 from .normalize import class_key
+
+logger = logging.getLogger(__name__)
+
+MAX_NAME_CHARS = 100
 
 
 class AliasError(ValueError):
@@ -42,6 +47,8 @@ def add(conn: sqlite3.Connection, *, kid: str, from_name: str, to_name: str) -> 
         raise AliasError("both --from and --to need a non-empty class name")
     if class_key(alias) == canonical:
         raise AliasError("--from and --to name the same class")
+    if len(alias) > MAX_NAME_CHARS or len(to_name.strip()) > MAX_NAME_CHARS:
+        raise AliasError(f"class names are limited to {MAX_NAME_CHARS} characters")
     _require_migrated(conn)
     if conn.execute("SELECT 1 FROM assignments WHERE kid = ? LIMIT 1", (kid,)).fetchone() is None:
         raise AliasError("unknown kid: no assignments for that name")
@@ -55,6 +62,7 @@ def add(conn: sqlite3.Connection, *, kid: str, from_name: str, to_name: str) -> 
             "INSERT INTO class_settings (kid, class_key, aliases) VALUES (?, ?, ?)"
             " ON CONFLICT (kid, class_key) DO UPDATE SET aliases = excluded.aliases",
             (kid, canonical, json.dumps(names)))
+    logger.info("recon alias add: %d aliases now stored for that class", len(names))
     return AliasRow(kid, canonical, alias)
 
 

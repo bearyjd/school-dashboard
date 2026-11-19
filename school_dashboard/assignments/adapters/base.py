@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Callable, Mapping, Protocol
@@ -32,6 +33,15 @@ class Adapter(Protocol):
 def text(value: Any) -> str:
     """Stripped string, "" for anything that is not a string."""
     return value.strip() if isinstance(value, str) else ""
+
+
+def clean_text(value: Any, cap: int) -> str:
+    """Untrusted text made safe to store and print: whitespace collapsed, control and format characters
+    (Unicode Cc, Cf) removed, at most `cap` characters; "" for anything that is not a string."""
+    if not isinstance(value, str):
+        return ""
+    kept = "".join(ch for ch in " ".join(value.split()) if unicodedata.category(ch) not in ("Cc", "Cf"))
+    return " ".join(kept.split())[:cap].strip()
 
 
 def resolve_name(resolve_kid: Callable[[str], str], name: str) -> str:

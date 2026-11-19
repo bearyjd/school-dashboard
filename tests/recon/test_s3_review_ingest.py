@@ -131,14 +131,14 @@ def test_all_untrusted_records_nothing_and_leaves_existing_ok_alone(env, monkeyp
     assert _meta_value(state_dir, "last_ingest_ok") == 0 and _meta_value(state_dir, "baseline_at") == 0
 
 
-def test_nothing_ingested_does_not_run_the_after_step(env, monkeypatch):
+def test_nothing_ingested_still_lets_the_sender_flush_earlier_pushes(env, monkeypatch):
     from school_dashboard.assignments import ingest
     state_dir, inputs = env
     monkeypatch.setenv("RECON_INGEST_ENABLED", "1")
     make_db(state_dir)
     calls = []
     ingest.run_shadow(_args(state_dir, inputs), now=NOW, after_ingest=lambda c, n: calls.append(n))
-    assert calls == []
+    assert calls == [NOW]  # queued pushes are not a health claim; only recon_ingest/baseline stay untouched
 
 
 # ---- C: hook outside the state lock ------------------------------------------------
@@ -239,7 +239,8 @@ def test_cap_is_enforced_by_a_bounded_read_not_a_stat(tmp_path, monkeypatch):
     f = tmp_path / "sgy.json"
     f.write_text("[" + " " * 50 + "]")
     monkeypatch.setattr(Path, "stat", lambda *a, **k: (_ for _ in ()).throw(AssertionError("stat used")))
-    assert ingest_io._read_json(f)[2] and "too large" in ingest_io._read_json(f)[2]
+    problem = ingest_io._read_json(f)[2]
+    assert problem is not None and "too large" in problem
 
 
 def test_deeply_nested_scrape_json_is_unreadable_not_a_crash(tmp_path):
@@ -267,10 +268,11 @@ def test_run_shadow_logs_warning_count_and_mass_change_count_only(env, monkeypat
     monkeypatch.setattr(ingest, "run", lambda *a, **k: ingest.IngestReport(
         True, (ingest.KidResult(kid="Alpha", ok=True),), warns, False, "x"))
     caplog.set_level(logging.INFO)
-    ingest.run_shadow(_args(state_dir, inputs), now=NOW)
+    report = ingest.run_shadow(_args(state_dir, inputs), now=NOW)
+    assert report is not None
     infos = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO]
     guards = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
-    assert any("3 warnings" in m for m in infos)
+    assert f"recon ingest: {len(report.warnings)} warnings" in infos
     assert any("2" in m and "mass change" in m for m in guards)
     assert "Worksheet" not in caplog.text and "4 links" not in caplog.text
 
