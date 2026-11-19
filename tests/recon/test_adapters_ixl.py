@@ -60,9 +60,9 @@ def test_subject_with_nothing_assigned_has_no_record():
     assert got.records == () and got.trusted_kids == frozenset({"Alex"})
 
 
-def test_all_done_subject_is_submitted_not_open():
+def test_all_done_subject_stays_open_with_zero_remaining():
     got = ADAPTER.parse({"alpha": _payload({"Math": _subject(3, 3, 0)})}, resolve_kid=resolve)
-    assert [(r.portal_status, r.raw_status) for r in got.records] == [("submitted", "0 remaining")]
+    assert [(r.portal_status, r.raw_status) for r in got.records] == [("open", "0 remaining")]
 
 
 def test_empty_totals_is_trusted_with_no_records():

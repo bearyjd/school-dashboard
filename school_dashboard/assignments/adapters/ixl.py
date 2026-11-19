@@ -38,7 +38,7 @@ def _records(kid: str, totals: dict[str, Any]) -> list[SourceRecord]:
         remaining = int(counts["remaining"])
         out.append(SourceRecord(
             source="ixl", kid=kid, class_name=None, title=f"IXL {subject}", due_date=None,
-            portal_status="open" if remaining > 0 else "submitted",
+            portal_status="open",
             raw_status=f"{remaining} remaining", score=None, link=None,
             external_key=f"ixl:{subject.casefold()}", raw=dict(counts)))
     return out
