@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import sqlite3
+from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Mapping
 
@@ -208,7 +209,8 @@ def assignment(aid: int) -> Response:
     _check_id(aid)
     now = _now()
     with ctxmod.connection(readonly=True) as conn:
-        return _ok(_item(conn, ctxmod.load(conn, now), aid, events=True))
+        item = _item(conn, ctxmod.load(conn, now), aid, events=True)
+        return _ok({**item, "notes": service.list_notes(conn, aid)})
 
 
 @bp.get("/classes")
@@ -315,3 +317,28 @@ def classes_put() -> Response:
         fresh = ctxmod.load(conn, now)
         api_v2_push.kick(ctxmod.db_file(), now)
         return _ok({"classes": _class_rows(conn, fresh, req.kid), "counts": _counts(conn, fresh, req.kid)})
+
+
+@bp.post("/assignments/<int:aid>/note")
+def note_create(aid: int) -> Response:
+    """A draft only: the text and a mailto link for the parent to open themselves. Nothing is ever sent."""
+    _check_id(aid)
+    body, now = _read_body(), _now()
+    with ctxmod.connection(readonly=False) as conn:
+        ctx = ctxmod.load(conn, now)
+        req = V.parse_note(body)
+        V.require_parent(req.actor)
+        n = service.create_note(conn, aid, req.actor, view=ctx.view())
+        return _reply({"ok": True, "data": asdict(n), "error": None, "meta": {}}, 201)
+
+
+@bp.patch("/assignments/<int:aid>/note/<int:nid>")
+def note_status(aid: int, nid: int) -> Response:
+    """Records what the parent says happened to a draft; the server never emails."""
+    _check_id(aid)
+    _check_id(nid)
+    body = _read_body()
+    with ctxmod.connection(readonly=False) as conn:
+        req = V.parse_note_status(body)
+        V.require_parent(req.actor)
+        return _ok({"note": service.set_note_status(conn, aid, nid, req.status, req.actor)})

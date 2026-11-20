@@ -13,13 +13,14 @@ from typing import Any, Mapping, Sequence
 from . import repo, stages
 from .adapters.base import clean_text
 from .service_classes import set_class
+from .service_notes import NoteResult, create_note, list_notes, set_note_status
 from .service_merge import merge, remerge_kid
 from .service_split import split
 from .service_types import (Actor, ClassSettings, Conflict, NotFound, RemergeResult, Who, load_open, recompute,
                             who_from, write_txn)
 
-__all__ = ["Actor", "ClassSettings", "Conflict", "NotFound", "RemergeResult", "merge", "remerge_kid", "set_class",
-           "split", "tap", "teacher_confirmed"]
+__all__ = ["Actor", "ClassSettings", "Conflict", "NoteResult", "NotFound", "RemergeResult", "create_note",
+           "list_notes", "merge", "remerge_kid", "set_class", "set_note_status", "split", "tap", "teacher_confirmed"]
 
 logger = logging.getLogger(__name__)
 Rows = Sequence[Mapping[str, Any]]

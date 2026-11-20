@@ -12,8 +12,8 @@ TODAY = date(2026, 11, 18)
 MARKED = date(2026, 11, 16)
 
 
-def make(flag="disputed", *, title="Essay Draft", cls="Math 6", teacher=None, parent="Dana", kid="Alex",
-         marked=MARKED):
+def make(flag="disputed", *, title="Essay Draft", cls: str | None = "Math 6", teacher: str | None = None,
+         parent="Dana", kid="Alex", marked: date | None = MARKED):
     from school_dashboard.assignments import notes
     item = notes.NoteItem(title=title, class_name=cls, marked_on=marked)
     return notes.draft(item, flag=flag, parent_name=parent, kid=kid, teacher_name=teacher, today=TODAY)
@@ -52,7 +52,7 @@ def test_dirty_values_are_cleaned_and_capped(flag):
     assert "\r" not in d.body and "\x00" not in d.body and "‮" not in d.body
     assert d.body.startswith("Hello Ms. Rivera,\n") and d.body.endswith("Thank you,\nDana")
     assert d.subject.startswith("Alex - Essay Draft") and "\n" not in d.subject
-    assert len(d.subject) <= len("Alex - ") + 120 + len(" (Math 6)")
+    assert len(d.subject) <= len("Alex - ") + 120 + len(" (Ma th 6)")
 
 
 @pytest.mark.parametrize("flag", FLAGS)

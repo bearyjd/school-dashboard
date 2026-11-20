@@ -15,6 +15,7 @@ MAX_BODY = 8 * 1024
 MAX_ID = 2 ** 63 - 1
 MAX_ALIASES = 20
 ACTIONS = ("done", "turned_in", "undo")
+NOTE_STATUSES = ("sent_marked", "discarded")
 BUCKETS = ("needs_action", "do_tonight", "waiting_on_teacher")
 MAX_ALIASES_JSON = 2000
 _DIGITS = re.compile(r"^[0-9]{1,9}$")
@@ -58,6 +59,17 @@ class SplitRequest:
 
 @dataclass(frozen=True)
 class RemergeRequest:
+    actor: Actor
+
+
+@dataclass(frozen=True)
+class NoteRequest:
+    actor: Actor
+
+
+@dataclass(frozen=True)
+class NoteStatusRequest:
+    status: str
     actor: Actor
 
 
@@ -154,6 +166,18 @@ def parse_split(body: Mapping[str, Any]) -> SplitRequest:
 
 def parse_remerge(body: Mapping[str, Any]) -> RemergeRequest:
     return RemergeRequest(_fields(body, ()))
+
+
+def parse_note(body: Mapping[str, Any]) -> NoteRequest:
+    return NoteRequest(_fields(body, ()))
+
+
+def parse_note_status(body: Mapping[str, Any]) -> NoteStatusRequest:
+    actor = _fields(body, ("status",))
+    status = body.get("status")
+    if not isinstance(status, str) or status not in NOTE_STATUSES:
+        raise RequestError(400, "invalid_field")
+    return NoteStatusRequest(status, actor)
 
 
 def parse_kid(value: Any, kids: Collection[str]) -> str:

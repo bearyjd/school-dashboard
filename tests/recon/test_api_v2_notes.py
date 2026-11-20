@@ -29,7 +29,7 @@ def seed(flag, *, url=PORTAL, kid="Alex", title="Essay Draft"):
              "class_key": "math 6", **fields, "links": [link]}]
 
 
-def teacher(api, name="Ms. Rivera", email=EMAIL):
+def teacher(api, name="Ms. Rivera", email: str | None = EMAIL):
     api.exec("INSERT INTO class_settings (kid, class_key, teacher_name, teacher_email) VALUES ('Alex', 'math 6', ?, ?)",
              (name, email))
 

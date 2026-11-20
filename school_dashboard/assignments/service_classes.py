@@ -20,7 +20,7 @@ FIELDS = ("grace_school_days", "paper_only", "aliases", "teacher_name", "teacher
 MAX_ALIASES = 20
 MAX_ALIASES_JSON = 2000
 MAX_CHANGES_CHARS = 2000
-_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_SHAPE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def dump_aliases(names: Sequence[str]) -> str | None:
@@ -58,7 +58,7 @@ def _clean(values: Mapping[str, Any], canonical: str) -> dict[str, Any]:
     name = clean_text(values["teacher_name"], 121) if values["teacher_name"] is not None else None
     email = clean_text(values["teacher_email"], 201) if values["teacher_email"] is not None else None
     if (name is not None and len(name) > 120) or (email is not None and not (
-            len(email) <= 200 and _EMAIL.match(email))):
+            len(email) <= 200 and EMAIL_SHAPE.match(email))):
         raise Conflict("invalid_class_settings")
     return {"grace_school_days": grace, "paper_only": bool(values["paper_only"]), "teacher_name": name or None,
             "teacher_email": email, "aliases": _clean_aliases(values["aliases"], canonical)}
