@@ -32,7 +32,7 @@ docker compose up -d
 Everything the app serves (`app.py`, templates, the built SPA) is baked into the image, so a code or template change
 needs a new image (merge to `main`, wait for the "Build and push Docker image" run, then pull). Only `state/`, `config/`
 and the credential directories are mounted from the host. See `docs/ops/spa-redesign-rollout.md` for the full checklist,
-backups and rollback.
+backups and rollback. Host allowlist, port binding and the recon write token: `docs/ops/host-allowlist-and-port-binding.md`.
 
 ## Health Checks
 

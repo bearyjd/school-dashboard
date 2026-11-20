@@ -85,7 +85,7 @@ def test_enforce_rejects_malformed(client, monkeypatch, bad):
     assert r.status_code == 421
 
 
-@pytest.mark.parametrize("allowed", [None, "", "  ", "*", "*,a b@c"])
+@pytest.mark.parametrize("allowed", [None, "", "  ", "*", "*,x@c,y/z"])
 def test_enforce_without_valid_list_does_not_lock_out(client, monkeypatch, caplog, allowed):
     monkeypatch.setenv("HOST_CHECK_MODE", "enforce")
     if allowed is not None:

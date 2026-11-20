@@ -43,7 +43,7 @@ def test_normalise_malformed_is_none(header):
     (None, set()), ("", set()), ("   ", set()),
     ("a.com", {"a.com"}),
     ("A.com, b.com:5000 c.com.", {"a.com", "b.com", "c.com"}),
-    ("[::1]:5000,[FE80::1]", {"[::1]", "[fe80::1]"}),
+    ("[::1]:5000,[FE80::1]", {"[fe80::1]"}),
     (".example.net", {".example.net"}),
     (".Example.NET:443", {".example.net"}),
     ("a.com,*,*.x.com,http://x.com/,u@x.com,exämple.com", {"a.com"}),

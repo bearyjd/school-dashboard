@@ -176,7 +176,8 @@ def config() -> Response:
     names = ctxmod.roster_names()
     return _ok({"enabled": flagsenv.enabled("RECON_INGEST_ENABLED"), "migrated": ctxmod.is_migrated(),
                 "kids": [{"name": n, "colorIndex": i} for i, n in enumerate(names)],
-                "grace_default": readmodel.DEFAULT_GRACE, "write_auth": api_v2_auth.mode()})
+                "grace_default": readmodel.DEFAULT_GRACE, "write_auth": api_v2_auth.mode(),
+                "write_token_header": api_v2_auth.HEADER, "write_token_min_length": api_v2_auth.MIN_TOKEN_LEN})
 
 
 @bp.get("/summary")

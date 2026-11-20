@@ -14,7 +14,7 @@ from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, gc_warnings, powerschool_warnings, scrape_warnings
 from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
-from school_dashboard import csp, db, maintenance, paths, powerschool
+from school_dashboard import csp, db, hostcheck, maintenance, paths, powerschool
 from school_dashboard.csp import CSP_REPORT_ONLY  # noqa: F401  (re-exported for tests and docs)
 from school_dashboard.rate_limit import FailureLimiter, client_key, trusted_client_ip, trusted_proxy_count
 from school_dashboard.sources import source_enabled
@@ -28,6 +28,7 @@ _MAINTENANCE_RETRY_AFTER = "60"
 # /api/csp-report only counts browser reports; it persists nothing.
 _MAINTENANCE_EXEMPT = frozenset({"/api/chat", csp.REPORT_PATH})
 csp.init_app(app)
+hostcheck.init_app(app)
 from web.api_v2 import bp as api_v2_bp
 app.register_blueprint(api_v2_bp)
 

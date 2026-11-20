@@ -67,7 +67,11 @@ for path in /api/dashboard /api/readiness /api/sync/status /api/sync/meta; do
     code="$(fetch "$path")"
     code="${code:-000}"
     if [[ "$code" != "200" ]]; then
-        record "GET $path" FAIL "HTTP $code"
+        if [[ "$code" == "421" ]]; then
+            record "GET $path" FAIL "HTTP 421: the BASE_URL host must be listed in ALLOWED_HOSTS (HOST_CHECK_MODE=enforce)"
+        else
+            record "GET $path" FAIL "HTTP $code"
+        fi
     elif ! is_json "$(body_of "$path")"; then
         record "GET $path" FAIL "invalid JSON"
     else

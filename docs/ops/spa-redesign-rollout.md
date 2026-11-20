@@ -165,7 +165,8 @@ clients share one bucket. Set `TRUSTED_PROXY_COUNT=1` (two chained proxies: `2`)
 many places from the right instead. Entries further left are client-controlled and ignored; a missing, oversize or unparseable
 header falls back to the peer address. Valid values are 0-10; anything else counts as 0.
 
-WARNING: this repo's own `docker-compose.yml` publishes `5000:5000` on all interfaces, so as shipped `TRUSTED_PROXY_COUNT` must stay 0.
+The repo's `docker-compose.yml` now publishes Flask on `127.0.0.1` by default (`DASHBOARD_BIND_ADDR`, see `docs/ops/host-allowlist-and-port-binding.md`);
+an older server compose file that maps `5000:5000` without an address is open on every interface, so keep `TRUSTED_PROXY_COUNT` at 0 there.
 Precondition: Flask's port must be reachable only through the proxy. In compose, publish it on the proxy interface
 (for example `127.0.0.1:5000:5000` or the Tailscale/docker-network address), not `0.0.0.0`. Otherwise a client that connects
 directly can send its own `X-Forwarded-For` and pick a fresh limiter bucket per request. The proxy must also append to (not
