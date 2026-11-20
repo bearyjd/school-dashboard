@@ -14,7 +14,8 @@ import { fileURLToPath } from 'node:url'
 
 // Keep in step with ROUTES in web/spa/e2e/shared.ts.
 const ROUTES = [
-  { path: '', api: '/api/overview', ready: '.today__tiles' },
+  // Home is Today, or Reconcile once the v2 backend is enabled and migrated: accept either.
+  { path: '', api: '/api/overview', ready: '.today__tiles, main[data-recon-ready="true"]' },
   { path: 'tonight', api: '/api/overview', ready: 'table' },
   { path: 'overdue', api: '/api/overview', ready: 'table' },
   { path: 'missing', api: '/api/overview', ready: 'table' },
