@@ -109,7 +109,7 @@ test('sheet focus: moves in on open, Escape closes and restores focus to the ope
   expect(dialog.contains(document.activeElement)).toBe(true)
   fireEvent.keyDown(dialog, { key: 'Escape' })
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draft note for Poster' }))
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draft note for Poster' })))
 })
 
 test('sheet focus is trapped: Tab from the last control wraps to the first', async () => {
@@ -144,7 +144,7 @@ test('More loads the history on open and shows it as plain text, plus existing n
   const { server, dialog } = await openMore('Map quiz', 5)
   expect(await within(dialog).findByText('<b>bold?</b>')).toBeTruthy()
   expect(within(dialog).getByText(/Dana/)).toBeTruthy()
-  expect(within(dialog).getByText(/draft/i, { selector: 'li *, li' })).toBeTruthy()
+  expect(within(dialog).getByText(/Draft note \(missing\)/)).toBeTruthy()
   expect(server.requests.filter(r => r.path === '/api/v2/assignments/5')).toHaveLength(1)
   expect(dialog.querySelector('b')).toBeNull()
 })

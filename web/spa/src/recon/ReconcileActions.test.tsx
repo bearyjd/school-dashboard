@@ -27,6 +27,9 @@ const btn = (name: RegExp | string) => screen.getByRole('button', { name })
 const stage = (id: number) => `POST /api/v2/assignments/${id}/stage`
 const waiting = (id: number): ReconItem => ({ ...sampleItems()[id - 1], stage: 2, stage_label: 'Done at home', flag: 'waiting_on_teacher', bucket: 'waiting_on_teacher' })
 const written = (item: ReconItem): Reply => ok({ item, counts: countsOf([item]) })
+/** The row may move between buckets (and remount) while a tap is in flight, so look it up again on every poll. */
+const rowHas = (title: string, text: string | RegExp) =>
+  waitFor(() => { within(row(title)).getByText(text) })
 const tileText = (name: RegExp) => within(screen.getByRole('region', { name: 'Summary' })).getByRole('button', { name }).textContent
 
 test('buttons are real <button>s whose names include the assignment title', async () => {
@@ -35,7 +38,7 @@ test('buttons are real <button>s whose names include the assignment title', asyn
   expect(r.getByRole('button', { name: 'Mark Essay draft done' })).toBeTruthy()
   expect(r.getByRole('button', { name: 'Mark Essay draft turned in' })).toBeTruthy()
   expect(r.getByRole('button', { name: 'More for Essay draft' })).toBeTruthy()
-  expect(r.getByRole('link', { name: 'Open Essay draft in portal' }).getAttribute('href')).toBe('https://portal.example.org/a/1')
+  expect(r.getByRole('link', { name: 'Open in portal: Essay draft' }).getAttribute('href')).toBe('https://portal.example.org/a/1')
 })
 
 test('row action sets follow stage, kind and bucket', async () => {
@@ -116,8 +119,8 @@ test.each(FAILURES)('rollback and one inline message on %s', async (_n, reply, t
   server.on(stage(1), () => reply)
   await show(server)
   fireEvent.click(btn('Mark Essay draft turned in'))
-  const msg = await within(row('Essay draft')).findByText(new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
-  expect(msg.closest('[aria-live="polite"]')).not.toBeNull()
+  await rowHas('Essay draft', new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  expect(within(row('Essay draft')).getByText(new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))).closest('[aria-live="polite"]')).not.toBeNull()
   // rolled back: still in Do tonight, counts restored
   const tonight = screen.getByRole('heading', { level: 3, name: /^do tonight \(1\)/i }).closest('section') as HTMLElement
   expect(within(tonight).getByRole('group', { name: 'Essay draft' })).toBeTruthy()
@@ -141,7 +144,7 @@ test('503 busy twice rolls back with "Busy, try again" after exactly one retry',
   server.on(stage(1), () => fail('busy', 503, { 'Retry-After': '0' }))
   await show(server)
   fireEvent.click(btn('Mark Essay draft done'))
-  expect(await within(row('Essay draft')).findByText('Busy, try again')).toBeTruthy()
+  await rowHas('Essay draft', 'Busy, try again')
   expect(server.writes()).toHaveLength(2)
 })
 
@@ -199,7 +202,7 @@ test('Draft note errors are mapped (409 no note for this flag)', async () => {
   server.on('POST /api/v2/assignments/3/note', () => fail('no_note_for_flag', 409))
   await show(server)
   fireEvent.click(btn('Draft note for Poster'))
-  expect(await within(row('Poster')).findByText(/no note/i)).toBeTruthy()
+  await rowHas('Poster', /no note/i)
 })
 
 test('items with several links render one badge per link', async () => {

@@ -15,7 +15,7 @@ export class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(BASE + path, init);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));

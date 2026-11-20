@@ -1,6 +1,5 @@
+import { kidSlot } from '../lib/kidSlot'
 import './design.css'
-
-const KID_COLORS = ['blue', 'green', 'lavender', 'amber', 'rose', 'teal'] as const
 
 interface KidChipProps {
   name: string
@@ -10,7 +9,7 @@ interface KidChipProps {
 }
 
 export function KidChip({ name, color, wide = false }: KidChipProps) {
-  const slot = (KID_COLORS as readonly string[]).includes(color) ? color : 'neutral'
+  const slot = kidSlot(color)
   const initial = Array.from(name.trim())[0]?.toUpperCase() ?? '?'
   return (
     <span

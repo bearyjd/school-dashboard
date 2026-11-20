@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from '../App'
@@ -71,7 +71,7 @@ test('/recon in legacy mode explains that v2 is not switched on', async () => {
   at('/recon', { config: { ...CONFIG, enabled: false } })
   expect(await screen.findByText(/not switched on yet/i)).toBeTruthy()
   await waitFor(() => expect(screen.queryByRole('heading', { level: 2, name: /needs action/i })).toBeNull())
-  expect(screen.getByRole('link', { name: /older view|today/i })).toBeTruthy()
+  expect(within(screen.getByRole('main')).getByRole('link', { name: /older view/i })).toBeTruthy()
 })
 
 test('Reconcile links back to the older Today view', async () => {

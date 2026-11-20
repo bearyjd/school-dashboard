@@ -1,9 +1,9 @@
-/* eslint-disable react-refresh/only-export-components -- test helpers, never part of the app bundle */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import type { ReactElement } from 'react'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
+import { Where } from './Where'
 import type { Counts, Envelope, ReconConfig, ReconItem, ReconLink, ReconSummary } from './types'
 
 /** Wednesday 2026-11-18, 10:00 in New York. */
@@ -143,11 +143,6 @@ export function fakeServer(opts: ServerOpts = {}) {
     on(key: string, handler: Handler) { overrides.set(key, handler) },
     writes: () => requests.filter(r => r.method !== 'GET'),
   }
-}
-
-function Where() {
-  const loc = useLocation()
-  return <div data-testid="where">{loc.pathname + loc.search}</div>
 }
 
 export function renderRecon(ui: ReactElement, route: string, server = fakeServer()) {

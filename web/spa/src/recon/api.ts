@@ -1,0 +1,75 @@
+import { ApiError, apiFetch } from '../api'
+import { getReconToken } from './identity'
+import type {
+  Actor, Envelope, ListData, NoteDraft, NoteRow, ReconDetail, ReconItem, ReconSummary, StageAction, WriteResult,
+} from './types'
+
+const TOKEN_HEADER = 'X-Recon-Token'
+const MAX_RETRY_S = 5
+const DEFAULT_RETRY_S = 2
+
+const isV2 = (path: string): boolean => path === '/api/v2' || path.startsWith('/api/v2/')
+
+/**
+ * Request headers for `path`. The write token is added only to same-origin `/api/v2` requests that change data;
+ * never to reads, to the v1 routes, or to another origin.
+ */
+export function reconHeaders(path: string, method: string, base: Record<string, string> = {}): Record<string, string> {
+  const token = getReconToken()
+  const write = !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())
+  return token && write && isV2(path) ? { ...base, [TOKEN_HEADER]: token } : { ...base }
+}
+
+async function envelope<T>(path: string, method = 'GET', body?: unknown): Promise<Envelope<T>> {
+  const json: Record<string, string> = body === undefined ? {} : { 'Content-Type': 'application/json' }
+  const out = await apiFetch<Envelope<T>>(path, {
+    method,
+    headers: reconHeaders(path, method, json),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
+  if (!out || out.ok !== true || out.data === null || out.data === undefined) {
+    throw new ApiError(out?.error ?? 'bad_response', 502)
+  }
+  return out
+}
+
+const data = async <T>(path: string, method = 'GET', body?: unknown): Promise<T> => (await envelope<T>(path, method, body)).data as T
+
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
+
+/** A write; when the server says "busy" (503) it is retried once after Retry-After (at most 5 s). */
+async function write<T>(path: string, method: string, body: unknown): Promise<T> {
+  try {
+    return await data<T>(path, method, body)
+  } catch (e) {
+    if (!(e instanceof ApiError) || e.status !== 503 || e.message !== 'busy') throw e
+    await sleep(Math.min(e.retryAfter ?? DEFAULT_RETRY_S, MAX_RETRY_S) * 1000)
+    return data<T>(path, method, body)
+  }
+}
+
+export const getConfig = (): Promise<unknown> => data<unknown>('/api/v2/config')
+export const getSummary = (): Promise<ReconSummary> => data<ReconSummary>('/api/v2/summary')
+
+/** The open items (closed ones are left out by the server). */
+export async function getList(): Promise<ListData> {
+  const out = await envelope<ReconItem[]>('/api/v2/assignments?limit=500')
+  const total = Number(out.meta.total)
+  return { items: out.data as ReconItem[], total: Number.isFinite(total) ? total : (out.data as ReconItem[]).length }
+}
+
+export const getDetail = (id: number): Promise<ReconDetail> => data<ReconDetail>(`/api/v2/assignments/${id}`)
+
+const base = (id: number) => `/api/v2/assignments/${id}`
+
+export const postStage = (id: number, action: StageAction, actor: Actor): Promise<WriteResult> =>
+  write<WriteResult>(`${base(id)}/stage`, 'POST', { action, actor })
+
+export const postTeacherConfirmed = (id: number, note: string, actor: Actor): Promise<WriteResult> =>
+  write<WriteResult>(`${base(id)}/teacher-confirmed`, 'POST', { note, actor })
+
+export const postNote = (id: number, actor: Actor): Promise<NoteDraft> =>
+  write<NoteDraft>(`${base(id)}/note`, 'POST', { actor })
+
+export const patchNote = (id: number, noteId: number, status: 'sent_marked' | 'discarded', actor: Actor): Promise<{ note: NoteRow }> =>
+  write<{ note: NoteRow }>(`${base(id)}/note/${noteId}`, 'PATCH', { status, actor })

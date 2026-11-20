@@ -20,7 +20,6 @@ async function show(route = '/', server = fakeServer()) {
 }
 const row = (title: string) => screen.getByRole('group', { name: title })
 const tile = (name: RegExp) => within(screen.getByRole('region', { name: 'Summary' })).getByRole('button', { name })
-const heading = (name: RegExp, level = 3) => screen.getAllByRole('heading', { level, name })
 
 test('loads config, summary and the open list in parallel and marks itself ready', async () => {
   const { server } = await show()
@@ -161,7 +160,7 @@ test('source badges link only for http(s) urls', async () => {
 test('no link and no Open in portal when the row has no safe url', async () => {
   await show('/', fakeServer({ items: [ritem({ id: 1, links: [link({ url: null })] })] }))
   expect(within(row('Essay draft')).queryByRole('link')).toBeNull()
-  expect(screen.queryByRole('link', { name: /open essay draft in portal/i })).toBeNull()
+  expect(screen.queryByRole('link', { name: /open in portal: essay draft/i })).toBeNull()
 })
 
 test('"Data as of" is always shown', async () => {

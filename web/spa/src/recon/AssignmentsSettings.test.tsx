@@ -5,9 +5,9 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { Settings } from '../pages/Settings'
 import { FIXTURE } from '../test-utils'
 import { ACTOR_KEY, fakeServer, TOKEN, TOKEN_KEY } from './fixtures'
-import { clearReconToken, getActor, getReconToken, maskedToken } from './identity'
+import { clearActor, clearReconToken, getActor, getReconToken, maskedToken } from './identity'
 
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); clearReconToken() })
+beforeEach(() => { localStorage.clear(); sessionStorage.clear(); clearReconToken(); clearActor() })
 afterEach(() => vi.unstubAllGlobals())
 
 function renderSettings() {

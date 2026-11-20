@@ -1,4 +1,5 @@
 import { ApiError } from '../api'
+import { createSlot, type SaveResult } from './storageSlot'
 
 /**
  * The sync token is a server secret the server never sends to the browser. The user types it once per
@@ -23,41 +24,16 @@ const DEFAULT_WAIT_S = 60
 /** Errors whose fix is to (re-)enter the token in Settings. */
 export const needsToken = (e: SyncError | null): boolean => e?.code === 'no_token' || e?.code === 'wrong_token'
 
-let memoryToken = ''
+const slot = createSlot(SYNC_TOKEN_KEY)
 
-export function getSyncToken(): string {
-  try {
-    const stored = (localStorage.getItem(SYNC_TOKEN_KEY) ?? '').trim()
-    if (stored) return stored
-  } catch {
-    // storage unavailable: fall through to the in-memory copy
-  }
-  return memoryToken
-}
+export const getSyncToken = (): string => slot.get()
 
-export type SaveResult = 'saved' | 'tab' | 'empty'
+export type { SaveResult }
 
 /** 'saved' = in localStorage; 'tab' = storage unavailable, kept in memory until the tab closes. */
-export function setSyncToken(value: string): SaveResult {
-  const token = value.trim()
-  if (!token) return 'empty'
-  memoryToken = token
-  try {
-    localStorage.setItem(SYNC_TOKEN_KEY, token)
-    return 'saved'
-  } catch {
-    return 'tab'
-  }
-}
+export const setSyncToken = (value: string): SaveResult => slot.set(value)
 
-export function clearSyncToken(): void {
-  memoryToken = ''
-  try {
-    localStorage.removeItem(SYNC_TOKEN_KEY)
-  } catch {
-    // storage unavailable: nothing was stored
-  }
-}
+export const clearSyncToken = (): void => slot.clear()
 
 /** A short, user-facing error for a failed sync call; never the raw error. */
 export function syncErrorMessage(e: unknown): SyncError {

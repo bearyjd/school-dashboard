@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getStoredTheme, setTheme, type ThemeChoice } from '../design/theme'
 import { KidChip } from '../design/KidChip'
 import { useOverview } from '../lib/overview'
+import { AssignmentsSettings } from '../recon/AssignmentsSettings'
 import { clearSyncToken, getSyncToken, setSyncToken } from '../lib/syncToken'
 import './Settings.css'
 
@@ -105,6 +106,8 @@ export function Settings() {
         </form>
         <p role="status" className="settings__hint">{tokenNote}</p>
       </section>
+
+      <AssignmentsSettings />
 
       <section className="settings__group" aria-labelledby="settings-more">
         <h2 id="settings-more" className="settings__legend">More</h2>
