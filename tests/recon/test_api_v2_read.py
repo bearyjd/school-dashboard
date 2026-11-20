@@ -14,7 +14,7 @@ def test_config_always_answers(api_factory):
     assert body["ok"] is True and body["error"] is None
     cfg = body["data"]
     assert cfg["enabled"] is True and cfg["migrated"] is True and cfg["grace_default"] == 2
-    assert cfg["kids"] == [{"name": "Alex", "colorIndex": 0}, {"name": "Sam", "colorIndex": 1}]
+    assert cfg["kids"] == [{"name": "Alex", "color": "blue"}, {"name": "Sam", "color": "rose"}]
 
 
 def test_config_when_disabled_and_not_migrated(api_factory):
@@ -246,3 +246,11 @@ def test_not_migrated_when_schema_is_v1(api_factory):
     api = api_factory(one())
     api.exec("PRAGMA user_version = 1")
     err(api.get("/api/v2/summary"), 409, "not_migrated")
+
+
+def test_config_kid_colours_match_overview(api_factory):
+    """One colour per kid everywhere: /api/v2/config uses the resolver and order /api/overview uses."""
+    api = api_factory(one())
+    cfg = {k["name"]: k["color"] for k in data(api.get("/api/v2/config"))["data"]["kids"]}
+    overview = {k["name"]: k["color"] for k in api.get("/api/overview").get_json()["kids"]}
+    assert cfg and cfg == overview

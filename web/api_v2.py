@@ -11,8 +11,9 @@ from typing import Any, Mapping
 from flask import Blueprint, Response, jsonify, request
 from werkzeug.exceptions import HTTPException, MethodNotAllowed
 
-from school_dashboard import watchdog
+from school_dashboard import state, watchdog
 from school_dashboard.assignments import flagsenv, readmodel, repo, service
+from school_dashboard.kid_colors import resolve_colors
 from school_dashboard.assignments.readmodel import ListFilters
 from school_dashboard.assignments import repo_history
 from web import api_v2_auth, api_v2_push
@@ -174,8 +175,10 @@ def config() -> Response:
     The token value itself is never part of this response.
     """
     names = ctxmod.roster_names()
+    explicit = {r["name"]: r["color"] for r in state.get_roster() if r.get("color")}
+    colors = resolve_colors(names, explicit)  # same resolver and order as /api/overview
     return _ok({"enabled": flagsenv.enabled("RECON_INGEST_ENABLED"), "migrated": ctxmod.is_migrated(),
-                "kids": [{"name": n, "colorIndex": i} for i, n in enumerate(names)],
+                "kids": [{"name": n, "color": colors[n]} for n in names],
                 "grace_default": readmodel.DEFAULT_GRACE, "write_auth": api_v2_auth.mode(),
                 "write_token_header": api_v2_auth.HEADER, "write_token_min_length": api_v2_auth.MIN_TOKEN_LEN})
 

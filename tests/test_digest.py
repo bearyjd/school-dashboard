@@ -338,7 +338,10 @@ def test_send_ntfy_nonempty_cards_deep_links_to_digest(mock_post, tmp_path):
     cards = [{"source": "ixl", "child": "A", "title": "T", "detail": "", "due_date": "", "url": "", "done": False}]
     send_ntfy(topic="t", message="m", title="Morning Briefing", cards=cards, db_path=str(db))
     click = mock_post.call_args.kwargs["headers"]["Click"]
-    assert get_digest(str(db), click.split("digest=")[1])["cards"] == cards
+    stored = get_digest(str(db), click.split("digest=")[1])["cards"]
+    # send_ntfy adds the kid colour to each stored card; everything else is unchanged
+    assert [{k: v for k, v in c.items() if k != "color"} for c in stored] == cards
+    assert all(isinstance(c["color"], str) and c["color"] for c in stored)
 
 
 def test_zero_card_digest_api_and_card_patch(tmp_path, monkeypatch):
