@@ -90,7 +90,7 @@ def _write_state(state_dir: Path, now: datetime, recon: bool) -> None:
     init_db(db)
     if not recon:  # with v2 on, Jo is the kid with nothing open
         create_item(db, "Jo", "Poster for science fair", due_date=_day(today, -1))
-    create_item(db, "Sam", "Bring gym shoes", due_date=_day(today, 1))
+    create_item(db, "Sam", "Bring gym shoes", item_type="task", due_date=_day(today, 1))
     conn = sqlite3.connect(db)
     with conn:
         conn.executemany("INSERT INTO events (date, title, type, child, source) VALUES (?, ?, ?, ?, 'manual')", [

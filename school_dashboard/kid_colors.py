@@ -34,13 +34,17 @@ def resolve_colors(names: Sequence[str], explicit: Optional[Mapping[str, str]] =
 
 def with_child_colors(cards: Sequence[dict], explicit: Optional[Mapping[str, str]] = None,
                       roster_names: Sequence[str] = ()) -> list[dict]:
-    """New cards with a `color` ('' when the card has no child); inputs are not mutated.
+    """New cards with a `color` ('' when the card has no usable child); inputs are not mutated.
 
     Card children match roster names case-insensitively. `roster_names` fixes the fallback order so
     colours match the overview; other names follow, sorted.
     """
+    def child_of(card: dict) -> str:
+        child = card.get("child")
+        return child if isinstance(child, str) else ""
+
     known = {n.lower() for n in roster_names}
-    extra = sorted({c["child"] for c in cards if c.get("child") and c["child"].lower() not in known})
+    extra = sorted({child_of(c) for c in cards if child_of(c) and child_of(c).lower() not in known})
     colors = resolve_colors([*roster_names, *extra], explicit)
     by_lower = {n.lower(): col for n, col in colors.items()}
-    return [{**c, "color": by_lower.get(c.get("child", "").lower(), "")} for c in cards]
+    return [{**c, "color": by_lower.get(child_of(c).lower(), "")} for c in cards]

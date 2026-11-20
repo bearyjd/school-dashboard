@@ -1,10 +1,15 @@
 """Teacher-note drafts: deterministic plain-text templates and a pure mailto builder (no I/O, no clock, no sending).
 
-Every interpolated value is cleaned; no URL, e-mail address, exclamation mark or alarm word ever reaches a body.
+Every interpolated value is cleaned (control/format characters removed, NFKC-normalised, length-capped).
+Guaranteed absent from the output: any whitespace-delimited token that has a scheme ("x:" followed by text), contains
+"http" or "www.", or looks like a host name (a word, a dot, then 2+ letters, e.g. "evil.example/login"); and every
+"@", "!" and the word "urgent". Ordinary words, numbers, dates ("Nov 16"), decimals ("3.5") and abbreviations with a
+trailing dot ("Ms.", "p. 12") survive; a dotted token such as "Ms.Rivera" or "ch.4a" may be dropped.
 """
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from typing import Callable
@@ -18,6 +23,9 @@ MAX_TITLE = 120
 MAX_NAME = 120
 MAX_MAILTO = 1800
 _LINKISH = re.compile(r"\S*(?:https?|www\.)\S*", re.I)
+_SCHEME = re.compile(r"[a-z][a-z0-9+.-]*:\S", re.I)
+_HOSTLIKE = re.compile(r"[\w-]+\.[^\W\d_]{2,}")
+_DOTS = str.maketrans({"\u3002": ".", "\uff61": "."})
 _BANNED = re.compile(r"[@!]|urgent", re.I)
 _ADDRESS_BAD = frozenset("?&,;%#\r\n")
 
@@ -36,8 +44,10 @@ class NoteDraft:
 
 
 def _scrub(value: object, cap: int) -> str:
-    text = _LINKISH.sub(" ", clean_text(value, cap * 3))
-    return clean_text(_BANNED.sub("", text), cap)
+    text = unicodedata.normalize("NFKC", clean_text(value, cap * 3)).translate(_DOTS)
+    text = _LINKISH.sub(" ", text)
+    kept = " ".join(t for t in text.split() if not (_SCHEME.search(t) or _HOSTLIKE.search(t)))
+    return clean_text(_BANNED.sub("", kept), cap)
 
 
 def _day(value: date) -> str:

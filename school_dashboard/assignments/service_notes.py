@@ -36,8 +36,9 @@ def _portal_url(item: Mapping[str, Any]) -> str | None:
 
 
 def create_note(conn: sqlite3.Connection, assignment_id: int, actor: Actor, *,
-                view: Mapping[str, Any]) -> NoteResult:
-    """`view` is the read context (`ReadCtx.view()`); the flag is computed from it inside the transaction."""
+                view: Mapping[str, Any]) -> tuple[NoteResult, bool]:
+    """(draft, created). `view` is the read context (`ReadCtx.view()`); the flag is computed from it inside the
+    transaction. An open draft for the same flag is returned again instead of adding another (created False)."""
     who = who_from(actor, parent_only=True)
     now: datetime = view["now"]
     with write_txn(conn):
@@ -54,10 +55,14 @@ def create_note(conn: sqlite3.Connection, assignment_id: int, actor: Actor, *,
         text = notes.draft(notes.NoteItem(state.title, state.class_name, marked), flag=flag,
                            parent_name=who.actor or "", kid=state.kid, teacher_name=cfg.get("teacher_name"),
                            today=school_today(now))
-        nid = repo_notes.insert_note(conn, assignment_id, flag=flag, body=text.body, actor=who.actor or "", now=now)
-    logger.info("recon note draft: flag=%s", flag)
+        nid = repo_notes.open_draft_id(conn, assignment_id, flag)
+        created = nid is None
+        if nid is None:
+            nid = repo_notes.insert_note(conn, assignment_id, flag=flag, body=text.body, actor=who.actor or "",
+                                         now=now)
+    logger.info("recon note draft: flag=%s created=%s", flag, created)
     return NoteResult(nid, flag, text.subject, text.body, email, notes.mailto(email, text.subject, text.body),
-                      _portal_url(item) if flag == "disputed" else None)
+                      _portal_url(item) if flag == "disputed" else None), created
 
 
 def set_note_status(conn: sqlite3.Connection, assignment_id: int, note_id: int, status: str,

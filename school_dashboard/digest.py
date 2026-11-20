@@ -754,10 +754,14 @@ def send_ntfy(
             from school_dashboard.db import init_digests_table, create_digest, purge_old_digests
             init_digests_table(db_path)
             purge_old_digests(db_path, days=7)
-            roster = get_roster()
-            colored = with_child_colors(
-                cards, {r["name"]: r["color"] for r in roster if r.get("color")}, [r["name"] for r in roster])
-            digest_id = create_digest(db_path, title, colored)
+            try:
+                roster = get_roster()
+                stored = with_child_colors(
+                    cards, {r["name"]: r["color"] for r in roster if r.get("color")}, [r["name"] for r in roster])
+            except Exception as exc:  # colour is decoration: never lose the carousel over it
+                _log.warning("Digest colouring failed (%s); storing cards uncoloured", type(exc).__name__)
+                stored = cards
+            digest_id = create_digest(db_path, title, stored)
             # an empty digest has no carousel to open: keep the mode link
             url = f"{DASHBOARD_BASE}/?digest={digest_id}" if cards else static_url
         except Exception as exc:

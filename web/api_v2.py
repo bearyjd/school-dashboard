@@ -328,8 +328,8 @@ def note_create(aid: int) -> Response:
         ctx = ctxmod.load(conn, now)
         req = V.parse_note(body)
         V.require_parent(req.actor)
-        n = service.create_note(conn, aid, req.actor, view=ctx.view())
-        return _reply({"ok": True, "data": asdict(n), "error": None, "meta": {}}, 201)
+        n, created = service.create_note(conn, aid, req.actor, view=ctx.view())
+        return _reply({"ok": True, "data": asdict(n), "error": None, "meta": {}}, 201 if created else 200)
 
 
 @bp.patch("/assignments/<int:aid>/note/<int:nid>")
