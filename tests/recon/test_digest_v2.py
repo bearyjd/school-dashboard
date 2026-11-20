@@ -185,7 +185,7 @@ def test_final_text_drops_the_ai_paragraph_first_by_utf8_bytes():
 
 def test_final_text_never_exceeds_the_cap_with_a_full_deterministic_part():
     from school_dashboard.assignments import digest_v2
-    det = ds.many(4, 6).text
+    det = "d" * 3500
     out = digest_v2.final_text(det, "\u00e9" * 400, "Notes: 3 kid(s) could not be refreshed; showing stored data.")
     assert len(out.encode()) <= 3900 and out.endswith("stored data.") and "\u00e9" not in out
 

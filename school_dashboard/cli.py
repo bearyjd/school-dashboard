@@ -185,6 +185,18 @@ def cmd_email_show(args: argparse.Namespace) -> None:
         print(email.digest_summary(args.digest_file))
 
 
+def _recon_digest_active(mode: str) -> bool:
+    """Whether the v2 digest applies; any failure of the recon package means False (the v1 digest must still run)."""
+    if mode not in ("morning", "night"):
+        return False
+    try:
+        from school_dashboard.assignments import digest_run, flagsenv  # noqa: F401
+        return flagsenv.enabled("RECON_DIGEST_ENABLED")
+    except Exception as exc:
+        logger.error("recon digest flag unavailable (%s); using the v1 digest", type(exc).__name__)
+        return False
+
+
 def cmd_digest(args: argparse.Namespace) -> None:
     litellm_url = os.environ.get("LITELLM_URL", "")
     api_key = os.environ.get("LITELLM_API_KEY", "")
@@ -195,8 +207,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
     gog_account = os.environ.get("GOG_ACCOUNT", "")
     state_file = args.state_file or str(paths.state_path())
 
-    from school_dashboard.assignments import flagsenv
-    recon = args.mode in ("morning", "night") and flagsenv.enabled("RECON_DIGEST_ENABLED")
+    recon = _recon_digest_active(args.mode)
     if not litellm_url and not recon:
         print("Error: LITELLM_URL not set", file=sys.stderr)
         sys.exit(1)
@@ -232,8 +243,12 @@ def cmd_digest(args: argparse.Namespace) -> None:
         text, cards = _digest.deliver_digest(
             build, topic=ntfy_topic, title=title, state_path=state_file, db_path=db_path, fallback_note=note)
     except _digest.DigestFallbackSent as exc:
+        if recon:
+            digest_run.flush_outbox()
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
+    if recon:
+        digest_run.flush_outbox()  # after the push: optional work never delays the digest
 
     print(f"Digest sent [{args.mode}]: {len(cards)} cards, {text[:80]}...", file=sys.stderr)
 

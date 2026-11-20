@@ -97,12 +97,12 @@ def test_flag_on_sends_the_deterministic_text_without_litellm(api, monkeypatch, 
     assert json.loads(rows[0]["cards"])[0]["child"] == "Alex"
 
 
-def test_flag_on_zero_card_all_clear_digest_is_still_delivered(tmp_path, monkeypatch):
+def test_flag_on_zero_card_empty_db_digest_is_still_delivered(tmp_path, monkeypatch):
     api = ds.friday_env(tmp_path, monkeypatch, seed=[])
     monkeypatch.setenv(FLAG, "yes")
     _fixed_now(monkeypatch, ds.SAT)
     post = _run("night")
-    assert post.call_count == 1 and "Alex: all clear" in post.call_args.kwargs["data"].decode()
+    assert post.call_count == 1 and "Alex: nothing on record" in post.call_args.kwargs["data"].decode()
     rows = api.q("SELECT title, cards FROM digests")
     assert [(r["title"], r["cards"]) for r in rows] == [("Night Prep", "[]")]
 

@@ -23,7 +23,8 @@ _STAGE_LABELS = {1: "Assigned", 2: "Done at home", 3: "Turned in", 4: "Received"
 _CREDENTIAL_WORDS = ("token", "key", "secret", "password", "pwd", "auth", "session", "sig", "signature", "sid",
                      "jsessionid", "sessionid", "phpsessid", "apikey", "credential", "authorization", "jwt", "bearer",
                      "otp", "passcode", "passwd", "pw", "ticket")
-_CODE_NAMES = frozenset({"code", "auth_code", "otp_code", "access_code", "pass_code", "passcode"})
+_CODE_ALLOWED = frozenset({"course_code", "school_code", "class_code", "section_code", "country_code", "zip_code",
+                           "postal_code", "area_code", "language_code", "currency_code", "promo-code", "promo_code"})
 _INNER_NAME = re.compile(r"\[([^\]]*)\]")
 _INDEX_SUFFIX = re.compile(r"(\[[^\]]*\])+$")
 _REMAINING = re.compile(r"^\s*(\d+)")
@@ -52,8 +53,13 @@ class _Ctx:
     ingest: IngestHealth
 
 
+def _code_name(name: str) -> bool:
+    """`code`, `passcode` and any `*_code` / `*-code` are credentials unless explicitly allowed (`course_code`)."""
+    return (name in ("code", "passcode") or name.endswith(("_code", "-code"))) and name not in _CODE_ALLOWED
+
+
 def _word_name(name: str) -> bool:
-    return name in _CODE_NAMES or any(name == w or name.endswith((f"_{w}", f"-{w}")) or name.startswith(f"{w}_")
+    return _code_name(name) or any(name == w or name.endswith((f"_{w}", f"-{w}")) or name.startswith(f"{w}_")
                                       for w in _CREDENTIAL_WORDS)
 
 

@@ -19,7 +19,9 @@ Always allowed: `localhost`, `127.0.0.1`, `[::1]` and the host of the public das
 - `log` (default): an unknown Host is served and logged as a WARNING, once per distinct host per process (64 hosts at most; values cut to 80 characters; malformed values show as `<malformed>`).
 - `enforce`: an unknown or malformed Host gets `421` with `{"error":"host_not_allowed"}` and `Cache-Control: no-store`. The check runs before the maintenance gate and before the recon token check, on every route (v1, v2, `/app/`, `/api/csp-report`).
 
-Lock-out guard: `enforce` with `ALLOWED_HOSTS` unset, empty or all-invalid does NOT reject. It runs as `log` and logs "enforce requested but ALLOWED_HOSTS is empty or has no valid entries; running in log-only mode". Any valid entry arms enforcement, built-in names included: listing only the public name is enough. A request without a Host header is rejected (421) under `enforce`.
+Lock-out guard: `enforce` with `ALLOWED_HOSTS` unset, empty or all-invalid does NOT reject. It runs as `log` and logs "enforce requested but ALLOWED_HOSTS is empty or has no valid entries; running in log-only mode". Any valid entry arms enforcement, built-in names included: listing only the public name is enough.
+
+**Warning:** once `ALLOWED_HOSTS` holds any valid entry (even only the public name), `enforce` rejects every other Host, including LAN and tailnet IP literals. List those addresses first, or you lock out clients that reach the app by IP. A request without a Host header is rejected (421) under `enforce`.
 
 Log lines to look for during the log-only phase:
 
