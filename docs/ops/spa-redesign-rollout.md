@@ -25,10 +25,12 @@ Run on the Docker host. `IMG` is the image name from `docker-compose.yml` (set i
 
 ## Verify
 
+Reconcile (the new default screen when v2 is enabled): `docs/ops/reconcile-rollout.md`.
+
 - [ ] Load `/app/` on a phone and a desktop: Today shows the kids, freshness tags and the Tonight list.
 - [ ] Settings: switch Midnight / Daylight / System; it applies immediately and survives a reload.
 - [ ] Installed PWA picks up the new service worker: the cache name comes from the built `sw.js`
-      (currently `school-v3`; older `school-v*` caches are deleted on activate). Close and reopen the app once if it still shows the old layout.
+      (currently `school-v4`; older `school-v*` caches are deleted on activate). Close and reopen the app once if it still shows the old layout.
 - [ ] Check off a manual item on Overdue; it stays done after refresh.
 - [ ] `/app/classic/home` still opens, and the old `/app/home` and `/app/child/<name>` links redirect there.
 
@@ -48,7 +50,7 @@ page (service-worker cache `school-v2`). Treat the old token as compromised and 
 1. Generate a new one: `python3 -c "import secrets; print(secrets.token_hex(32))"`.
 2. Put it in the server config as `SYNC_TOKEN=<value>` (`config/env`). Never paste it into chat, tickets or logs.
    The server ignores a `SYNC_TOKEN` shorter than 32 characters (`/api/sync` answers 501 and a WARNING is logged).
-3. `docker compose up -d` to apply it. The new service worker (`school-v3`) deletes the old cached pages.
+3. `docker compose up -d` to apply it. The new service worker (`school-v3` at that time) deletes the old cached pages.
 4. On each device that starts syncs from the app: Settings, field "Sync token", Save. Once per device.
 
 Where it lives: the server keeps it only in `config/env`; it is never printed or served. A browser keeps its copy
