@@ -152,7 +152,7 @@ test('error with cached data shows the data and its age', async () => {
 })
 
 test.each([1, 4])('%i kid(s) render that many filter pills plus Everyone', async n => {
-  const kids = Array.from({ length: n }, (_, i) => ({ name: `Kid${i}`, colorIndex: i }))
+  const kids = Array.from({ length: n }, (_, i) => ({ name: `Kid${i}`, color: 'blue' }))
   await show({ ...FIXTURE, kids, items: [], events: [] })
   const group = screen.getByRole('group', { name: /filter by child/i })
   expect(within(group).getAllByRole('button')).toHaveLength(n + 1)

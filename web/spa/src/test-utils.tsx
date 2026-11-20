@@ -30,7 +30,7 @@ export function fresh(over: Partial<Freshness> = {}): Freshness {
 
 export const FIXTURE: Overview = {
   generated_at: '2026-11-07T14:55:00Z',
-  kids: [{ name: 'Alpha', colorIndex: 0 }, { name: 'Beta', colorIndex: 1 }],
+  kids: [{ name: 'Alpha', color: 'blue' }, { name: 'Beta', color: 'rose' }],
   items: [
     item({ id: 'o1', title: 'Essay draft' }),
     item({ id: 'o2', kid: 'Beta', title: 'Poster', source: 'manual', course: '', itemId: 5 }),

@@ -6,7 +6,7 @@ import { KidChip } from '../design/KidChip'
 import { StatusBadge } from '../design/StatusBadge'
 import { useOverview } from '../lib/overview'
 import { useUrlState } from '../lib/urlState'
-import { APP_TZ, eventMatchesKid, formatTime, itemMatchesKid, kidIndex, kidParser } from '../lib/view'
+import { APP_TZ, eventMatchesKid, formatTime, itemMatchesKid, kidColor, kidParser } from '../lib/view'
 import { DATA_WINDOW_DAYS, shiftWeek, todayAnchor, weekDays } from '../lib/week'
 import './Calendar.css'
 
@@ -61,7 +61,7 @@ function Day({ data, kid, date, label, isToday }: DayProps) {
             <span className="cal-entry__title">{e.title}</span>
             <span className="cal-entry__chips">
               {e.kids.length === 0 ? <span className="cal-entry__all">{e.unassigned ? 'Unassigned' : 'Everyone'}</span>
-                : e.kids.map(k => <KidChip key={k} name={k} index={kidIndex(data, k)} />)}
+                : e.kids.map(k => <KidChip key={k} name={k} color={kidColor(data, k)} />)}
             </span>
           </li>
         ))}
@@ -70,7 +70,7 @@ function Day({ data, kid, date, label, isToday }: DayProps) {
             <span className="cal-entry__kind">Due</span>
             <span className="cal-entry__title">{i.title}</span>
             <span className="cal-entry__chips">
-              <KidChip name={i.kid} index={kidIndex(data, i.kid)} />
+              <KidChip name={i.kid} color={kidColor(data, i.kid)} />
               <StatusBadge status={i.status === 'done' ? 'upcoming' : i.status} />
             </span>
           </li>

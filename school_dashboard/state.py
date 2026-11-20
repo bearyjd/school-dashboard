@@ -10,6 +10,7 @@ from typing import Optional
 from school_dashboard import maintenance, paths, powerschool
 from school_dashboard import scrape_meta as scrape
 from school_dashboard.atomic import write_atomic
+from school_dashboard.kid_colors import PALETTE
 
 DEFAULT_CONFIG_PATH = Path("/etc/school-dashboard/config.json")
 
@@ -48,7 +49,16 @@ def _validate_child(name: str, entry: object, seen_ids: set) -> Optional[dict]:
     if child_id in seen_ids:
         logger.warning("Config child %r skipped: duplicate id %r", name, child_id)
         return None
-    return {"id": child_id, "name": name, "grade": entry["grade"], "school": entry["school"]}
+    child = {"id": child_id, "name": name, "grade": entry["grade"], "school": entry["school"]}
+    color = entry.get("color")
+    if color is None:
+        return child
+    if isinstance(color, str):
+        color = color.strip().lower()
+    if color not in PALETTE:
+        logger.warning("Config child %r: 'color' must be one of %s; ignoring %r", name, ", ".join(PALETTE), color)
+        return child
+    return {**child, "color": color}
 
 
 def _dict_entries(children: object) -> dict:

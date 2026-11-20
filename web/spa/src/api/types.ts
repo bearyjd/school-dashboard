@@ -91,7 +91,7 @@ export type OverviewSource = 'powerschool' | 'schoology' | 'ixl' | 'manual' | 'e
 
 export interface OverviewKid {
   name: string;
-  colorIndex: number;
+  color: string;
 }
 
 export interface OverviewItem {

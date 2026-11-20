@@ -2,7 +2,7 @@ import type { Freshness, Overview, OverviewItem } from '../api/types'
 import { KidChip } from '../design/KidChip'
 import { Row } from '../design/Row'
 import { StatusBadge } from '../design/StatusBadge'
-import { formatDay, itemFreshness, kidIndex, sourceLabel } from '../lib/view'
+import { formatDay, itemFreshness, kidColor, sourceLabel } from '../lib/view'
 import { AsOfTag } from './OverviewFrame'
 
 interface ItemRowProps {
@@ -23,7 +23,7 @@ export function ItemRow({ item, data }: ItemRowProps) {
       title={item.title}
       meta={metaFor(item)}
       href={item.url}
-      lead={<KidChip name={item.kid} index={kidIndex(data, item.kid)} />}
+      lead={<KidChip name={item.kid} color={kidColor(data, item.kid)} />}
       trail={
         <span className="item-row__trail">
           <StatusBadge status={item.status === 'done' ? 'upcoming' : item.status} />

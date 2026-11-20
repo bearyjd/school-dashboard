@@ -1,8 +1,12 @@
 /* Component styles: colours come from tokens.css variables only. */
 
-.kid-0 { --kid: var(--kid-0); }
-.kid-1 { --kid: var(--kid-1); }
-.kid-2 { --kid: var(--kid-2); }
+.kid-neutral { --kid: var(--muted); }
+.kid-blue { --kid: var(--kid-blue); }
+.kid-green { --kid: var(--kid-green); }
+.kid-lavender { --kid: var(--kid-lavender); }
+.kid-amber { --kid: var(--kid-amber); }
+.kid-rose { --kid: var(--kid-rose); }
+.kid-teal { --kid: var(--kid-teal); }
 
 .kid-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text); }
 .kid-chip__dot {

@@ -69,12 +69,12 @@ export function Settings() {
       {kids.length > 0 && (
         <section className="settings__group" aria-labelledby="settings-kids">
           <h2 id="settings-kids" className="settings__legend">Kid colours</h2>
-          <p className="settings__hint">Colours follow the order of the roster.</p>
+          <p className="settings__hint">Each kid keeps a named colour; set "color" on a roster child to change it.</p>
           <ul aria-label="Kid colours" className="settings__kids">
             {kids.map(k => (
               <li key={k.name} className="settings__kid">
-                <KidChip name={k.name} index={k.colorIndex} wide />
-                <span className="settings__hint"> (colour {k.colorIndex + 1})</span>
+                <KidChip name={k.name} color={k.color} wide />
+                <span className="settings__hint"> ({k.color})</span>
               </li>
             ))}
           </ul>

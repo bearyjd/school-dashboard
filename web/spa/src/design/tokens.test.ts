@@ -22,16 +22,20 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05)
 }
 
+const KID_COLOURS = ['blue', 'green', 'lavender', 'amber', 'rose', 'teal']
+
 const EXACT = {
   midnight: {
     bg: '#0d1220', surface: '#151c31', border: '#232c4a', text: '#e8ecf7', muted: '#8c97b5', selected: '#2b3a73',
     overdue: '#ff6b6b', missing: '#ffb454', tonight: '#7aa2ff', ok: '#27c28a',
-    'kid-0': '#4d7cff', 'kid-1': '#27c28a', 'kid-2': '#b07cff',
+    'kid-blue': '#4d7cff', 'kid-green': '#27c28a', 'kid-lavender': '#b07cff',
+    'kid-amber': '#ffb454', 'kid-rose': '#ff7a9c', 'kid-teal': '#2ec4d6',
   },
   daylight: {
     bg: '#faf7f2', surface: '#ffffff', border: '#e9e3d8', text: '#1f2430', muted: '#5b6070',
     overdue: '#c8402f', missing: '#b9770e', tonight: '#2a55c8',
-    'kid-0': '#2a55c8', 'kid-1': '#1c8a63', 'kid-2': '#8f4fc9', hero: '#1f2430',
+    'kid-blue': '#2a55c8', 'kid-green': '#1c8a63', 'kid-lavender': '#8f4fc9',
+    'kid-amber': '#b9770e', 'kid-rose': '#c2335e', 'kid-teal': '#0e7f8f', hero: '#1f2430',
   },
 } as const
 
@@ -49,7 +53,7 @@ describe.each(Object.entries(EXACT))('%s tokens', (theme, expected) => {
     }
   })
   test('semantic and kid fills reach 3:1 on surface (non-text)', () => {
-    for (const k of ['overdue', 'missing', 'tonight', 'ok', 'kid-0', 'kid-1', 'kid-2']) {
+    for (const k of ['overdue', 'missing', 'tonight', 'ok', ...KID_COLOURS.map(c => `kid-${c}`)]) {
       expect(contrast(t[k], t.surface), `${theme} ${k}`).toBeGreaterThanOrEqual(3)
     }
   })

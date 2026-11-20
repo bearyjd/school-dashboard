@@ -71,12 +71,12 @@ test('classic link navigates to /classic/home', () => {
   expect(screen.getByRole('heading', { name: 'Classic home' })).toBeTruthy()
 })
 
-test('kid colour legend lists the roster in colour order, with names as text', async () => {
+test('kid colour legend lists each kid with a named colour, with names as text', async () => {
   fakeMedia(true)
   renderSettings()
   const legend = await screen.findByRole('list', { name: /kid colours/i })
   const rows = within(legend).getAllByRole('listitem')
-  expect(rows.map(r => r.textContent)).toEqual(['AAlpha (colour 1)', 'BBeta (colour 2)'])
+  expect(rows.map(r => r.textContent)).toEqual(['AAlpha (blue)', 'BBeta (rose)'])
 })
 
 test('sync token control: labelled password input, save and clear, focus returns to the input', () => {
