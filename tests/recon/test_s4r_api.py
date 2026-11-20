@@ -398,3 +398,9 @@ def test_remerge_returns_merged_and_ambiguous_counts(api_factory):
                       setup={"class_settings": [{"kid": "Alex", "class_key": "math 6", "aliases": ["Algebra"]}]})
     out = data(api.post("/api/v2/kids/Alex/remerge", {"actor": ACTOR}))["data"]
     assert out["merged"] == [[2, 1]] and out["ambiguous_groups"] == 0
+
+
+def test_config_advertises_write_token_header_and_min_length(api_factory):
+    cfg = data(api_factory(PAIR).get("/api/v2/config"))["data"]
+    assert cfg["write_token_header"] == "X-Recon-Token" and cfg["write_token_min_length"] == 32
+    assert TOKEN not in json.dumps(cfg)
