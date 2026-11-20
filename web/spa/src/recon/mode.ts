@@ -1,5 +1,5 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
-import { getConfig } from './api'
+import { getConfig, setWriteTokenHeader } from './api'
 import { cacheConfig, parseConfig, readCachedConfig } from './config'
 import type { ReconConfig } from './types'
 
@@ -17,6 +17,7 @@ export function useReconConfig(): UseQueryResult<ReconConfig | null> {
     queryFn: async () => {
       try {
         const config = parseConfig(await getConfig())
+        setWriteTokenHeader(config?.write_token_header)
         cacheConfig(config)
         return config
       } catch {
@@ -24,7 +25,11 @@ export function useReconConfig(): UseQueryResult<ReconConfig | null> {
         return null
       }
     },
-    initialData: () => readCachedConfig() ?? undefined,
+    initialData: () => {
+      const cached = readCachedConfig()
+      if (cached) setWriteTokenHeader(cached.write_token_header)
+      return cached ?? undefined
+    },
     initialDataUpdatedAt: 0,
     staleTime: 60_000,
     refetchOnWindowFocus: true,

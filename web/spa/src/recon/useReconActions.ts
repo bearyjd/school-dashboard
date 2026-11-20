@@ -6,9 +6,9 @@ import { checkAccess, type Need } from './access'
 import type { RowAction } from './actions'
 import { postNote, postStage } from './api'
 import { messageFor } from './errors'
-import { optimisticItem } from './optimistic'
+import { optimisticItem, shiftKidCounts } from './optimistic'
 import { LIST_KEY, SUMMARY_KEY } from './queries'
-import type { Actor, ListData, NoteDraft, ReconConfig, ReconItem, StageAction } from './types'
+import type { Actor, ListData, NoteDraft, ReconConfig, ReconItem, ReconSummary, StageAction } from './types'
 import { IDLE, useRowStatus } from './useRowStatus'
 
 export type SheetState =
@@ -39,7 +39,9 @@ export function useReconActions(config: ReconConfig | undefined) {
   const [toast, setToast] = useState<ToastState | null>(null)
 
   const replace = useCallback((item: ReconItem) => {
+    const before = qc.getQueryData<ListData>(LIST_KEY)?.items.find(i => i.id === item.id)
     qc.setQueryData<ListData>(LIST_KEY, d => (d ? { ...d, items: d.items.map(i => (i.id === item.id ? item : i)) } : d))
+    if (before) qc.setQueryData<ReconSummary>(SUMMARY_KEY, s => (s ? shiftKidCounts(s, before, item) : s))
   }, [qc])
 
   const showToast = useCallback((text: string, undo?: () => void) => {

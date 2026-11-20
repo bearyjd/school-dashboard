@@ -14,10 +14,12 @@ function badgeText(ln: ReconLink): string {
 
 /** One badge per portal link: source and portal status. It is a link only for a plain http(s) url. */
 export function SourceBadges({ links }: { links: ReconLink[] }) {
-  if (links.length === 0) return null
+  // "none" is a placeholder (legacy or manual record): shown only when it is all there is.
+  const shown = links.length === 1 ? links : links.filter(ln => ln.status !== 'none')
+  if (shown.length === 0) return null
   return (
     <div className="recon-badges">
-      {links.map(ln => {
+      {shown.map(ln => {
         const url = safeHttpUrl(ln.url)
         return url ? (
           <a key={ln.id} className="recon-badge recon-badge--link" href={url} target="_blank" rel="noopener noreferrer">{badgeText(ln)}</a>

@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { CONFIG, fail, fakeServer, link, ok, renderRecon, ritem, sampleItems } from './fixtures'
+import { CONFIG, fail, fakeServer, link, ok, renderRecon, ritem, sampleItems, summaryOf } from './fixtures'
 import { Reconcile } from './Reconcile'
 
 beforeEach(() => {
@@ -103,7 +103,7 @@ test('junk ?kid= shows everyone', async () => {
 
 test('IXL line from the practice rows; no line for a kid without practice', async () => {
   await show()
-  expect(screen.getByText('IXL: Math 4 remaining, ELA 2 remaining')).toBeTruthy()
+  expect(screen.getByText('IXL: ELA 2 remaining, Math 4 remaining')).toBeTruthy()
   expect(screen.getAllByText(/^IXL:/)).toHaveLength(1)
   expect(screen.queryByRole('group', { name: 'Math' })).toBeNull()
 })
@@ -184,8 +184,10 @@ test('unverified sources alone raise the banner', async () => {
   expect(screen.getByText(/Not verified: PowerSchool data is out of date/)).toBeTruthy()
 })
 
-test('a clear kid under unverified data says "nothing open (not verified)", not "all clear"', async () => {
-  await show('/', fakeServer({ summary: { unverified_sources: ['schoology'] } }))
+test('a kid the server calls unverified-clear says "nothing open (not verified)", not "all clear"', async () => {
+  const items = sampleItems()
+  const kids = summaryOf(items).kids.map(k => (k.name === 'Gamma' ? { ...k, all_clear: false, all_clear_reason: 'unverified' as const } : k))
+  await show('/', fakeServer({ items, summary: { kids } }))
   const gamma = screen.getByRole('heading', { level: 2, name: 'Gamma' }).closest('section') as HTMLElement
   expect(within(gamma).getByText(/nothing open \(not verified\)/i)).toBeTruthy()
   expect(within(gamma).queryByText(/^all clear/i)).toBeNull()

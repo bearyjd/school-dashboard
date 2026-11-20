@@ -2,7 +2,7 @@ import { ApiError } from '../api'
 import { ERROR_MAINTENANCE, ERROR_OFFLINE } from '../api/errors'
 
 const CONFLICTS: Record<string, string> = {
-  invalid_transition: 'That change is not allowed from where this is now - reload and try again',
+  invalid_transition: 'Already handled or no longer possible',
   no_note_for_flag: 'There is no note to write for this one right now',
   merged_away: 'This was merged into another assignment - reload',
   not_migrated: 'Assignments are not set up yet',
@@ -15,6 +15,7 @@ const OFFLINE = 'Offline - not saved'
 export function messageFor(e: unknown): string {
   if (!(e instanceof ApiError)) return OFFLINE
   switch (e.status) {
+    case 400: return 'That did not look right'
     case 401: return 'Token not accepted - check Settings'
     case 403: return 'Parents only'
     case 409: return CONFLICTS[e.message] ?? 'This changed on the server - reload and try again'

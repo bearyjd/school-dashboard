@@ -42,7 +42,7 @@ export function Reconcile() {
     ? buildKidViews({ config, summary: summary.data, items: list.data.items, kid })
     : []
   const retry = () => { void summary.refetch(); void list.refetch() }
-  const rows = { role, disabled: config?.write_auth === 'unconfigured', statusOf: act.statusOf, onAction: act.onAction }
+  const rows = { role, disabled: config?.write_auth === 'unconfigured', showKid: kid === '', statusOf: act.statusOf, onAction: act.onAction }
   const { sheet } = act
 
   return (
@@ -61,6 +61,9 @@ export function Reconcile() {
           <Banner tone="error">Could not load the latest assignments.</Banner>
           <button type="button" className="btn" onClick={retry}>Retry</button>
         </div>
+      )}
+      {list.data && list.data.total > list.data.items.length && (
+        <Banner tone="warn">{`Showing the first ${list.data.items.length} of ${list.data.total} items`}</Banner>
       )}
       {!ready && !failed && <ReconSkeleton />}
       {ready && (

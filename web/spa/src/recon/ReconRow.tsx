@@ -19,11 +19,19 @@ interface Props {
   status: RowStatus
   /** Writes are switched off on the server. */
   disabled: boolean
+  showKid: boolean
   onAction: (item: ReconItem, action: RowAction, opener: HTMLElement) => void
 }
 
 /** One assignment: text first, actions as big buttons at the bottom right. All server text is rendered as plain text. */
-export function ReconRow({ item, role, status, disabled, onAction }: Props) {
+/** "Reading log (English, Alex)": the title plus what tells same-titled rows apart. */
+function label(item: ReconItem, showKid: boolean): string {
+  const extra = [item.class, showKid ? item.kid : null].filter(Boolean).join(', ')
+  return extra ? `${item.title} (${extra})` : item.title
+}
+
+export function ReconRow({ item, role, status, disabled, showKid, onAction }: Props) {
+  const name = label(item, showKid)
   const actions = rowActions(item, role)
   const primary = primaryAction(actions)
   const portal = portalLink(item)
@@ -43,7 +51,7 @@ export function ReconRow({ item, role, status, disabled, onAction }: Props) {
         <p className="recon-row__msg" aria-live="polite">{status.error}</p>
         <div className="recon-row__actions">
           {portal && (
-            <a className="recon-btn recon-btn--quiet" href={portal} target="_blank" rel="noopener noreferrer" aria-label={`Open in portal: ${item.title}`}>
+            <a className="recon-btn recon-btn--quiet" href={portal} target="_blank" rel="noopener noreferrer" aria-label={`Open in portal: ${name}`}>
               Open in portal
             </a>
           )}
@@ -52,7 +60,7 @@ export function ReconRow({ item, role, status, disabled, onAction }: Props) {
               key={a}
               type="button"
               className={`recon-btn${a === primary ? (needs ? ' recon-btn--alert' : ' recon-btn--primary') : ''}`}
-              aria-label={NAME[a](item.title)}
+              aria-label={NAME[a](name)}
               disabled={disabled || status.pending}
               onClick={e => onAction(item, a, e.currentTarget)}
             >

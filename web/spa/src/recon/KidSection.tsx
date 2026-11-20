@@ -10,6 +10,8 @@ import type { RowStatus } from './useRowStatus'
 interface RowProps {
   role: Role
   disabled: boolean
+  /** The all-kids view: action names then say which kid the row is for. */
+  showKid: boolean
   statusOf: (id: number) => RowStatus
   onAction: (item: ReconItem, action: RowAction, opener: HTMLElement) => void
 }
@@ -24,7 +26,7 @@ function Bucket({ bucket, rows }: { bucket: BucketView; rows: RowProps }) {
           {g.label && <h4 className="recon-group__h">{g.label}</h4>}
           <ul className="recon-list">
             {g.items.map(i => (
-              <ReconRow key={i.id} item={i} role={rows.role} status={rows.statusOf(i.id)} disabled={rows.disabled} onAction={rows.onAction} />
+              <ReconRow key={i.id} item={i} role={rows.role} status={rows.statusOf(i.id)} disabled={rows.disabled} showKid={rows.showKid} onAction={rows.onAction} />
             ))}
           </ul>
         </div>

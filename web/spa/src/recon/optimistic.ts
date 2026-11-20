@@ -1,4 +1,4 @@
-import type { ReconBucket, ReconFlag, ReconItem, StageAction } from './types'
+import type { Counts, ReconBucket, ReconFlag, ReconItem, ReconSummary, StageAction } from './types'
 
 const BUCKET_OF: Partial<Record<ReconFlag, ReconBucket>> = {
   disputed: 'needs_action', missing: 'needs_action', done_not_received: 'needs_action',
@@ -35,4 +35,26 @@ export function optimisticItem(item: ReconItem, action: StageAction, today: stri
   }
   const flag = flagAt(item, stage, today)
   return { ...item, stage, stage_label: STAGE_LABEL[stage], flag, bucket: BUCKET_OF[flag] ?? null }
+}
+
+const NEEDS: Partial<Record<ReconFlag, keyof Counts['needs_action_detail']>> = {
+  disputed: 'disputed', missing: 'missing', done_not_received: 'done_not_received',
+}
+
+function bump(counts: Counts, flag: ReconFlag | null, by: 1 | -1): Counts {
+  if (flag === null) return counts
+  const detailKey = NEEDS[flag]
+  if (detailKey) {
+    const detail = { ...counts.needs_action_detail, [detailKey]: counts.needs_action_detail[detailKey] + by }
+    return { ...counts, needs_action: counts.needs_action + by, needs_action_detail: detail }
+  }
+  if (flag === 'do_tonight' || flag === 'waiting_on_teacher') return { ...counts, [flag]: counts[flag] + by }
+  return counts
+}
+
+/** The summary with `from` replaced by `to` in its kid's counts, so the tiles move with the row (the refetch confirms). */
+export function shiftKidCounts(summary: ReconSummary, from: ReconItem, to: ReconItem): ReconSummary {
+  if (from.kind === 'practice' || from.flag === to.flag) return summary
+  const kids = summary.kids.map(k => (k.name === from.kid ? { ...k, counts: bump(bump(k.counts, from.flag, -1), to.flag, 1) } : k))
+  return { ...summary, kids }
 }

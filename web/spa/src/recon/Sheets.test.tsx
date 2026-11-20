@@ -32,7 +32,7 @@ async function openNote(draft: NoteDraft = DRAFT) {
   const server = fakeServer()
   server.on('POST /api/v2/assignments/3/note', () => ok(draft, 201))
   await show(server)
-  fireEvent.click(screen.getByRole('button', { name: 'Draft note for Poster' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Draft note for Poster (English, Alpha)' }))
   const dialog = await screen.findByRole('dialog', { name: /draft note/i })
   return { server, dialog }
 }
@@ -109,7 +109,7 @@ test('sheet focus: moves in on open, Escape closes and restores focus to the ope
   expect(dialog.contains(document.activeElement)).toBe(true)
   fireEvent.keyDown(dialog, { key: 'Escape' })
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draft note for Poster' })))
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draft note for Poster (English, Alpha)' })))
 })
 
 test('sheet focus is trapped: Tab from the last control wraps to the first', async () => {
@@ -135,7 +135,7 @@ async function openMore(title: string, id: number, role: 'parent' | 'kid' = 'par
   const server = fakeServer()
   server.on(`GET /api/v2/assignments/${id}`, () => ok(DETAIL(id)))
   await show(server)
-  fireEvent.click(screen.getByRole('button', { name: `More for ${title}` }))
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(`^More for ${title} \\(`) }))
   const dialog = await screen.findByRole('dialog', { name: new RegExp(`more.*${title}`, 'i') })
   return { server, dialog }
 }
@@ -185,7 +185,7 @@ test('a history load failure is explained inside the sheet', async () => {
   const server = fakeServer()
   server.on('GET /api/v2/assignments/5', () => fail('internal', 500))
   await show(server)
-  fireEvent.click(screen.getByRole('button', { name: 'More for Map quiz' }))
+  fireEvent.click(screen.getByRole('button', { name: 'More for Map quiz (English, Alpha)' }))
   const dialog = await screen.findByRole('dialog')
   expect(await within(dialog).findByText(/could not load the history/i)).toBeTruthy()
 })

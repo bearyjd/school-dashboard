@@ -14,6 +14,9 @@ const openHome = async (page: Page) => {
   await page.goto('/app/')
   await page.locator(RECON_READY).waitFor()
 }
+/** Action buttons are named "Mark <title> (<class>, <kid>) done"; match any class and kid. */
+const action = (page: Page, verb: string, title: string, tail = '') =>
+  page.getByRole('button', { name: new RegExp(`^${verb} ${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\([^)]*\\)${tail}$`) })
 const row = (page: Page, title: string) => page.getByRole('group', { name: title, exact: true })
 const bucketOf = (page: Page, title: string) => row(page, title).locator('xpath=ancestor::section[@data-bucket]')
 const count = async (page: Page, bucket: string, label: string) => {
@@ -29,7 +32,7 @@ test('tapping Done moves the row to Waiting on teacher, survives a reload, and U
   await expect(bucketOf(page, title)).toHaveAttribute('data-bucket', 'do_tonight')
   const [todo, wait] = [await count(page, 'do_tonight', 'Do tonight'), await count(page, 'waiting_on_teacher', 'Waiting on teacher')]
 
-  await page.getByRole('button', { name: `Mark ${title} done` }).click()
+  await action(page, 'Mark', title, ' done').click()
   await expect(bucketOf(page, title)).toHaveAttribute('data-bucket', 'waiting_on_teacher')
   expect(await count(page, 'do_tonight', 'Do tonight')).toBe(todo - 1)
   expect(await count(page, 'waiting_on_teacher', 'Waiting on teacher')).toBe(wait + 1)
@@ -37,7 +40,7 @@ test('tapping Done moves the row to Waiting on teacher, survives a reload, and U
   await openHome(page)
   await expect(bucketOf(page, title)).toHaveAttribute('data-bucket', 'waiting_on_teacher')
 
-  await page.getByRole('button', { name: `Undo ${title}` }).click()
+  await action(page, 'Undo', title).click()
   await expect(bucketOf(page, title)).toHaveAttribute('data-bucket', 'do_tonight')
   await openHome(page)
   await expect(bucketOf(page, title)).toHaveAttribute('data-bucket', 'do_tonight')
@@ -68,7 +71,7 @@ test('write_auth "token" with no stored token: an action opens the setup sheet a
     await r.fulfill({ response: resp, json: body })
   })
   await openHome(page)
-  await page.getByRole('button', { name: 'Mark Spelling list 12 done' }).click()
+  await action(page, 'Mark', 'Spelling list 12', ' done').click()
   await expect(page.getByRole('dialog', { name: 'Set up this device' })).toBeVisible()
   expect(writes).toEqual([])
 })
@@ -76,7 +79,7 @@ test('write_auth "token" with no stored token: an action opens the setup sheet a
 test('the draft note for the Disputed row is a draft only: copy, mail app and portal link, nothing sent', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 })
   await openHome(page)
-  await page.getByRole('button', { name: 'Draft note for Poster board' }).click()
+  await action(page, 'Draft note for', 'Poster board').click()
   const dialog = page.getByRole('dialog', { name: 'Draft note: Poster board' })
   await expect(dialog).toBeVisible()
   await expect(dialog.getByText('Nothing is sent automatically.')).toBeVisible()
@@ -126,7 +129,7 @@ test('keyboard: Tab reaches a row action and Enter activates it; a sheet traps f
   await page.keyboard.press('Enter')
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
-  expect(await dialog.getAttribute('aria-label')).toBe(opener.replace(/^(Draft note for|More for) /, m => (m.startsWith('Draft') ? 'Draft note: ' : 'More for ')))
+  expect(await dialog.getAttribute('aria-label')).toBe(opener.replace(/ \([^)]*\)$/, '').replace(/^(Draft note for|More for) /, m => (m.startsWith('Draft') ? 'Draft note: ' : 'More for ')))
 
   for (let i = 0; i < 12; i++) {
     await page.keyboard.press('Tab')
@@ -137,8 +140,11 @@ test('keyboard: Tab reaches a row action and Enter activates it; a sheet traps f
   expect(await focusedAction()).toBe(opener)
 
   if (opener.startsWith('Draft note for')) {  // a draft was stored when it opened; leave none behind
-    await page.keyboard.press('Enter')
-    await page.getByRole('dialog').getByRole('button', { name: 'Discard' }).click()
+    await page.keyboard.press('Enter')  // the server hands back the same open draft
+    const again = page.getByRole('dialog')
+    await expect(again).toBeVisible()
+    await again.getByRole('button', { name: 'Discard' }).click()
+    await expect(again).toHaveCount(0)
   }
 })
 

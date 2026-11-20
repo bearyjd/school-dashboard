@@ -36,10 +36,10 @@ const tileText = (name: RegExp) => within(screen.getByRole('region', { name: 'Su
 test('buttons are real <button>s whose names include the assignment title', async () => {
   await show()
   const r = within(row('Essay draft'))
-  expect(r.getByRole('button', { name: 'Mark Essay draft done' })).toBeTruthy()
-  expect(r.getByRole('button', { name: 'Mark Essay draft turned in' })).toBeTruthy()
-  expect(r.getByRole('button', { name: 'More for Essay draft' })).toBeTruthy()
-  expect(r.getByRole('link', { name: 'Open in portal: Essay draft' }).getAttribute('href')).toBe('https://portal.example.org/a/1')
+  expect(r.getByRole('button', { name: 'Mark Essay draft (English, Alpha) done' })).toBeTruthy()
+  expect(r.getByRole('button', { name: 'Mark Essay draft (English, Alpha) turned in' })).toBeTruthy()
+  expect(r.getByRole('button', { name: 'More for Essay draft (English, Alpha)' })).toBeTruthy()
+  expect(r.getByRole('link', { name: 'Open in portal: Essay draft (English, Alpha)' }).getAttribute('href')).toBe('https://portal.example.org/a/1')
 })
 
 test('row action sets follow stage, kind and bucket', async () => {
@@ -65,7 +65,7 @@ test('optimistic: a Turned in tap moves the row and updates the counts before th
   server.on(stage(1), () => new Promise<Reply>(res => { release = res }))
   await show(server)
   expect(tileText(/waiting on teacher/i)).toBe('1Waiting on teacher')
-  fireEvent.click(btn('Mark Essay draft turned in'))
+  fireEvent.click(btn('Mark Essay draft (English, Alpha) turned in'))
   await waitFor(() => expect(tileText(/waiting on teacher/i)).toBe('2Waiting on teacher'))
   expect(tileText(/do tonight/i)).toBe('2Do tonight')
   const wait = screen.getByRole('heading', { level: 3, name: /^waiting on teacher \(2\)/i }).closest('section') as HTMLElement
@@ -81,7 +81,7 @@ test('the server answer replaces the optimistic row', async () => {
   const server = fakeServer()
   server.on(stage(1), () => written({ ...waiting(1), stage: 3, stage_label: 'Turned in (unconfirmed)', info: ['unconfirmed_paper'] }))
   await show(server)
-  fireEvent.click(btn('Mark Essay draft turned in'))
+  fireEvent.click(btn('Mark Essay draft (English, Alpha) turned in'))
   await rowHas('Essay draft', 'Turned in (unconfirmed)')
 })
 
@@ -89,7 +89,7 @@ test('a success toast offers Undo, which sends the undo action', async () => {
   const server = fakeServer()
   server.on(stage(1), () => written(waiting(1)))
   await show(server)
-  fireEvent.click(btn('Mark Essay draft done'))
+  fireEvent.click(btn('Mark Essay draft (English, Alpha) done'))
   expect(await screen.findByText(/marked essay draft done/i)).toBeTruthy()
   server.on(stage(1), () => written(sampleItems()[0]))
   fireEvent.click(screen.getByRole('button', { name: /^undo$/i }))
@@ -101,14 +101,14 @@ test('a task Done leaves the buckets; the server item (no bucket) is honoured', 
   const server = fakeServer()
   server.on(stage(7), () => written({ ...sampleItems()[6], stage: 2, flag: null, bucket: null }))
   await show(server)
-  fireEvent.click(btn('Mark Pack gym bag done'))
+  fireEvent.click(btn('Mark Pack gym bag (Beta) done'))
   await waitFor(() => expect(screen.queryByRole('group', { name: 'Pack gym bag' })).toBeNull())
 })
 
 const FAILURES: [string, Reply, string][] = [
   ['401', fail('bad_token', 401), 'Token not accepted - check Settings'],
   ['403', fail('forbidden_role', 403), 'Parents only'],
-  ['409', fail('invalid_transition', 409), 'not allowed'],
+  ['409', fail('invalid_transition', 409), 'Already handled or no longer possible'],
   ['429', fail('too_many_attempts', 429, { 'Retry-After': '30' }), 'Too many attempts - wait 30 s'],
   ['501', fail('write_token_not_configured', 501), 'Writes are not set up on the server'],
   ['503 maintenance', fail('maintenance', 503), 'Paused for maintenance'],
@@ -119,7 +119,7 @@ test.each(FAILURES)('rollback and one inline message on %s', async (_n, reply, t
   const server = fakeServer()
   server.on(stage(1), () => reply)
   await show(server)
-  fireEvent.click(btn('Mark Essay draft turned in'))
+  fireEvent.click(btn('Mark Essay draft (English, Alpha) turned in'))
   await rowHas('Essay draft', new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   expect(within(row('Essay draft')).getByText(new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))).closest('[aria-live="polite"]')).not.toBeNull()
   // rolled back: still in Do tonight, counts restored
@@ -134,7 +134,7 @@ test('503 busy retries once after Retry-After and then succeeds', async () => {
   const replies = [fail('busy', 503, { 'Retry-After': '0' }), written(waiting(1))]
   server.on(stage(1), () => replies.shift())
   await show(server)
-  fireEvent.click(btn('Mark Essay draft done'))
+  fireEvent.click(btn('Mark Essay draft (English, Alpha) done'))
   await waitFor(() => expect(server.writes()).toHaveLength(2))
   expect(await screen.findByText(/marked essay draft done/i)).toBeTruthy()
   expect(screen.queryByText(/busy, try again/i)).toBeNull()
@@ -144,7 +144,7 @@ test('503 busy twice rolls back with "Busy, try again" after exactly one retry',
   const server = fakeServer()
   server.on(stage(1), () => fail('busy', 503, { 'Retry-After': '0' }))
   await show(server)
-  fireEvent.click(btn('Mark Essay draft done'))
+  fireEvent.click(btn('Mark Essay draft (English, Alpha) done'))
   await rowHas('Essay draft', 'Busy, try again')
   expect(server.writes()).toHaveLength(2)
 })
@@ -153,7 +153,7 @@ test('no stored token with write_auth=token opens the setup sheet and calls noth
   clearReconToken()
   const server = fakeServer()
   await show(server)
-  fireEvent.click(btn('Mark Essay draft done'))
+  fireEvent.click(btn('Mark Essay draft (English, Alpha) done'))
   const dialog = await screen.findByRole('dialog', { name: /set up this device/i })
   expect(within(dialog).getByText(/write token/i)).toBeTruthy()
   expect(within(dialog).getByRole('link', { name: /settings/i }).getAttribute('href')).toBe('/settings')
@@ -164,7 +164,7 @@ test('no actor opens the setup sheet and calls nothing', async () => {
   localStorage.removeItem('school-actor')
   const server = fakeServer()
   await show(server)
-  fireEvent.click(btn('Mark Essay draft done'))
+  fireEvent.click(btn('Mark Essay draft (English, Alpha) done'))
   const dialog = await screen.findByRole('dialog', { name: /set up this device/i })
   expect(within(dialog).getByText(/your name/i)).toBeTruthy()
   expect(server.writes()).toHaveLength(0)
@@ -183,7 +183,7 @@ test('write_auth=open needs no token (and sends none) but still needs a name', a
   const server = fakeServer({ config: { ...CONFIG, write_auth: 'open' } })
   server.on(stage(1), () => written(waiting(1)))
   await show(server)
-  fireEvent.click(btn('Mark Essay draft done'))
+  fireEvent.click(btn('Mark Essay draft (English, Alpha) done'))
   await waitFor(() => expect(server.writes()).toHaveLength(1))
   expect('X-Recon-Token' in server.writes()[0].headers).toBe(false)
 })
@@ -192,7 +192,7 @@ test('rows in Needs action: Draft note creates a draft and opens the note sheet'
   const server = fakeServer()
   server.on('POST /api/v2/assignments/3/note', () => ok({ id: 7, flag: 'disputed', subject: 'Alpha - Poster (English)', body: 'Hello,\nPlease check.', teacher_email: 't@example.org', mailto: 'mailto:t@example.org?subject=x', portal_url: 'https://portal.example.org/a/3' }, 201))
   await show(server)
-  fireEvent.click(btn('Draft note for Poster'))
+  fireEvent.click(btn('Draft note for Poster (English, Alpha)'))
   const dialog = await screen.findByRole('dialog', { name: /draft note/i })
   expect(within(dialog).getByText('Nothing is sent automatically.')).toBeTruthy()
   expect(server.writes()[0].body).toEqual({ actor: { role: 'parent', name: 'Dana' } })
@@ -202,7 +202,7 @@ test('Draft note errors are mapped (409 no note for this flag)', async () => {
   const server = fakeServer()
   server.on('POST /api/v2/assignments/3/note', () => fail('no_note_for_flag', 409))
   await show(server)
-  fireEvent.click(btn('Draft note for Poster'))
+  fireEvent.click(btn('Draft note for Poster (English, Alpha)'))
   await rowHas('Poster', /no note/i)
 })
 
@@ -228,7 +228,7 @@ test('a refetch that started before the tap cannot put the old row back', async 
   const { client } = await show(server)
   void client.refetchQueries({ queryKey: LIST_KEY })
   await waitFor(() => expect(lists).toBe(2))
-  fireEvent.click(btn('Mark Essay draft turned in'))
+  fireEvent.click(btn('Mark Essay draft (English, Alpha) turned in'))
   await waitFor(() => expect(server.writes()).toHaveLength(1))
   await within(await screen.findByRole('heading', { level: 3, name: /^waiting on teacher \(2\)/i }).then(h => h.closest('section') as HTMLElement))
     .findByRole('group', { name: 'Essay draft' })
@@ -243,7 +243,7 @@ test('after a write the list and summary are refetched', async () => {
   const server = fakeServer()
   server.on(stage(1), () => written({ ...waiting(1), stage: 3, stage_label: 'Turned in' }))
   await show(server)
-  fireEvent.click(btn('Mark Essay draft turned in'))
+  fireEvent.click(btn('Mark Essay draft (English, Alpha) turned in'))
   await waitFor(() => expect(server.requests.filter(r => r.path === '/api/v2/summary')).toHaveLength(2))
   expect(server.requests.filter(r => r.path === '/api/v2/assignments')).toHaveLength(2)
 })

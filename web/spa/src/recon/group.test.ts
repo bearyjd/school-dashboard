@@ -51,20 +51,19 @@ test('counts come from the shown rows', () => {
 
 test('IXL line lists subjects with work remaining', () => {
   const beta = views()[1]
-  expect(beta.ixl).toBe('IXL: Math 4 remaining, ELA 2 remaining')
+  expect(beta.ixl).toBe('IXL: ELA 2 remaining, Math 4 remaining')
   expect(views()[0].ixl).toBeNull()
   expect(ixlLine([])).toBeNull()
   const done = ritem({ id: 9, kind: 'practice', class: 'Math', links: [{ ...sampleItems()[7].links[0], raw_status: '0 remaining' }], flag: null, bucket: null })
   expect(ixlLine([done])).toBe('IXL: nothing remaining')
 })
 
-test('state: items / clear / unverified clear', () => {
+test('state: items / clear / unverified clear follow the server verdict per kid', () => {
   expect(views()[0].state).toBe('items')
   expect(views()[2].state).toBe('clear')
-  expect(views(sampleItems(), '', { ingest_ok: false })[2].state).toBe('unverified_clear')
-  expect(views(sampleItems(), '', { unverified_sources: ['schoology'] })[2].state).toBe('unverified_clear')
-  const flagged = [...sampleItems(), ritem({ id: 20, kid: 'Gamma', flag: 'upcoming', bucket: null, unverified: true, unverified_sources: ['schoology'] })]
-  expect(views(flagged)[2].state).toBe('unverified_clear')
+  // Global stale sources no longer change a kid the server calls clear (see review2.test.ts for the server cases).
+  expect(views(sampleItems(), '', { ingest_ok: false })[2].state).toBe('clear')
+  expect(views(sampleItems(), '', { unverified_sources: ['schoology'] })[2].state).toBe('clear')
 })
 
 test('kid colour comes from the config; unknown kids get a neutral colour', () => {

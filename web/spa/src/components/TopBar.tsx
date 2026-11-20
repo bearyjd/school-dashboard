@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import './TopBar.css'
 
 const LINKS = [
@@ -14,11 +14,24 @@ const LINKS = [
   { to: '/classic/home', label: 'Classic view' },
 ]
 
+const HOME_PATHS = ['/', '/today', '/recon']
+
 /** Desktop navigation; hidden on phones, where BottomNav is used instead. */
 export function TopBar() {
+  const { pathname } = useLocation()
   return (
     <nav className="top-bar" aria-label="Main">
-      {LINKS.map(l => (
+      {LINKS.map(l => (l.to === '/' ? (
+        // Home covers the Reconcile screen (/, /recon) and the older Today view (/today), like BottomNav.
+        <Link
+          key={l.to}
+          to={l.to}
+          aria-current={HOME_PATHS.includes(pathname) ? 'page' : undefined}
+          className={`top-bar__link${HOME_PATHS.includes(pathname) ? ' top-bar__link--active' : ''}`}
+        >
+          {l.label}
+        </Link>
+      ) : (
         <NavLink
           key={l.to}
           to={l.to}
@@ -27,7 +40,7 @@ export function TopBar() {
         >
           {l.label}
         </NavLink>
-      ))}
+      )))}
     </nav>
   )
 }

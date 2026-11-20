@@ -18,7 +18,7 @@ test.each([
 })
 
 test.each([
-  ['invalid_transition', /not allowed/i],
+  ['invalid_transition', /already handled/i],
   ['no_note_for_flag', /no note/i],
   ['merged_away', /merged/i],
   ['not_migrated', /not set up/i],

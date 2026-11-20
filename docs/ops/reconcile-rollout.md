@@ -21,13 +21,19 @@ Run commands on the Docker host from the compose directory. Replace `<name>` wit
 11. **Each device, once**: Settings, section "Assignments": "Who is using this device" (name and Parent or Kid) and "Write token". Both are kept only in that browser (`school-actor`, `school-recon-token`). Without them the action buttons open "Set up this device".
 12. **Later**: `RECON_DIGEST_ENABLED=1` (replaces the LLM morning and night digests, see `docs/ops/recon-digest.md`), then, once the digest looks right, `RECON_PUSH_ENABLED=1` (immediate pushes).
 
+## Who can change things
+
+Parent/Kid is a label for the history, not a permission. Anyone holding the write token can act as a parent, so enter the token only on devices you would trust with that.
+
+To rotate the token (a lost device, or someone who should no longer have it): change `RECON_WRITE_TOKEN` in `config/env`, run `docker compose up -d`, then re-enter the new token in Settings on each device you still trust. The old token stops working at once.
+
 ## Day one: what to check
 
 - `school-state assignments report` (add `--redact` before pasting it anywhere): merge rate per kid, unmatched pairs, alias suggestions, possible duplicates. A pair that is the same class under two names gets `school-state assignments alias add --kid NAME --from "Alias" --to "Canonical"`; the next sync re-merges.
 - A "Possible duplicate" chip means the merge found two candidates and did not guess; note them and compare with the report's unmatched pairs.
 - `/api/v2/summary` (or the banner at the top of Reconcile): `ingest_ok` true and no "Not verified" banner after a fresh sync. A source that is overdue shows "Not verified: <source> data is out of date"; a kid with nothing open then reads "Nothing open (not verified)", not "All clear".
 - Tap Done on a row, reload, Undo: it must persist and restore.
-- Draft note on a Disputed or Missing row: it is only a draft (copy, open in your mail app, open in portal). The server never sends mail. Teacher name and email come from the class settings.
+- Draft note on a Disputed or Missing row: it is only a draft (copy, open in your mail app, open in portal). The server never sends mail: a teacher note is a draft that the parent sends from their own mail app. Teacher name and email come from the class settings.
 - `school-state watchdog --dry-run`: no `recon_ingest` problem is reported.
 
 ## Rollback
@@ -35,7 +41,7 @@ Run commands on the Docker host from the compose directory. Replace `<name>` wit
 No image rollback is needed.
 
 1. Set `RECON_INGEST_ENABLED=0` (and `RECON_DIGEST_ENABLED=0`, `RECON_PUSH_ENABLED=0` if set) in `config/env`; `docker compose up -d`.
-2. `/app/` shows Today again on the next load (the config answers 404, no error is shown). `/today` and `/classic/*` are always available, and `/recon` then says it is not switched on.
+2. `/app/` shows Today again on the next load (with the flag off `/api/v2/config` answers 200 with `enabled: false`; the other `/api/v2/*` routes answer 404; no error is shown). `/today` and `/classic/*` are always available, and `/recon` then says it is not switched on.
 3. v1 data and digests were never changed. The v2 tables and their data stay in `school.db`; keep them for a later retry or dump them with `docker exec <name> school-state assignments export > recon-export.json` (contains titles; keep it private).
 4. To go live again, set the flag back to `1` and run a sync; no new migration is needed.
 

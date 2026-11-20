@@ -85,6 +85,7 @@ export interface Req {
   url: string
   headers: Record<string, string>
   body: Record<string, unknown> | null
+  redirect: string | undefined
 }
 
 type Handler = (req: Req) => Reply | undefined | Promise<Reply | undefined>
@@ -125,7 +126,7 @@ export function fakeServer(opts: ServerOpts = {}) {
     const method = (init?.method ?? 'GET').toUpperCase()
     const raw = init?.body
     const req: Req = { method, path, url, headers: { ...(init?.headers as Record<string, string> | undefined) },
-      body: typeof raw === 'string' ? (JSON.parse(raw) as Record<string, unknown>) : null }
+      body: typeof raw === 'string' ? (JSON.parse(raw) as Record<string, unknown>) : null, redirect: init?.redirect }
     requests.push(req)
     const key = `${method} ${path}`
     const handler = overrides.get(key)

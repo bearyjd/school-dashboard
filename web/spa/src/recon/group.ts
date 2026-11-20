@@ -16,7 +16,7 @@ export interface KidView {
   counts: Counts
   buckets: BucketView[]
   ixl: string | null
-  /** items: something to do; clear: nothing to do and verified; unverified_clear: nothing to do but data may be stale. */
+  /** The server's verdict for this kid: items: something to do; clear: nothing to do and verified; unverified_clear: nothing to do but data may be stale. */
   state: 'items' | 'clear' | 'unverified_clear'
 }
 
@@ -30,13 +30,16 @@ function remaining(item: ReconItem): number | null {
   return null
 }
 
-/** "IXL: Math 4 remaining, ELA 2 remaining"; null when the kid has no IXL rows. */
+const subject = (item: ReconItem): string => (item.class ?? item.title).replace(/^IXL\s+/i, '')
+
+/** "IXL: ELA 2 remaining, Math 4 remaining" (subjects A-Z); null when the kid has no IXL rows. */
 export function ixlLine(practice: ReconItem[]): string | null {
   if (practice.length === 0) return null
-  const todo = practice.flatMap(p => {
-    const n = remaining(p)
-    return n !== null && n > 0 ? [`${p.class ?? p.title} ${n} remaining`] : []
-  })
+  const todo = practice
+    .map(p => ({ name: subject(p), n: remaining(p) }))
+    .filter(p => p.n === null || p.n > 0)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(p => (p.n === null ? `${p.name} status unknown` : `${p.name} ${p.n} remaining`))
   return todo.length > 0 ? `IXL: ${todo.join(', ')}` : 'IXL: nothing remaining'
 }
 
@@ -66,11 +69,12 @@ function kidView(name: string, color: string, summary: ReconSummary, items: Reco
     const inBucket = rows.filter(r => r.bucket === id)
     return inBucket.length === 0 ? [] : [{ id, label: BUCKET_LABEL[id], count: inBucket.length, groups: groupsFor(id, inBucket) }]
   })
-  const counts = countRows(rows)
-  // Like the server: rows that only wait on a teacher do not stop a kid from being "all clear".
-  const work = counts.needs_action > 0 || counts.do_tonight > 0 || practice.some(p => (remaining(p) ?? 0) > 0)
-  const unverified = !summary.ingest_ok || summary.unverified_sources.length > 0 || mine.some(i => i.unverified)
-  return { name, color, counts, buckets, ixl, state: work ? 'items' : unverified ? 'unverified_clear' : 'clear' }
+  const server = summary.kids.find(k => k.name === name)
+  const counts = server?.counts ?? countRows(rows)
+  // The empty state is the server's verdict for this kid, never derived here.
+  const state = server === undefined ? (rows.length > 0 ? 'items' : 'clear')
+    : server.all_clear ? 'clear' : server.all_clear_reason === 'unverified' ? 'unverified_clear' : 'items'
+  return { name, color, counts, buckets, ixl, state }
 }
 
 interface Args { config: ReconConfig | undefined; summary: ReconSummary; items: ReconItem[]; kid: string }

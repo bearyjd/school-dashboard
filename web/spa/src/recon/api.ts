@@ -4,10 +4,18 @@ import type {
   Actor, Envelope, ListData, NoteDraft, NoteRow, ReconDetail, ReconItem, ReconSummary, StageAction, WriteResult,
 } from './types'
 
-const TOKEN_HEADER = 'X-Recon-Token'
+const DEFAULT_TOKEN_HEADER = 'X-Recon-Token'
+const HEADER_NAME = /^[A-Za-z0-9-]{1,64}$/
+let tokenHeader = DEFAULT_TOKEN_HEADER
+
+/** The header name the server wants the write token in (`config.write_token_header`); anything odd means the default. */
+export function setWriteTokenHeader(name: string | undefined): void {
+  tokenHeader = name && HEADER_NAME.test(name) ? name : DEFAULT_TOKEN_HEADER
+}
 const MAX_RETRY_S = 5
 const DEFAULT_RETRY_S = 2
 
+const isWrite = (method: string): boolean => !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())
 const isV2 = (path: string): boolean => path === '/api/v2' || path.startsWith('/api/v2/')
 
 /**
@@ -16,8 +24,8 @@ const isV2 = (path: string): boolean => path === '/api/v2' || path.startsWith('/
  */
 export function reconHeaders(path: string, method: string, base: Record<string, string> = {}): Record<string, string> {
   const token = getReconToken()
-  const write = !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())
-  return token && write && isV2(path) ? { ...base, [TOKEN_HEADER]: token } : { ...base }
+  const write = isWrite(method)
+  return token && write && isV2(path) ? { ...base, [tokenHeader]: token } : { ...base }
 }
 
 async function envelope<T>(path: string, method = 'GET', body?: unknown): Promise<Envelope<T>> {
@@ -25,6 +33,8 @@ async function envelope<T>(path: string, method = 'GET', body?: unknown): Promis
   const out = await apiFetch<Envelope<T>>(path, {
     method,
     headers: reconHeaders(path, method, json),
+    // A write must never follow a redirect: the token header would travel with it.
+    ...(isV2(path) && isWrite(method) ? { redirect: 'error' as const } : {}),
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   if (!out || out.ok !== true || out.data === null || out.data === undefined) {
