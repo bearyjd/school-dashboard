@@ -39,7 +39,7 @@
 .recon-kid__clear--warn { color: var(--missing-text); }
 .recon-kid__buckets { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); min-width: 0; }
 
-.recon-bucket { min-width: 0; }
+.recon-bucket { min-width: 0; scroll-margin-top: 190px; } /* clears the sticky header when a tile scrolls here */
 .recon-bucket__h { font-family: var(--font-head); font-weight: var(--head-weight); font-size: 1.05rem; margin-bottom: 6px; }
 .recon-bucket--needs_action .recon-bucket__h { color: var(--overdue-text); font-size: 1.15rem; }
 .recon-bucket--waiting_on_teacher .recon-bucket__h { color: var(--muted); font-size: 0.95rem; }
@@ -118,8 +118,12 @@ a.recon-badge--link { min-height: 36px; text-decoration: underline; text-underli
 .recon-skel__row { height: 118px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); animation: recon-pulse 1.4s ease-in-out infinite; }
 @keyframes recon-pulse { 50% { opacity: 0.5; } }
 
+@media (prefers-reduced-motion: reduce) {
+  .recon-skel__row { animation: none; }
+}
 @media (min-width: 768px) {
   .recon__sticky { top: 50px; }
+  .recon-bucket { scroll-margin-top: 240px; }
   .recon-toast { bottom: 16px; }
   .recon-sheet__overlay { align-items: center; }
   .recon-sheet { border-radius: var(--r-lg); }

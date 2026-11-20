@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { clearReconToken } from './identity'
 import { CONFIG, countsOf, fail, fakeServer, link, ok, renderRecon, ritem, sampleItems, signIn, TOKEN, type Reply } from './fixtures'
+import { LIST_KEY } from './queries'
 import { Reconcile } from './Reconcile'
 import type { ReconItem } from './types'
 
@@ -70,7 +71,7 @@ test('optimistic: a Turned in tap moves the row and updates the counts before th
   const wait = screen.getByRole('heading', { level: 3, name: /^waiting on teacher \(2\)/i }).closest('section') as HTMLElement
   expect(within(wait).getByRole('group', { name: 'Essay draft' })).toBeTruthy()
   release(written({ ...waiting(1), stage: 3, stage_label: 'Turned in' }))
-  await waitFor(() => expect(within(row('Essay draft')).getByText('Turned in')).toBeTruthy())
+  await rowHas('Essay draft', 'Turned in')
   expect(server.writes()).toHaveLength(1)
   expect(server.writes()[0].body).toEqual({ action: 'turned_in', actor: { role: 'parent', name: 'Dana' } })
   expect(server.writes()[0].headers['X-Recon-Token']).toBe(TOKEN)
@@ -81,7 +82,7 @@ test('the server answer replaces the optimistic row', async () => {
   server.on(stage(1), () => written({ ...waiting(1), stage: 3, stage_label: 'Turned in (unconfirmed)', info: ['unconfirmed_paper'] }))
   await show(server)
   fireEvent.click(btn('Mark Essay draft turned in'))
-  expect(await within(row('Essay draft')).findByText('Turned in (unconfirmed)')).toBeTruthy()
+  await rowHas('Essay draft', 'Turned in (unconfirmed)')
 })
 
 test('a success toast offers Undo, which sends the undo action', async () => {
@@ -211,4 +212,38 @@ test('items with several links render one badge per link', async () => {
   const r = within(row('Essay draft'))
   expect(r.getByText(/Schoology.*missing/i)).toBeTruthy()
   expect(r.getByText(/PowerSchool.*submitted/i)).toBeTruthy()
+})
+
+test('a refetch that started before the tap cannot put the old row back', async () => {
+  const old = sampleItems()
+  const server = fakeServer({ items: old })
+  let late: (r: Reply) => void = () => undefined
+  let lists = 0
+  server.on('GET /api/v2/assignments', () => {
+    lists += 1
+    if (lists === 1) return undefined
+    return lists === 2 ? new Promise<Reply>(res => { late = res }) : new Promise<Reply>(() => undefined)
+  })
+  server.on(stage(1), () => written({ ...waiting(1), stage: 3, stage_label: 'Turned in' }))
+  const { client } = await show(server)
+  void client.refetchQueries({ queryKey: LIST_KEY })
+  await waitFor(() => expect(lists).toBe(2))
+  fireEvent.click(btn('Mark Essay draft turned in'))
+  await waitFor(() => expect(server.writes()).toHaveLength(1))
+  await within(await screen.findByRole('heading', { level: 3, name: /^waiting on teacher \(2\)/i }).then(h => h.closest('section') as HTMLElement))
+    .findByRole('group', { name: 'Essay draft' })
+  // the stale answer (the list as it was before the tap) arrives late
+  late({ status: 200, body: { ok: true, data: old, error: null, meta: { total: old.length } } })
+  await new Promise(resolve => setTimeout(resolve, 20))
+  const cached = client.getQueryData<{ items: ReconItem[] }>(LIST_KEY)
+  expect(cached?.items.find(i => i.id === 1)?.stage).toBe(3)
+})
+
+test('after a write the list and summary are refetched', async () => {
+  const server = fakeServer()
+  server.on(stage(1), () => written({ ...waiting(1), stage: 3, stage_label: 'Turned in' }))
+  await show(server)
+  fireEvent.click(btn('Mark Essay draft turned in'))
+  await waitFor(() => expect(server.requests.filter(r => r.path === '/api/v2/summary')).toHaveLength(2))
+  expect(server.requests.filter(r => r.path === '/api/v2/assignments')).toHaveLength(2)
 })

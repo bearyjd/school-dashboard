@@ -26,7 +26,8 @@ export function ReconSkeleton() {
 
 /** The family's daily screen: what to do tonight, what is waiting on a teacher, and what needs action. */
 export function Reconcile() {
-  const config = useReconConfig().data ?? undefined
+  const configQuery = useReconConfig()
+  const config = configQuery.data ?? undefined
   const summary = useSummary()
   const list = useAssignments()
   const act = useReconActions(config)
@@ -34,6 +35,8 @@ export function Reconcile() {
   const [kid, setKid] = useUrlState('kid', raw => (raw && roster.some(k => k.name === raw) ? raw : ''), '')
   const role = getActor()?.role ?? 'parent'
   const ready = summary.data !== undefined && list.data !== undefined
+  // A 404 from a switched-off v2 must not flash an error before the config refetch sends the page back to Today.
+  const failed = !ready && (summary.isError || list.isError) && configQuery.isFetchedAfterMount
 
   const views = summary.data && list.data
     ? buildKidViews({ config, summary: summary.data, items: list.data.items, kid })
@@ -53,13 +56,13 @@ export function Reconcile() {
         <Banner tone="info">Changes are turned off: writes are not set up on the server.</Banner>
       )}
       {summary.data && <p className="recon__asof">Data as of {formatInstant(summary.data.data_as_of)}</p>}
-      {!ready && (summary.isError || list.isError) && (
+      {failed && (
         <div className="frame__error">
           <Banner tone="error">Could not load the latest assignments.</Banner>
           <button type="button" className="btn" onClick={retry}>Retry</button>
         </div>
       )}
-      {!ready && !summary.isError && !list.isError && <ReconSkeleton />}
+      {!ready && !failed && <ReconSkeleton />}
       {ready && (
         <>
           <ReconHeader views={views} roster={roster} kid={kid} onKid={setKid} />

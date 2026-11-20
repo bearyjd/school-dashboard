@@ -74,3 +74,10 @@ test('kid colour comes from the config; unknown kids get a neutral colour', () =
   expect(v.at(-1)?.name).toBe('Zed')
   expect(v.at(-1)?.color).toBe('')
 })
+
+test('rows that only wait on a teacher do not stop a kid being all clear (as on the server)', () => {
+  const items = [ritem({ id: 1, kid: 'Gamma', stage: 2, flag: 'waiting_on_teacher', bucket: 'waiting_on_teacher' })]
+  const gamma = views(items)[2]
+  expect(gamma.state).toBe('clear')
+  expect(gamma.buckets.map(b => b.id)).toEqual(['waiting_on_teacher'])
+})

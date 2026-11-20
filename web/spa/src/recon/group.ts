@@ -16,7 +16,7 @@ export interface KidView {
   counts: Counts
   buckets: BucketView[]
   ixl: string | null
-  /** items: something to show; clear: nothing open and verified; unverified_clear: nothing open but data may be stale. */
+  /** items: something to do; clear: nothing to do and verified; unverified_clear: nothing to do but data may be stale. */
   state: 'items' | 'clear' | 'unverified_clear'
 }
 
@@ -66,9 +66,11 @@ function kidView(name: string, color: string, summary: ReconSummary, items: Reco
     const inBucket = rows.filter(r => r.bucket === id)
     return inBucket.length === 0 ? [] : [{ id, label: BUCKET_LABEL[id], count: inBucket.length, groups: groupsFor(id, inBucket) }]
   })
-  const work = rows.length > 0 || practice.some(p => (remaining(p) ?? 0) > 0)
+  const counts = countRows(rows)
+  // Like the server: rows that only wait on a teacher do not stop a kid from being "all clear".
+  const work = counts.needs_action > 0 || counts.do_tonight > 0 || practice.some(p => (remaining(p) ?? 0) > 0)
   const unverified = !summary.ingest_ok || summary.unverified_sources.length > 0 || mine.some(i => i.unverified)
-  return { name, color, counts: countRows(rows), buckets, ixl, state: work ? 'items' : unverified ? 'unverified_clear' : 'clear' }
+  return { name, color, counts, buckets, ixl, state: work ? 'items' : unverified ? 'unverified_clear' : 'clear' }
 }
 
 interface Args { config: ReconConfig | undefined; summary: ReconSummary; items: ReconItem[]; kid: string }

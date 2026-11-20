@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 
 const FOCUSABLE = 'button, a[href], textarea, input, select, [tabindex]:not([tabindex="-1"])'
 
@@ -14,7 +14,8 @@ interface SheetProps {
 export function Sheet({ label, opener, onClose, children }: SheetProps) {
   const ref = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
+  // Layout effect: focus is inside the dialog in the same commit that shows it (no moment where it is elsewhere).
+  useLayoutEffect(() => {
     ref.current?.focus()
     return () => { if (opener?.isConnected) opener.focus() }
   }, [opener])

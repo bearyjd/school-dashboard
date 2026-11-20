@@ -229,3 +229,15 @@ test('waiting for config alone does not block: cached config renders the page', 
   await show('/', server)
   await waitFor(() => expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(3))
 })
+
+test('a switched-off v2 (cached "recon" answer, 404s) shows no error while the config refetch is pending', async () => {
+  sessionStorage.setItem('school-recon-config', JSON.stringify(CONFIG))
+  const server = fakeServer({ config: { status: 200, body: new Promise(() => undefined) } })
+  server.on('GET /api/v2/summary', () => fail('recon_disabled', 404))
+  server.on('GET /api/v2/assignments', () => fail('recon_disabled', 404))
+  renderRecon(<Reconcile />, '/', server)
+  await waitFor(() => expect(server.requests.filter(r => r.path === '/api/v2/summary').length).toBeGreaterThan(0))
+  await new Promise(resolve => setTimeout(resolve, 30))
+  expect(screen.queryByText(/could not load/i)).toBeNull()
+  expect(screen.getByRole('status', { name: /loading/i })).toBeTruthy()
+})

@@ -131,6 +131,9 @@ export function fakeServer(opts: ServerOpts = {}) {
     const handler = overrides.get(key)
     const reply = (handler ? await handler(req) : undefined) ?? defaults(req)
     if (reply.reject) throw new TypeError('Failed to fetch')
+    // Like the real server: an accepted write changes what the next read returns.
+    const written = (reply.body as Envelope<{ item?: ReconItem }> | undefined)?.data?.item
+    if (method !== 'GET' && written) items.splice(0, items.length, ...items.map(i => (i.id === written.id ? written : i)))
     const status = reply.status ?? 200
     return {
       ok: status >= 200 && status < 300, status, statusText: 'err',

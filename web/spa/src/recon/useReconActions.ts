@@ -7,7 +7,7 @@ import type { RowAction } from './actions'
 import { postNote, postStage } from './api'
 import { messageFor } from './errors'
 import { optimisticItem } from './optimistic'
-import { LIST_KEY } from './queries'
+import { LIST_KEY, SUMMARY_KEY } from './queries'
 import type { Actor, ListData, NoteDraft, ReconConfig, ReconItem, StageAction } from './types'
 import { IDLE, useRowStatus } from './useRowStatus'
 
@@ -56,6 +56,8 @@ export function useReconActions(config: ReconConfig | undefined) {
   /** One optimistic stage change; resolves to the server's row, or null after rolling back. */
   const tap = useCallback(async (item: ReconItem, action: StageAction, actor: Actor): Promise<ReconItem | null> => {
     rows.set(item.id, { pending: true, error: null })
+    // A refetch that started before this tap must not land on top of the optimistic row.
+    await qc.cancelQueries({ queryKey: LIST_KEY })
     replace(optimisticItem(item, action, localToday(new Date(), APP_TZ)))
     try {
       const res = await postStage(item.id, action, actor)
@@ -66,8 +68,11 @@ export function useReconActions(config: ReconConfig | undefined) {
       replace(item)
       rows.set(item.id, { pending: false, error: messageFor(e) })
       return null
+    } finally {
+      void qc.invalidateQueries({ queryKey: LIST_KEY })
+      void qc.invalidateQueries({ queryKey: SUMMARY_KEY })
     }
-  }, [rows, replace])
+  }, [qc, rows, replace])
 
   /** A tap from a row: the toast offers one Undo (which has no Undo of its own). */
   const runStage = useCallback(async (item: ReconItem, action: StageAction, actor: Actor) => {
