@@ -801,6 +801,7 @@ def deliver_digest(
     title: str,
     state_path: str,
     db_path: str | None,
+    fallback_note: str | None = None,
 ) -> tuple[str, list[dict]]:
     """Build a digest and push it. If the build (LLM) fails, push the deterministic
     quick check titled "<title> (fallback)" and raise DigestFallbackSent so callers
@@ -813,7 +814,9 @@ def deliver_digest(
             _log.info("Maintenance mode active; fallback for %r skipped, nothing sent", title)
             raise
         quick, _ = build_quick_check(state_path)
-        send_ntfy(topic=topic, message=FALLBACK_NOTE + quick, title=f"{title} (fallback)")
-        raise DigestFallbackSent(f"{title}: LLM digest failed ({exc}); fallback sent") from exc
+        send_ntfy(topic=topic, message=(FALLBACK_NOTE if fallback_note is None else fallback_note) + quick,
+                  title=f"{title} (fallback)")
+        what = "LLM digest" if fallback_note is None else "digest build"
+        raise DigestFallbackSent(f"{title}: {what} failed ({exc}); fallback sent") from exc
     send_ntfy(topic=topic, message=text, title=title, cards=cards, db_path=db_path)
     return text, cards

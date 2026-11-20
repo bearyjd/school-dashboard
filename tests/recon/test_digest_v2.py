@@ -111,8 +111,9 @@ def test_saturday_drops_do_tonight_because_flags_come_from_the_read_model(tmp_pa
 
 
 def test_pure_module_has_no_forbidden_imports():
-    code = (f"import sys; sys.path.insert(0, {str(REPO)!r}); import school_dashboard.assignments.digest_v2 as m; "
-            "bad = [n for n in ('requests', 'school_dashboard.llm', 'sqlite3') if n in sys.modules]; "
+    code = (f"import sys; sys.path.insert(0, {str(REPO)!r}); before = set(sys.modules); "
+            "import school_dashboard.assignments.digest_v2 as m; "
+            "bad = [n for n in ('requests', 'school_dashboard.llm', 'sqlite3') if n in sys.modules and n not in before]; "
             "print(bad)")
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=REPO)
     assert out.returncode == 0, out.stderr

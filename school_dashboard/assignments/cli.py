@@ -81,11 +81,28 @@ def _alias(args: argparse.Namespace) -> int:
         conn.close()
 
 
+def _digest(args: argparse.Namespace) -> int:
+    """Preview of the v2 digest: read-only, no recompute, no LLM, nothing sent."""
+    from school_dashboard.assignments import digest_run, digest_v2, readctx
+    try:
+        now = datetime.fromisoformat(args.now) if args.now else datetime.now(watchdog.get_tz())
+    except ValueError:
+        sys.stderr.write("Error: --now must be an ISO 8601 timestamp\n")
+        return EXIT_INPUT
+    now = now if now.tzinfo else now.replace(tzinfo=watchdog.get_tz())
+    with readctx.connection(readonly=True) as conn:
+        summary, items = digest_run.assemble(conn, readctx.load(conn, now))
+    digest = digest_v2.build(summary, items, mode=args.mode, now=now)
+    _out(json.dumps({"text": digest.text, "cards": list(digest.cards)}, indent=2) + "\n" if args.json
+         else digest.text + "\n")
+    return EXIT_OK
+
+
 def cmd_assignments(args: argparse.Namespace) -> None:
-    handlers = {"migrate": _migrate, "export": _export, "report": _report, "alias": _alias}
+    handlers = {"migrate": _migrate, "export": _export, "report": _report, "alias": _alias, "digest": _digest}
     handler = handlers.get(getattr(args, "assignments_command", None) or "")
     if handler is None:
-        sys.stderr.write("usage: school-state assignments {migrate|export|report|alias} [--json]\n")
+        sys.stderr.write("usage: school-state assignments {migrate|export|report|alias|digest} [--json]\n")
         sys.exit(EXIT_FAILED)
     try:
         code = handler(args)
@@ -121,6 +138,11 @@ def add_parser(subs: Any) -> argparse.ArgumentParser:
     r.add_argument("--json", action="store_true", help="Machine-readable report on stdout")
     r.add_argument("--redact", action="store_true", help="Replace titles and class names by stable short hashes")
     r.set_defaults(func=cmd_assignments)
+    dg = ss.add_parser("digest", help="Preview the deterministic morning/night digest (read-only, sends nothing)")
+    dg.add_argument("--mode", required=True, choices=("morning", "night"))
+    dg.add_argument("--now", help="ISO 8601 timestamp to compute flags at (default: now)")
+    dg.add_argument("--json", action="store_true", help="Print {text, cards} as JSON")
+    dg.set_defaults(func=cmd_assignments)
     a = ss.add_parser("alias", help="Class aliases used when merging records from different sources")
     asub = a.add_subparsers(dest="alias_command", required=True)
     add = asub.add_parser("add", help="Treat class --from as the class --to for one kid")

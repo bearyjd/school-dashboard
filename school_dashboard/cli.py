@@ -195,7 +195,9 @@ def cmd_digest(args: argparse.Namespace) -> None:
     gog_account = os.environ.get("GOG_ACCOUNT", "")
     state_file = args.state_file or str(paths.state_path())
 
-    if not litellm_url:
+    from school_dashboard.assignments import flagsenv
+    recon = args.mode in ("morning", "night") and flagsenv.enabled("RECON_DIGEST_ENABLED")
+    if not litellm_url and not recon:
         print("Error: LITELLM_URL not set", file=sys.stderr)
         sys.exit(1)
     if not ntfy_topic:
@@ -203,7 +205,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     gc_path = str(paths.gc_path())
-    gcal_events = fetch_gcal_events(gog_account) if gog_account else []
+    gcal_events = fetch_gcal_events(gog_account) if gog_account and not recon else []
 
     builders = {
         "morning": ("Morning Briefing", lambda: _digest.build_morning_digest(
@@ -221,9 +223,14 @@ def cmd_digest(args: argparse.Namespace) -> None:
     if args.mode not in builders:
         raise ValueError(f"Unknown mode: {args.mode}")
     title, build = builders[args.mode]
+    note = None
+    if recon:
+        from school_dashboard.assignments import digest_run
+        build = lambda: digest_run.build_for_cron(args.mode)  # noqa: E731
+        note = "Assignment list unavailable - showing the basic homework check instead.\n\n"
     try:
         text, cards = _digest.deliver_digest(
-            build, topic=ntfy_topic, title=title, state_path=state_file, db_path=db_path)
+            build, topic=ntfy_topic, title=title, state_path=state_file, db_path=db_path, fallback_note=note)
     except _digest.DigestFallbackSent as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
