@@ -240,7 +240,7 @@ docker/
 
 ## Config
 
-All secrets in `config/env` (gitignored). Template at `.env.example`. `.env` at repo root is legacy — do not use as primary.
+All secrets in `config/env` (gitignored). Template at `.env.example`. `.env` at repo root is not read by the app (app secrets stay in `config/env`); it is only read by compose interpolation (`DASHBOARD_BIND_ADDR`, `DASHBOARD_PORT`).
 
 `LITELLM_URL` must be the full URL including `/v1` (e.g. `https://llm.grepon.cc/v1`). Both `web/app.py` and `digest.py` append `/v1/chat/completions` to this URL.
 
@@ -252,7 +252,7 @@ Optional on-demand sync: `SYNC_TOKEN` — shared secret for `POST /api/sync`. Ge
 
 Optional PowerSchool (4th source): `PS_USERNAME`, `PS_PASSWORD`, `PS_BASE_URL` (or `~/.powersched/.env`, which the scraper reads; the sync checks via `school_dashboard.powerschool.skip_reason`). The `powerschool summary --json` CLI is not yet vendored; with it missing or unconfigured the sync logs an INFO line and skips (no alert). Output file: `PS_FILE` (default `/tmp/powerschool-daily.json`), passed to `school-state update --ps-file`.
 
-Optional `TRUSTED_PROXY_COUNT` (default 0): number of trusted reverse proxies in front of Flask; with N > 0 the sync limiter keys on the Nth `X-Forwarded-For` entry from the right. WARNING: this repo's own `docker-compose.yml` publishes port 5000 on all interfaces, so keep it 0 unless the port is bound to the proxy interface (loopback or the proxy network); otherwise clients can spoof `X-Forwarded-For`. A non-empty invalid value logs one WARNING and counts as 0. Only set it when the port is reachable solely through the proxy (`docs/ops/spa-redesign-rollout.md`).
+Optional `TRUSTED_PROXY_COUNT` (default 0): number of trusted reverse proxies in front of Flask; with N > 0 the sync limiter keys on the Nth `X-Forwarded-For` entry from the right. WARNING: this repo's `docker-compose.yml` publishes `127.0.0.1:5000` by default (`DASHBOARD_BIND_ADDR`), so it is safe with a same-host proxy; keep it 0 if you set `DASHBOARD_BIND_ADDR=0.0.0.0` or any interface the proxy does not alone control, otherwise clients can spoof `X-Forwarded-For`. A non-empty invalid value logs one WARNING and counts as 0. Only set it when the port is reachable solely through the proxy (`docs/ops/spa-redesign-rollout.md`).
 
 Host check (`school_dashboard/hostcheck.py`, wired first in `web/app.py`, covers every route): only the raw `Host` header is judged (never `X-Forwarded-Host`). `HOST_CHECK_MODE` = `off` | `log` (default; one WARNING per distinct unknown host, 64 max) | `enforce` (421 `{"error":"host_not_allowed"}`). `ALLOWED_HOSTS` = comma/space list, port ignored, `.example.net` = subdomain suffix rule; `localhost`, `127.0.0.1`, `[::1]` and the `digest.DASHBOARD_BASE` host are always allowed (container healthcheck and `smoke-live.sh` default use them). `enforce` with no valid `ALLOWED_HOSTS` entry runs as `log` and warns (lock-out guard). Rollout/rollback: `docs/ops/host-allowlist-and-port-binding.md`.
 

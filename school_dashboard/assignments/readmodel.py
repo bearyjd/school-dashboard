@@ -22,7 +22,9 @@ MAX_EVENTS = 200
 _STAGE_LABELS = {1: "Assigned", 2: "Done at home", 3: "Turned in", 4: "Received"}
 _CREDENTIAL_WORDS = ("token", "key", "secret", "password", "pwd", "auth", "session", "sig", "signature", "sid",
                      "jsessionid", "sessionid", "phpsessid", "apikey", "credential", "authorization", "jwt", "bearer",
-                     "code", "otp", "passcode")
+                     "otp", "passcode", "passwd", "pw", "ticket")
+_CODE_NAMES = frozenset({"code", "auth_code", "otp_code", "access_code", "pass_code", "passcode"})
+_INNER_NAME = re.compile(r"\[([^\]]*)\]")
 _INDEX_SUFFIX = re.compile(r"(\[[^\]]*\])+$")
 _REMAINING = re.compile(r"^\s*(\d+)")
 _NO_DAYS: frozenset[date] = frozenset()
@@ -50,11 +52,16 @@ class _Ctx:
     ingest: IngestHealth
 
 
+def _word_name(name: str) -> bool:
+    return name in _CODE_NAMES or any(name == w or name.endswith((f"_{w}", f"-{w}")) or name.startswith(f"{w}_")
+                                      for w in _CREDENTIAL_WORDS)
+
+
 def _credential_name(name: str) -> bool:
-    """Whole-name match: `key`, `api_key`, `api-key`, `key_id`; never `monkey` or `assignment_id`."""
-    name = _INDEX_SUFFIX.sub("", unquote(unquote(name)).casefold().removeprefix("amp;"))
-    return any(name == w or name.endswith((f"_{w}", f"-{w}")) or name.startswith(f"{w}_")
-               for w in _CREDENTIAL_WORDS)
+    """Whole-name match on the name and on each bracketed part: `key`, `api_key`, `x[token]`, `key_id`;
+    never `monkey`, `assignment_id`, `course_code` or `filter[status]`."""
+    name = unquote(unquote(name)).casefold().removeprefix("amp;")
+    return any(_word_name(n) for n in (_INDEX_SUFFIX.sub("", name), *_INNER_NAME.findall(name)))
 
 
 def _path_param_names(path: str) -> list[str]:

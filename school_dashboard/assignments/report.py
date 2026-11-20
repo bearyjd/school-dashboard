@@ -83,11 +83,12 @@ def read_input(conn: sqlite3.Connection, now: datetime | None = None) -> ReportI
         "SELECT a.kid, COUNT(*) AS n FROM assignment_events e JOIN assignments a ON a.id = e.assignment_id"
         f" WHERE e.kind = 'merge' AND e.detail LIKE 'possible_duplicate%'{live_join} GROUP BY a.kid")}
     outbox = {r["status"]: r["n"] for r in conn.execute(
-        "SELECT status, COUNT(*) AS n FROM push_outbox WHERE COALESCE(last_error, '') != 'debounced' GROUP BY status")}
+        "SELECT status, COUNT(*) AS n FROM push_outbox WHERE COALESCE(last_error, '') != ? GROUP BY status",
+        (repo.DEBOUNCED,))}
     since = (now - timedelta(hours=24)).isoformat() if now else "0001-01-01T00:00:00"
     debounced = conn.execute(
-        "SELECT COUNT(*) FROM push_outbox WHERE last_error = 'debounced' AND julianday(created_at) > julianday(?)",
-        (since,)).fetchone()[0]
+        "SELECT COUNT(*) FROM push_outbox WHERE last_error = ? AND julianday(created_at) > julianday(?)",
+        (repo.DEBOUNCED, since)).fetchone()[0]
     legacy = schema.legacy_violations(conn) if version >= 2 else 0
     return ReportInput(rows, dups, outbox, repo.get_meta(conn, "baseline_at"), schema_version=version,
                        legacy_rows=legacy, debounced=debounced)

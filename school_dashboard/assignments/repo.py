@@ -305,6 +305,8 @@ def require_migrated(conn: sqlite3.Connection) -> None:
 
 # ---- push outbox ----------------------------------------------------------
 
+DEBOUNCED = "debounced"  # push_outbox.last_error marker of a push skipped by the debounce
+
 def enqueue_push(conn: sqlite3.Connection, assignment_id: int, flag: str, occurrence_at: datetime,
                  reason: str) -> None:
     status = "suppressed" if reason == "baseline" else "pending"
@@ -314,21 +316,24 @@ def enqueue_push(conn: sqlite3.Connection, assignment_id: int, flag: str, occurr
         (assignment_id, flag, occurrence_at.isoformat(), reason, status, occurrence_at.isoformat()))
 
 
-def record_debounced_push(conn: sqlite3.Connection, assignment_id: int, flag: str, at: datetime) -> None:
-    """Count a push skipped by the debounce as a suppressed row; `recent_push_exists` ignores it."""
-    conn.execute(
+def record_debounced_push(conn: sqlite3.Connection, assignment_id: int, flag: str, at: datetime) -> bool:
+    """Count a push skipped by the debounce as a suppressed row; True only when the row was inserted.
+
+    `recent_push_exists` ignores it."""
+    cur = conn.execute(
         "INSERT OR IGNORE INTO push_outbox (assignment_id, flag, occurrence_at, reason, status, created_at, last_error)"
-        " VALUES (?, ?, ?, 'transition', 'suppressed', ?, 'debounced')",
-        (assignment_id, flag, at.isoformat(), at.isoformat()))
+        " VALUES (?, ?, ?, 'transition', 'suppressed', ?, ?)",
+        (assignment_id, flag, at.isoformat(), at.isoformat(), DEBOUNCED))
+    return cur.rowcount == 1
 
 
 def recent_push_exists(conn: sqlite3.Connection, assignment_id: int, flag: str, since: datetime) -> bool:
     """A push row for (assignment, flag) created after `since`; baseline-suppressed rows do not count."""
     return conn.execute(
         "SELECT 1 FROM push_outbox WHERE assignment_id = ? AND flag = ? AND julianday(created_at) > julianday(?)"
-        " AND NOT (status = 'suppressed' AND (reason = 'baseline' OR COALESCE(last_error, '') = 'debounced'))"
+        " AND NOT (status = 'suppressed' AND (reason = 'baseline' OR COALESCE(last_error, '') = ?))"
         " LIMIT 1",
-        (assignment_id, flag, since.isoformat())).fetchone() is not None
+        (assignment_id, flag, since.isoformat(), DEBOUNCED)).fetchone() is not None
 
 
 def pending_pushes(conn: sqlite3.Connection) -> list[Mapping[str, Any]]:

@@ -124,8 +124,9 @@ def enqueue_debounced(conn: sqlite3.Connection, ctx: KidContext, aid: int, flag:
                       counts: Counter[str]) -> None:
     """Queue a push unless one for the same (assignment, flag) was queued in the last PUSH_DEBOUNCE."""
     if repo.recent_push_exists(conn, aid, flag, ctx.now - PUSH_DEBOUNCE):
-        repo.record_debounced_push(conn, aid, flag, ctx.now)  # visible in the report; never starts a window
-        counts["pushes_debounced"] += 1
+        # visible in the report; never starts a window; counted only when the row was really inserted
+        if repo.record_debounced_push(conn, aid, flag, ctx.now):
+            counts["pushes_debounced"] += 1
         return
     repo.enqueue_push(conn, aid, flag, ctx.now, "baseline" if ctx.baseline else "transition")
     counts["pushes_enqueued"] += 1

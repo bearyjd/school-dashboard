@@ -19,7 +19,13 @@ Always allowed: `localhost`, `127.0.0.1`, `[::1]` and the host of the public das
 - `log` (default): an unknown Host is served and logged as a WARNING, once per distinct host per process (64 hosts at most; values cut to 80 characters; malformed values show as `<malformed>`).
 - `enforce`: an unknown or malformed Host gets `421` with `{"error":"host_not_allowed"}` and `Cache-Control: no-store`. The check runs before the maintenance gate and before the recon token check, on every route (v1, v2, `/app/`, `/api/csp-report`).
 
-Lock-out guard: `enforce` with `ALLOWED_HOSTS` unset, empty or all-invalid does NOT reject. It runs as `log` and logs "enforce requested but ALLOWED_HOSTS is empty; running in log-only mode".
+Lock-out guard: `enforce` with `ALLOWED_HOSTS` unset, empty or all-invalid does NOT reject. It runs as `log` and logs "enforce requested but ALLOWED_HOSTS is empty or has no valid entries; running in log-only mode". Any valid entry arms enforcement, built-in names included: listing only the public name is enough. A request without a Host header is rejected (421) under `enforce`.
+
+Log lines to look for during the log-only phase:
+
+- INFO, once per process on the first request: `host check: requested=... effective=... valid_entries=N invalid_entries=M`. `effective=log` with `requested=enforce` means the guard is holding enforcement back.
+- WARNING, once: "further unknown hosts are not logged individually" (the 64-host bound was reached; the list below is incomplete).
+- WARNING, once: "requests arrive via a proxy with a loopback Host; ..." A proxied request (it has `X-Forwarded-For`) carried a loopback Host, so the proxy is not forwarding the public Host and the allowlist cannot protect proxied traffic.
 
 ## What counts as the Host
 
@@ -27,7 +33,7 @@ Only the raw `Host` header the app receives. `X-Forwarded-Host` is never read. T
 
 ## Port binding and `TRUSTED_PROXY_COUNT`
 
-The repo compose file publishes `127.0.0.1:5000`. On a single host where the proxy connects to `127.0.0.1:5000`, Flask is then reachable only through the proxy, which is the precondition for `TRUSTED_PROXY_COUNT` above 0 (see `docs/ops/spa-redesign-rollout.md`). If the proxy runs on ANOTHER host, set `DASHBOARD_BIND_ADDR` to the interface the proxy reaches (LAN, tailnet or docker-network address) and firewall it so only the proxy can connect. Do not leave it on `0.0.0.0` together with `TRUSTED_PROXY_COUNT` above 0.
+The repo compose file publishes `127.0.0.1:5000`. `DASHBOARD_BIND_ADDR=0.0.0.0` publishes IPv4 only, whereas the old `5000:5000` mapping could also publish IPv6 (`[::]`); an IPv6 bind address needs brackets (`[::]`, `[fd00::1]`). On a single host where the proxy connects to `127.0.0.1:5000`, Flask is then reachable only through the proxy, which is the precondition for `TRUSTED_PROXY_COUNT` above 0 (see `docs/ops/spa-redesign-rollout.md`). If the proxy runs on ANOTHER host, set `DASHBOARD_BIND_ADDR` to the interface the proxy reaches (LAN, tailnet or docker-network address) and firewall it so only the proxy can connect. Do not leave it on `0.0.0.0` together with `TRUSTED_PROXY_COUNT` above 0.
 
 ## Rollout
 
@@ -41,6 +47,13 @@ The repo compose file publishes `127.0.0.1:5000`. On a single host where the pro
    curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: unlisted.invalid'   http://127.0.0.1:5000/api/sync/status   # 421
    BASE_URL=https://school.example.net scripts/smoke-live.sh --container <name>
    ```
+   Also verify THROUGH the proxy (replace the placeholder proxy address):
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: unlisted.invalid' https://<proxy-address>/api/sync/status   # 421 once enforcing
+   curl -s -o /dev/null -w '%{http_code}\n' --resolve school.example.net:443:<proxy-ip> https://school.example.net/api/sync/status   # 200
+   ```
+   If the first command returns 200, the proxy rewrites Host (for example to `127.0.0.1:5000`) and the allowlist protects nothing for proxied traffic; fix the proxy's Host forwarding.
+
    When `BASE_URL`'s host is not allowed, the smoke script prints a 421 hint. Add that host to `ALLOWED_HOSTS`; there is no path exemption.
 6. Only then narrow `DASHBOARD_BIND_ADDR` (loopback or the proxy interface).
 

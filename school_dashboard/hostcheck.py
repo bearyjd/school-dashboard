@@ -2,7 +2,7 @@
 
 Only the raw `Host` header is judged: never X-Forwarded-Host, never SERVER_NAME. Env is read per request.
 Env: ALLOWED_HOSTS (comma/space separated; `.example.net` is a suffix rule), HOST_CHECK_MODE (off|log|enforce).
-`enforce` without at least one valid ALLOWED_HOSTS entry behaves as `log` (lock-out guard).
+`enforce` without at least one valid ALLOWED_HOSTS entry (built-in names count) behaves as `log` (lock-out guard).
 """
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ MAX_LOGGED_LEN = 80
 _NAME = re.compile(r"[a-z0-9._-]+")
 _V6 = re.compile(r"\[[0-9a-f:.]+\]")
 _PORT = re.compile(r"\d{1,5}")
+MAX_PORT = 65535
 _SPLIT = re.compile(r"[,\s]+")
 
 _lock = threading.Lock()
@@ -40,12 +41,16 @@ def reset() -> None:
         _warned.clear()
 
 
-def _warn_once(key: str, message: str, *args: object) -> None:
+def _log_once(level: int, key: str, message: str, *args: object) -> None:
     with _lock:
         if key in _warned:
             return
         _warned.add(key)
-    _log.warning(message, *args)
+    _log.log(level, message, *args)
+
+
+def _warn_once(key: str, message: str, *args: object) -> None:
+    _log_once(logging.WARNING, key, message, *args)
 
 
 def builtin_hosts() -> frozenset[str]:
@@ -67,12 +72,16 @@ def normalise_host(header: str | None) -> str | None:
     else:
         host, sep, port = text.partition(":")
         rest = sep + port
-        host = host.rstrip(".")
-        if not host or not _NAME.fullmatch(host) or len(host) > MAX_HOST_LEN:
+        host = host.removesuffix(".")
+        if not _NAME.fullmatch(host) or len(host) > MAX_HOST_LEN or not all(host.split(".")):
             return None
-    if rest and not (rest.startswith(":") and _PORT.fullmatch(rest[1:])):
+    if rest and not _valid_port(rest):
         return None
     return host
+
+
+def _valid_port(rest: str) -> bool:
+    return rest.startswith(":") and bool(_PORT.fullmatch(rest[1:])) and 1 <= int(rest[1:]) <= MAX_PORT
 
 
 def _entry(raw: str) -> str | None:
@@ -84,18 +93,23 @@ def _entry(raw: str) -> str | None:
 
 
 def _parse(raw: str | None) -> tuple[frozenset[str], int]:
+    """(every valid entry, built-ins included; number of invalid entries)."""
     items = [i for i in _SPLIT.split(raw or "") if i]
     parsed = [_entry(i) for i in items]
-    good = frozenset(p for p in parsed if p is not None) - builtin_hosts()
-    return good, sum(1 for p in parsed if p is None)
+    return frozenset(p for p in parsed if p is not None), sum(1 for p in parsed if p is None)
+
+
+def _config(raw: str | None) -> tuple[frozenset[str], int, int]:
+    """(entries without built-ins, number of valid entries, number of invalid entries); warns once on invalid ones."""
+    valid, invalid = _parse(raw)
+    if invalid:
+        _warn_once(f"invalid:{(raw or '')[:80]}", "ALLOWED_HOSTS: ignored %d invalid entries", invalid)
+    return valid - builtin_hosts(), len(valid), invalid
 
 
 def parse_allowed(raw: str | None) -> frozenset[str]:
     """Valid ALLOWED_HOSTS entries (built-ins excluded); invalid ones are ignored and counted in one WARNING."""
-    good, invalid = _parse(raw)
-    if invalid:
-        _warn_once(f"invalid:{(raw or '')[:80]}", "ALLOWED_HOSTS: ignored %d invalid entries", invalid)
-    return good
+    return _config(raw)[0]
 
 
 def is_allowed(host: str | None, allowed: frozenset[str]) -> bool:
@@ -122,23 +136,40 @@ def decide(host: str | None, allowed: frozenset[str], current: str, explicit: bo
     if current == "enforce" and explicit:
         return "reject"
     if current == "enforce":
-        _warn_once("lockout", "HOST_CHECK_MODE=enforce requested but ALLOWED_HOSTS is empty; running in log-only mode")
+        _warn_once("lockout", "HOST_CHECK_MODE=enforce requested but ALLOWED_HOSTS is empty or has no valid entries; running in log-only mode")
     return "log"
 
 
 def _log_unknown(host: str | None) -> None:
     label = "<malformed>" if host is None else host[:MAX_LOGGED_LEN]
     with _lock:
-        if label in _seen or len(_seen) >= MAX_LOGGED_HOSTS:
+        if label in _seen:
             return
-        _seen.add(label)
+        full = len(_seen) >= MAX_LOGGED_HOSTS
+        if not full:
+            _seen.add(label)
+    if full:
+        _warn_once("bound", "further unknown hosts are not logged individually")
+        return
     _log.warning("Host header not in ALLOWED_HOSTS: %s", label)
 
 
+def _note_proxy(host: str | None, current: str) -> None:
+    """One WARNING when a proxied request (X-Forwarded-For) carries a loopback Host; never changes the decision."""
+    if current != "off" and host in LOCAL_HOSTS and request.environ.get("HTTP_X_FORWARDED_FOR"):
+        _warn_once("proxy", "requests arrive via a proxy with a loopback Host; the proxy is not forwarding the "
+                            "public Host, so the allowlist cannot protect proxied traffic")
+
+
 def _check() -> Response | None:
-    allowed = parse_allowed(os.environ.get("ALLOWED_HOSTS"))
+    allowed, valid, invalid = _config(os.environ.get("ALLOWED_HOSTS"))
     host = normalise_host(request.environ.get("HTTP_HOST"))
-    verdict = decide(host, allowed, mode(), bool(allowed))
+    current = mode()
+    effective = "log" if current == "enforce" and not valid else current
+    _log_once(logging.INFO, "config", "host check: requested=%s effective=%s valid_entries=%d invalid_entries=%d",
+              current, effective, valid, invalid)
+    _note_proxy(host, current)
+    verdict = decide(host, allowed, current, valid > 0)
     if verdict == "log":
         _log_unknown(host)
     if verdict != "reject":
@@ -149,5 +180,7 @@ def _check() -> Response | None:
 
 
 def init_app(app: Flask) -> None:
-    """Register the check ahead of every other before_request hook."""
-    app.before_request_funcs.setdefault(None, []).insert(0, _check)
+    """Register the check (once) ahead of every other before_request hook."""
+    funcs = app.before_request_funcs.setdefault(None, [])
+    if _check not in funcs:
+        funcs.insert(0, _check)
