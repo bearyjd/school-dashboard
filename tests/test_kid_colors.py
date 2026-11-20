@@ -1,10 +1,13 @@
 import json
 import logging
 import sqlite3
+from datetime import datetime
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from school_dashboard import kid_colors, state
 from school_dashboard.digest import send_ntfy
+from school_dashboard.overview import build_overview
 from school_dashboard.kid_colors import PALETTE, resolve_colors, with_child_colors
 
 
@@ -30,10 +33,17 @@ def test_unknown_kids_use_positional_fallback_deterministically():
     assert out == resolve_colors(["Alpha", "Jack", "Beta"])
 
 
-def test_fallback_wraps():
-    names = [f"K{i}" for i in range(len(kid_colors.FALLBACK) + 1)]
+def test_fallback_wraps_only_after_palette_exhausted():
+    names = [f"K{i}" for i in range(len(PALETTE) + 1)]
     out = resolve_colors(names)
-    assert out[names[-1]] == kid_colors.FALLBACK[0]
+    assert len(set(list(out.values())[:len(PALETTE)])) == len(PALETTE)
+    assert out[names[-1]] == out[names[0]]
+
+
+def test_fallback_skips_colors_taken_by_explicit_or_default():
+    assert resolve_colors(["Ford", "Alpha", "Beta"], {"Ford": "blue"}) == {
+        "Ford": "blue", "Alpha": "rose", "Beta": "teal"}
+    assert len(set(resolve_colors(["Jack", "Penn", "Ford", "A", "B", "C"]).values())) == 6
 
 
 def test_defaults_are_in_palette_and_distinct():
@@ -80,3 +90,57 @@ def test_digest_store_cards_carry_color(tmp_path, monkeypatch):
     with sqlite3.connect(db) as c:
         raw = c.execute("select cards from digests").fetchone()[0]
     assert json.loads(raw)[0]["color"] == "amber"
+
+
+def test_roster_color_is_trimmed_and_lowercased(tmp_path, monkeypatch):
+    p = tmp_path / "cfg.json"
+    p.write_text(json.dumps({"children": {"Ford": {"grade": "3", "school": "S", "color": " Teal "}}}))
+    monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(p))
+    state._config_cache = None
+    roster = state.get_roster()
+    state._config_cache = None
+    assert roster[0]["color"] == "teal"
+
+
+def test_card_child_matches_roster_case_insensitively():
+    cards = [{"child": "ford"}, {"child": "alpha"}]
+    out = with_child_colors(cards, {"Ford": "rose"}, ["Ford", "Alpha"])
+    assert [c["color"] for c in out] == ["rose", "blue"]
+
+
+def test_digest_fallback_follows_roster_order_not_alphabetical(tmp_path, monkeypatch):
+    p = tmp_path / "cfg.json"
+    p.write_text(json.dumps({"children": {"Beta": {"grade": "2", "school": "S"},
+                                          "Alpha": {"grade": "1", "school": "S"}}}))
+    monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(p))
+    state._config_cache = None
+    db = str(tmp_path / "d.db")
+    cards = [{"child": c, "title": "t"} for c in ("Alpha", "Beta")]
+    with patch("school_dashboard.digest.requests.post"):
+        send_ntfy("t", "m", "Homework Check", cards=cards, db_path=db)
+    state._config_cache = None
+    with sqlite3.connect(db) as c:
+        stored = json.loads(c.execute("select cards from digests").fetchone()[0])
+    assert {c["child"]: c["color"] for c in stored} == {"Beta": "blue", "Alpha": "rose"}
+
+
+def test_digest_fallback_colors_match_overview(tmp_path, monkeypatch):
+    p = tmp_path / "cfg.json"
+    p.write_text(json.dumps({"children": {"Alpha": {"grade": "1", "school": "S"},
+                                          "Beta": {"grade": "2", "school": "S"}}}))
+    monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(p))
+    state._config_cache = None
+    db = str(tmp_path / "d.db")
+    # Zed sorts before Alpha, so a sorted-only order would give Zed blue.
+    cards = [{"child": c, "title": "t"} for c in ("Beta", "Zed", "Alpha")]
+    with patch("school_dashboard.digest.requests.post"):
+        send_ntfy("t", "m", "Homework Check", cards=cards, db_path=db)
+    roster = state.get_roster()
+    state._config_cache = None
+    with sqlite3.connect(db) as c:
+        stored = json.loads(c.execute("select cards from digests").fetchone()[0])
+    got = {c["child"]: c["color"] for c in stored}
+    assert got == {"Alpha": "blue", "Beta": "rose", "Zed": "teal"}
+    tz = ZoneInfo("America/New_York")
+    ov = build_overview({}, [], {}, [], {}, roster, datetime(2026, 11, 6, 12, tzinfo=tz), tz)
+    assert {k["name"]: k["color"] for k in ov["kids"]} == {"Alpha": "blue", "Beta": "rose"}

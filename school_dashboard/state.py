@@ -53,6 +53,8 @@ def _validate_child(name: str, entry: object, seen_ids: set) -> Optional[dict]:
     color = entry.get("color")
     if color is None:
         return child
+    if isinstance(color, str):
+        color = color.strip().lower()
     if color not in PALETTE:
         logger.warning("Config child %r: 'color' must be one of %s; ignoring %r", name, ", ".join(PALETTE), color)
         return child

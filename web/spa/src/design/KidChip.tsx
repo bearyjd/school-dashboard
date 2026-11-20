@@ -4,13 +4,13 @@ const KID_COLORS = ['blue', 'green', 'lavender', 'amber', 'rose', 'teal'] as con
 
 interface KidChipProps {
   name: string
-  /** Named palette colour from the API; anything unknown renders as the first palette colour. */
+  /** Named palette colour from the API; anything unknown renders in the neutral token. */
   color: string
   wide?: boolean
 }
 
 export function KidChip({ name, color, wide = false }: KidChipProps) {
-  const slot = (KID_COLORS as readonly string[]).includes(color) ? color : KID_COLORS[0]
+  const slot = (KID_COLORS as readonly string[]).includes(color) ? color : 'neutral'
   const initial = Array.from(name.trim())[0]?.toUpperCase() ?? '?'
   return (
     <span

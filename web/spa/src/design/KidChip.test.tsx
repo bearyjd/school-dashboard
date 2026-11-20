@@ -18,9 +18,11 @@ test('named colour becomes its token class', () => {
   expect(container.firstElementChild?.classList.contains('kid-lavender')).toBe(true)
 })
 
-test('unknown colour falls back to a palette colour', () => {
-  const { container } = render(<KidChip name="Q" color="chartreuse" />)
-  expect(container.firstElementChild?.classList.contains('kid-blue')).toBe(true)
+test('unknown or empty colour renders the neutral token, not a kid colour', () => {
+  for (const color of ['chartreuse', '']) {
+    const { container } = render(<KidChip name="Q" color={color} />)
+    expect(container.firstElementChild?.classList.contains('kid-neutral')).toBe(true)
+  }
 })
 
 test('compact chip is labelled with the full name for assistive tech', () => {

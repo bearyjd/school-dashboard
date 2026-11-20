@@ -201,7 +201,7 @@ docker/
 | `/api/items/<id>` | DELETE | Delete item |
 | `/api/digest/<id>` | GET | Retrieve digest carousel (returns `{id, created_at, title, cards}`) |
 | `/api/digest/<id>/cards/<index>` | PATCH | Toggle card done state (JSON: `done: bool`) |
-| `/api/overview` | GET | Normalised items (status overdue/missing/late/tonight/upcoming), events (GameChanger + school calendar) and per-source freshness for the SPA (`?days=1..60`, `?past=1`) |
+| `/api/overview` | GET | Normalised items (status overdue/missing/late/tonight/upcoming), events (GameChanger + school calendar), `kids: [{name, color}]` and per-source freshness for the SPA (`?days=1..60`, `?past=1`) |
 | `/api/dashboard` | GET | Aggregate view (schoology, ixl, email_items) |
 | `/api/chat` | POST | Chat with LiteLLM (JSON: `message`, `history`) |
 | `/api/readiness` | GET | Get readiness checklist |
@@ -242,7 +242,7 @@ Optional `TRUSTED_PROXY_COUNT` (default 0): number of trusted reverse proxies in
 
 Optional per-source toggles: `SOURCE_IXL_ENABLED`, `SOURCE_SGY_ENABLED`, `SOURCE_GC_ENABLED`, `SOURCE_POWERSCHOOL_ENABLED` (default enabled; `0/false/no/off`, case-insensitive, disables). A disabled source is skipped by `school-sync.sh` and `/api/sync` with no failure alert and recorded in `sync_meta` as `last_result: "paused"` Cached data from a paused source stays in state and digests. (helpers: `school_dashboard/sources.py::source_enabled`, shell `source_enabled`).
 
-Roster config optional `"color"` (one of green, lavender, amber, blue, rose, teal; invalid is ignored with a warning). Defaults by name: Jack green, Penn lavender, Ford amber; other kids fall back positionally (`school_dashboard/kid_colors.py`). `/api/overview` `kids[].color` drives the SPA; digest cards carry `color`.
+Roster config optional `"color"` (one of green, lavender, amber, blue, rose, teal; invalid is ignored with a warning). Defaults by name: Jack green, Penn lavender, Ford amber; other kids fall back positionally (`school_dashboard/kid_colors.py`). `/api/overview` returns `kids: [{name, color}]` (roster order, resolved colour name) which drives the SPA, an unknown kid renders neutral; colours are matched case-insensitively and fallback kids never share a colour with an explicit/default one until the palette is exhausted; digest cards carry `color`.
 
 Roster config (`school-dashboard.json`, `children.<Name>`): optional `"ixl": false` marks a child who left IXL; it is never flagged as `IXL unavailable` (quick check, digests, overview, watchdog `scrape_degraded`). Bool only (anything else is ignored with a warning); default true. A roster child with earlier IXL data but no IXL file now is flagged otherwise, with no auto-expiry. See `docs/ops/spa-redesign-rollout.md`.
 

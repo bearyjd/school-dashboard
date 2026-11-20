@@ -1,5 +1,6 @@
 /* Component styles: colours come from tokens.css variables only. */
 
+.kid-neutral { --kid: var(--muted); }
 .kid-blue { --kid: var(--kid-blue); }
 .kid-green { --kid: var(--kid-green); }
 .kid-lavender { --kid: var(--kid-lavender); }

@@ -17,6 +17,8 @@
   --missing-text: #ffb454;
   --tonight-text: #7aa2ff;
   --ok-text: #27c28a;
+  /* Kid colours: amber and green deliberately reuse the status hues (--missing-text / --ok-text) pending a
+     design decision. The chip always shows the kid initial (and name when wide), so it is never colour-only. */
   --kid-blue: #4d7cff;
   --kid-green: #27c28a;
   --kid-lavender: #b07cff;
