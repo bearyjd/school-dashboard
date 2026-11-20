@@ -189,8 +189,8 @@ def test_detail_lists_notes_without_body(api_factory):
     api = api_factory(seed("missing"))
     assert data(api.get(f"{BASE}/1"))["data"]["notes"] == []
     first = seeded_note(api)
-    second = seeded_note(api)
     api.send("patch", f"{BASE}/1/note/{first}", {"status": "discarded", "actor": ACTOR})
+    second = seeded_note(api)
     notes = data(api.get(f"{BASE}/1"))["data"]["notes"]
     assert [n["id"] for n in notes] == [second, first]
     assert set(notes[0]) == {"id", "flag", "status", "created_at", "actor"}

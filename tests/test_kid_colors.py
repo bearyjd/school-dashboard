@@ -1,3 +1,4 @@
+import pytest
 import json
 import logging
 import sqlite3
@@ -144,3 +145,53 @@ def test_digest_fallback_colors_match_overview(tmp_path, monkeypatch):
     tz = ZoneInfo("America/New_York")
     ov = build_overview({}, [], {}, [], {}, roster, datetime(2026, 11, 6, 12, tzinfo=tz), tz)
     assert {k["name"]: k["color"] for k in ov["kids"]} == {"Alpha": "blue", "Beta": "rose"}
+
+
+@pytest.mark.parametrize("child", [None, 5, "missing"])
+def test_with_child_colors_tolerates_bad_child(child):
+    card = {"title": "t"} if child == "missing" else {"child": child, "title": "t"}
+    out = with_child_colors([card, {"child": "Ford"}], None, ["Ford"])
+    assert out[0]["color"] == "" and out[1]["color"] == "amber"
+
+
+def _digest_rows(db):
+    with sqlite3.connect(db) as c:
+        return c.execute("select cards from digests").fetchall()
+
+
+@pytest.mark.parametrize("child", [None, 5])
+def test_send_ntfy_stores_row_with_bad_child_card(tmp_path, monkeypatch, child):
+    monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(tmp_path / "none.json"))
+    state._config_cache = None
+    db = str(tmp_path / "s.db")
+    cards = [{"child": child, "title": "t"}, {"child": "Ford", "title": "u"}]
+    with patch("school_dashboard.digest.requests.post") as post:
+        send_ntfy("t", "m", "Homework Check", cards=cards, db_path=db)
+    state._config_cache = None
+    stored = json.loads(_digest_rows(db)[0][0])
+    assert [c["color"] for c in stored] == ["", "amber"]
+    assert "?digest=" in post.call_args.kwargs["headers"]["Click"]
+
+
+def test_send_ntfy_roster_failure_stores_uncoloured_and_warns(tmp_path, caplog):
+    db = str(tmp_path / "s.db")
+    cards = [{"child": "Ford", "title": "u"}]
+    with patch("school_dashboard.digest.get_roster", side_effect=RuntimeError("boom")), \
+            patch("school_dashboard.digest.requests.post") as post, caplog.at_level(logging.WARNING):
+        send_ntfy("t", "m", "Homework Check", cards=cards, db_path=db)
+    rows = _digest_rows(db)
+    assert len(rows) == 1 and json.loads(rows[0][0]) == cards
+    assert "?digest=" in post.call_args.kwargs["headers"]["Click"]
+    warns = [r for r in caplog.records if "colour" in r.getMessage().lower()]
+    assert len(warns) == 1 and "RuntimeError" in warns[0].getMessage() and "boom" not in warns[0].getMessage()
+
+
+def test_send_ntfy_empty_cards_records_row_and_keeps_static_link(tmp_path, monkeypatch):
+    monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(tmp_path / "none.json"))
+    state._config_cache = None
+    db = str(tmp_path / "s.db")
+    with patch("school_dashboard.digest.requests.post") as post:
+        send_ntfy("t", "m", "Homework Check", cards=[], db_path=db)
+    state._config_cache = None
+    assert json.loads(_digest_rows(db)[0][0]) == []
+    assert "?digest=" not in post.call_args.kwargs["headers"]["Click"]
