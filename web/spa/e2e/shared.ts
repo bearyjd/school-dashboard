@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 
 export interface RouteSpec {
-  /** Path under /app/ ('' is Today). */
+  /** Path under /app/ ('' is the home route: Reconcile when v2 is live). */
   path: string
   /** API path whose successful response must arrive before the screen counts as loaded. */
   api: string | null
@@ -9,8 +9,13 @@ export interface RouteSpec {
   ready: string
 }
 
+/** Set on the Reconcile screen once the summary and the assignment list have both loaded. */
+export const RECON_READY = 'main[data-recon-ready="true"]'
+
 export const ROUTES: readonly RouteSpec[] = [
-  { path: '', api: '/api/overview', ready: '.today__tiles' },
+  { path: '', api: '/api/v2/summary', ready: RECON_READY },
+  { path: 'recon', api: '/api/v2/summary', ready: RECON_READY },
+  { path: 'today', api: '/api/overview', ready: '.today__tiles' },
   { path: 'tonight', api: '/api/overview', ready: 'table' },
   { path: 'overdue', api: '/api/overview', ready: 'table' },
   { path: 'missing', api: '/api/overview', ready: 'table' },
@@ -24,7 +29,7 @@ export const ROUTES: readonly RouteSpec[] = [
 
 export const THEMES = ['midnight', 'daylight'] as const
 
-export const label = (r: RouteSpec) => `/${r.path || 'today'}`
+export const label = (r: RouteSpec) => `/${r.path || 'home'}`
 
 /** Navigates and resolves once the route's data response arrived and its data-dependent marker rendered. */
 export async function openRoute(page: Page, route: RouteSpec): Promise<void> {
@@ -35,3 +40,9 @@ export async function openRoute(page: Page, route: RouteSpec): Promise<void> {
   await response
   await page.locator(route.ready).first().waitFor()
 }
+
+/** File-name stem for a route's screenshots. */
+export const shotName = (r: RouteSpec) => r.path.replace('/', '-') || 'home'
+
+/** A parent identity stored on the device, as the setup sheet would; write actions then need nothing else. */
+export const PARENT = JSON.stringify({ name: 'Dana', role: 'parent' })

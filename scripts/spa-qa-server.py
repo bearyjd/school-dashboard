@@ -21,6 +21,7 @@ import tempfile
 import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -36,16 +37,28 @@ def _day(today: date, offset: int) -> str:
     return (today + timedelta(days=offset)).isoformat()
 
 
-def _write_inputs(inputs: Path, today: date) -> None:
+def _school_dates(now: datetime) -> tuple[date, date]:
+    """(school today, next school day) by the package's own rules (04:00 rollover, weekends)."""
+    from school_dashboard.assignments.schooldays import next_school_day, school_today
+    today = school_today(now)
+    return today, next_school_day(today, frozenset())
+
+
+def _write_inputs(inputs: Path, today: date, nxt: date) -> None:
     (inputs / "ixl").mkdir(parents=True)
     (inputs / "ixl" / "alex-assigned.json").write_text(json.dumps(
         {"totals": {"Math": {"assigned": 4, "done": 1, "remaining": 3}}, "remaining": []}))
     (inputs / "sgy.json").write_text(json.dumps({"per_child": [
         {"child": {"name": "Alex Tester"}, "grades": [], "announcements": [], "assignments": [
             {"title": "Water cycle essay", "course": "Science", "due_date": _day(today, -3), "status": "open"},
-            {"title": "Read chapter 4", "course": "ELA", "due_date": _day(today, 1), "status": "open"}]},
+            {"title": "Read chapter 4", "course": "English", "due_date": nxt.isoformat(), "status": "open"},
+            {"title": "Spelling list 12", "course": "English", "due_date": nxt.isoformat(), "status": "open"},
+            {"title": "Map skills worksheet", "course": "Social Studies", "due_date": nxt.isoformat(), "status": "open"},
+            {"title": "Vocabulary packet", "course": "English", "due_date": _day(today, -12), "status": "open"},
+            {"title": "Lab notebook", "course": "Science", "due_date": today.isoformat(), "status": "late"}]},
         {"child": {"name": "Sam Tester"}, "grades": [], "announcements": [], "assignments": [
-            {"title": "Map project " + "x" * 120, "course": "History", "due_date": _day(today, -1), "status": "open"}]},
+            {"title": "Map project " + "x" * 120, "course": "History", "due_date": _day(today, -1), "status": "open"},
+            {"title": "<img src=x onerror=alert(1)> poster", "course": "Art", "due_date": nxt.isoformat(), "status": "open"}]},
     ]}))
     ps = json.loads((ROOT / "tests" / "fixtures" / "powerschool-summary.json").read_text())
     ps["scraped_at"] = datetime.now().isoformat(timespec="seconds")
@@ -53,16 +66,20 @@ def _write_inputs(inputs: Path, today: date) -> None:
         for key, offset in (("missing", -9), ("late", -4), ("upcoming", 2)):
             for entry in child[key]:
                 entry["due"] = _day(today, offset)
+        if child["name"] == "Alex":  # the same assignment in a second portal: it merges into one record
+            child["upcoming"].append(
+                {"course": "English", "title": "Read chapter 4", "due": nxt.isoformat(), "category": None, "score": None})
     (inputs / "ps.json").write_text(json.dumps(ps))
 
 
-def _write_state(state_dir: Path, today: date) -> None:
+def _write_state(state_dir: Path, now: datetime, recon: bool) -> None:
     from school_dashboard import cli, state
     from school_dashboard.db import create_item, init_db
     from school_dashboard.sync_meta import write_sync_source
 
+    today, nxt = _school_dates(now)
     inputs = state_dir.parent / "inputs"
-    _write_inputs(inputs, today)
+    _write_inputs(inputs, today, nxt)
     argv = ["school-state", "update", "--ixl-dir", str(inputs / "ixl"),
             "--sgy-file", str(inputs / "sgy.json"), "--ps-file", str(inputs / "ps.json")]
     state._config_cache = None
@@ -71,7 +88,8 @@ def _write_state(state_dir: Path, today: date) -> None:
 
     db = str(state_dir / "school.db")
     init_db(db)
-    create_item(db, "Jo", "Poster for science fair", due_date=_day(today, -1))
+    if not recon:  # with v2 on, Jo is the kid with nothing open
+        create_item(db, "Jo", "Poster for science fair", due_date=_day(today, -1))
     create_item(db, "Sam", "Bring gym shoes", due_date=_day(today, 1))
     conn = sqlite3.connect(db)
     with conn:
@@ -92,6 +110,8 @@ def _write_state(state_dir: Path, today: date) -> None:
             {"team_id": "t2", "team_name": "Cubs", "child": "Sam+Jo", "schedule": [game(2, "18:30", "Owls")]},
         ]}))
 
+    if recon:
+        _seed_recon(state_dir, inputs, now)
     for source in ("ixl", "sgy", "gc", "powerschool"):
         write_sync_source(source, "ok")
     meta_path = state_dir / "sync_meta.json"
@@ -101,6 +121,73 @@ def _write_state(state_dir: Path, today: date) -> None:
     meta_path.write_text(json.dumps(meta))
 
 
+def _second_scrape(inputs: Path, args: Any, now: datetime, ingest: Any) -> None:
+    """A later scrape: a missing-in-portal assignment with a link (it is then turned in: Disputed), two same-titled assignments in different classes, then a course-less portal row that
+    could be either one, so the merge records a possible duplicate instead of guessing."""
+    nxt = _school_dates(now)[1].isoformat()
+    sgy = json.loads((inputs / "sgy.json").read_text())
+    alex = next(e for e in sgy["per_child"] if e["child"]["name"].startswith("Alex"))
+    alex["assignments"].append({"title": "Poster board", "course": "Science", "status": "missing",
+                                "due_date": (_school_dates(now)[0] - timedelta(days=2)).isoformat(),
+                                "link": "https://portal.example.test/assignment/4412"})
+    for course in ("Math", "English"):
+        alex["assignments"].append({"title": "Reading log", "course": course, "due_date": nxt, "status": "open"})
+    (inputs / "sgy.json").write_text(json.dumps(sgy))
+    ps = json.loads((inputs / "ps.json").read_text())
+    next(c for c in ps["children"] if c["name"] == "Alex")["upcoming"].append(
+        {"course": "", "title": "Reading log", "due": nxt, "category": None, "score": None})
+    ps["scraped_at"] = datetime.now().isoformat(timespec="seconds")
+    (inputs / "ps.json").write_text(json.dumps(ps))
+    if ingest.run_shadow(args, now=now + timedelta(minutes=1), after_ingest=lambda conn, when: None) is None:
+        sys.exit("QA seed: the second shadow ingest did not run")
+
+
+def _seed_recon(state_dir: Path, inputs: Path, now: datetime) -> None:
+    """Real code paths only: maintenance on, `assignments migrate`, maintenance off, the shadow ingest over the
+    synthetic scrape files, then service taps. Writes made later through the API persist for the process."""
+    from types import SimpleNamespace
+
+    from school_dashboard import cli, maintenance
+    from school_dashboard.assignments import ingest, schema, service
+    from school_dashboard.assignments.ingest_io import read_events
+
+    maintenance.enable("qa seed")
+    with patch.object(sys, "argv", ["school-state", "assignments", "migrate"]):
+        try:
+            cli.main()
+        except SystemExit as exc:
+            if exc.code not in (0, None):
+                raise
+    maintenance.disable()
+
+    os.environ.update({"RECON_INGEST_ENABLED": "1", "RECON_WRITE_OPEN": "1"})  # this process only
+    args = SimpleNamespace(sgy_file=str(inputs / "sgy.json"), ps_file=str(inputs / "ps.json"), ixl_dir=str(inputs / "ixl"))
+    if ingest.run_shadow(args, now=now, after_ingest=lambda conn, when: None) is None:
+        sys.exit("QA seed: the shadow ingest did not run")
+
+    _second_scrape(inputs, args, now, ingest)
+
+    db = str(state_dir / "school.db")
+    rows = read_events(db)
+    parent = service.Actor("parent", "Dana")
+    conn = schema.connect(db)
+    try:
+        def aid(title: str) -> int:
+            return conn.execute("SELECT id FROM assignments WHERE kid = 'Alex' AND title = ?", (title,)).fetchone()["id"]
+
+        def tap(title: str, action: str, when: datetime) -> None:
+            service.tap(conn, aid(title), action, parent, now=when, no_school_rows=rows)
+
+        tap("Map skills worksheet", "done", now)                      # Waiting on teacher
+        tap("Poster board", "turned_in", now)                         # Disputed (portal says missing)
+        tap("Vocabulary packet", "done", now - timedelta(days=10))    # Done, not received (grace passed)
+        science = service.ClassSettings(teacher_name="Ms. Example", teacher_email="teacher@school.example.test",
+                                        fields=frozenset({"teacher_name", "teacher_email"}))
+        service.set_class(conn, "Alex", "Science", science, parent, now=now, no_school_rows=rows)
+    finally:
+        conn.close()
+
+
 SCRUBBED_PREFIXES = ("SCHOOL_", "NTFY_", "LITELLM_", "GC_", "GOG_", "IXL_", "SGY_", "PS_")
 
 
@@ -108,6 +195,7 @@ def main() -> None:
     doc_lines = (__doc__ or "").strip().splitlines()
     parser = argparse.ArgumentParser(description=doc_lines[0] if doc_lines else None)
     parser.add_argument("--port", type=int, default=5099)
+    parser.add_argument("--no-recon", action="store_true", help="start with Reconcile (v2) disabled, as before")
     args = parser.parse_args()
 
     if not (ROOT / "web" / "spa" / "dist" / "index.html").exists():
@@ -134,7 +222,8 @@ def main() -> None:
         })
 
         sys.path.insert(0, str(ROOT))
-        _write_state(state_dir, date.today())
+        from school_dashboard import watchdog
+        _write_state(state_dir, datetime.now(watchdog.get_tz()), not args.no_recon)
         from web.app import app
 
         print(f"Synthetic state in {state_dir}; serving http://127.0.0.1:{args.port}/app/", file=sys.stderr, flush=True)
