@@ -1,7 +1,9 @@
 """cmd_digest with RECON_DIGEST_ENABLED (S7) and `assignments digest` preview."""
 import argparse
+import builtins
 import hashlib
 import json
+import logging
 import sqlite3
 from unittest.mock import MagicMock, patch
 
@@ -153,6 +155,73 @@ def test_v2_failure_sends_quick_check_with_its_own_note_and_exits_1(tmp_path, mo
 def test_deliver_digest_default_note_is_unchanged():
     from school_dashboard import digest
     assert digest.FALLBACK_NOTE == "AI summary unavailable - showing the basic homework check instead.\n\n"
+
+
+# ---- run order and recon guard ---------------------------------------------------
+
+def _order_env(monkeypatch):
+    monkeypatch.setenv(FLAG, "1")
+    _fixed_now(monkeypatch, ds.SAT)
+    order = []
+    monkeypatch.setattr("school_dashboard.assignments.digest_run.flush_outbox", lambda *a, **k: order.append("flush"))
+    post = MagicMock(return_value=_ok(), side_effect=lambda *a, **k: order.append("post") or _ok())
+    return order, post
+
+
+def test_outbox_is_flushed_after_the_digest_push(api, monkeypatch):
+    order, post = _order_env(monkeypatch)
+    _run("night", post)
+    assert order == ["post", "flush"]
+
+
+def test_outbox_is_still_flushed_after_the_fallback_push(tmp_path, monkeypatch):
+    ds.friday_env(tmp_path, monkeypatch, migrated=False)
+    order, post = _order_env(monkeypatch)
+    with pytest.raises(SystemExit) as exc:
+        _run("morning", post)
+    assert exc.value.code == 1 and order == ["post", "flush"]
+
+
+def test_flag_off_never_flushes(api, monkeypatch):
+    monkeypatch.setenv("LITELLM_URL", "http://x/v1")
+    flush = MagicMock()
+    monkeypatch.setattr("school_dashboard.assignments.digest_run.flush_outbox", flush)
+    with patch("school_dashboard.digest.build_night_digest", return_value=("v1 text", [])):
+        _run("night")
+    flush.assert_not_called()
+
+
+def _v1_still_used(monkeypatch, caplog, kind):
+    monkeypatch.setenv("LITELLM_URL", "http://x/v1")
+    with patch("school_dashboard.digest.build_morning_digest", return_value=("v1 text", [])) as v1, \
+         patch("school_dashboard.assignments.digest_run.build_for_cron") as v2, caplog.at_level(logging.ERROR):
+        post = _run("morning")
+    v1.assert_called_once()
+    v2.assert_not_called()
+    assert post.call_args.kwargs["data"] == b"v1 text"
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1 and kind in errors[0] and "secret-detail" not in errors[0]
+
+
+def test_broken_flag_evaluation_falls_back_to_v1_with_one_error_log(api, monkeypatch, caplog):
+    monkeypatch.setenv(FLAG, "1")
+
+    def boom(name):
+        raise RuntimeError("secret-detail")
+    monkeypatch.setattr("school_dashboard.assignments.flagsenv.enabled", boom)
+    _v1_still_used(monkeypatch, caplog, "RuntimeError")
+
+
+def test_failing_flagsenv_import_falls_back_to_v1_with_one_error_log(api, monkeypatch, caplog):
+    monkeypatch.setenv(FLAG, "1")
+    real = builtins.__import__
+
+    def fake(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "school_dashboard.assignments" and "flagsenv" in (fromlist or ()):
+            raise ImportError("secret-detail")
+        return real(name, globals, locals, fromlist, level)
+    monkeypatch.setattr(builtins, "__import__", fake)
+    _v1_still_used(monkeypatch, caplog, "ImportError")
 
 
 # ---- `assignments digest` preview ----------------------------------------------

@@ -15,8 +15,9 @@ _BUCKET = {"do_tonight": "do_tonight", "waiting_on_teacher": "waiting_on_teacher
 
 def item(kid: str, title: str, flag: str, *, cls: str | None = "Math 6", due: str | None = None,
          kind: str = "assignment", stage: int = 1, info: Sequence[str] = (), unverified: bool = False,
-         since: str | None = None, remaining: int | None = None) -> dict[str, Any]:
-    links = [{"id": 1, "source": "ixl", "raw_status": f"{remaining} remaining"}] if remaining is not None else []
+         since: str | None = None, remaining: int | None = None, raw: str | None = None) -> dict[str, Any]:
+    status = f"{remaining} remaining" if remaining is not None else raw
+    links = [{"id": 1, "source": "ixl", "raw_status": status}] if status is not None else []
     return {"id": 1, "kid": kid, "title": title, "class": cls, "due": due, "kind": kind, "stage": stage,
             "flag": flag, "bucket": _BUCKET.get(flag), "info": list(info), "unverified": unverified,
             "links": links, "stage_since": since or ""}
@@ -27,8 +28,9 @@ def ixl(kid: str, subject: str, remaining: int) -> dict[str, Any]:
 
 
 def summary(kids: Sequence[str], *, ok: bool = True, as_of: str | None = AS_OF,
-            unverified: Sequence[str] = ()) -> dict[str, Any]:
-    return {"kids": [{"name": k} for k in kids], "data_as_of": as_of, "ingest_ok": ok,
+            unverified: Sequence[str] = (), records: int | None = None) -> dict[str, Any]:
+    extra = {} if records is None else {"record_counts": {k: records for k in kids}}
+    return {**extra, "kids": [{"name": k} for k in kids], "data_as_of": as_of, "ingest_ok": ok,
             "unverified_sources": list(unverified), "warnings": [], "generated_at": NOW.isoformat()}
 
 
@@ -76,6 +78,16 @@ def ixl_remaining():
     return build(summary(("Alex", "Sam")), [ixl("Alex", "Math", 3), ixl("Alex", "ELA", 0), ixl("Sam", "ELA", 7)])
 
 
+def no_records():
+    return build(summary(("Alex", "Sam"), records=0), [])
+
+
+def ixl_unknown():
+    items = [ixl("Alex", "Math", 4), ixl("Alex", "Spanish", 0), item("Alex", "IXL ELA", "do_tonight", cls=None,
+             kind="practice", raw="not started")]
+    return build(summary(("Alex",)), items)
+
+
 def plus_more():
     items = [item("Alex", f"Task {n}", "do_tonight", due=f"2026-11-{10 + n}") for n in range(1, 10)]
     return build(summary(("Alex",)), items)
@@ -115,7 +127,7 @@ def many(kids: int, per_bucket: int):
 SCENARIOS: dict[str, Callable[[], Any]] = {
     "mixed_night": mixed, "mixed_morning": lambda: mixed("morning"), "all_clear": all_clear,
     "all_clear_unverified": all_clear_unverified, "banner_sources": banner_sources, "ixl_remaining": ixl_remaining,
-    "plus_more": plus_more, "dirty_titles": dirty_titles, "no_as_of": no_as_of, "ordering": ordering,
+    "no_records": no_records, "ixl_unknown": ixl_unknown, "plus_more": plus_more, "dirty_titles": dirty_titles, "no_as_of": no_as_of, "ordering": ordering,
     "ladder_cap3": lambda: many(4, 6), "ladder_cap1": lambda: many(9, 5), "ladder_counts": lambda: many(24, 5),
 }
 

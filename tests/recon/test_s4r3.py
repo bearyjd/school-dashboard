@@ -13,13 +13,16 @@ BASE = "https://portal.example.com/x"
 
 @pytest.mark.parametrize("suffix", [
     "?course_code=A1", "?school_code=9", "?country_code=US", "?promo-code=X", "?filter[status]=open",
-    "?filter[kind][]=a", "?pwn=1", "?tickets=3", "?code_of_conduct=1"])
+    "?filter[kind][]=a", "?pwn=1", "?tickets=3", "?code_of_conduct=1", "?class_code=7", "?section_code=2",
+    "?zip_code=1", "?postal_code=1", "?area_code=1", "?language_code=en", "?currency_code=USD", "?promo_code=X",
+    "?barcode=1", "?zipcode=1", "?unicode=1", "?postcode=1", "?encode=1"])
 def test_over_blocking_cases_pass(suffix):
     assert readmodel.safe_url(BASE + suffix) == BASE + suffix
 
 
 @pytest.mark.parametrize("suffix", [
-    "?code=1", "?auth_code=1", "?otp_code=1", "?access_code=1", "?pass_code=1", "?passcode=1",
+    "?reset_code=1", "?verification_code=1", "?invite_code=1", "?login_code=1", "?magic_code=1", "?oauth_code=1",
+    "?2fa_code=1", "?my-code=1", "?x[reset_code]=1", "?Reset_Code=1", "?code=1", "?auth_code=1", "?otp_code=1", "?access_code=1", "?pass_code=1", "?passcode=1",
     "?user[token]=a", "?x[password]=a", "?x[api_key]=a", "?x%5Bpasswd%5D=a", "?passwd=1", "?pw=1", "?ticket=1",
     "?user_pw=1", "?a[b][secret]=1", "#pw=1", "/f;ticket=1"])
 def test_under_blocking_cases_are_dropped(suffix):
