@@ -72,6 +72,7 @@ class AssignmentState:
     portal_conflict: bool = False
     closed_at: datetime | None = None
     paper_only: bool = False
+    data_problem: bool = False  # a stored date was unreadable and replaced (see repo._to_state)
 
 
 @dataclass(frozen=True)

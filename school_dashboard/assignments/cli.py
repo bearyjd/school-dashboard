@@ -95,8 +95,8 @@ def _digest(args: argparse.Namespace) -> int:
     with readctx.connection(readonly=True) as conn:
         summary, items = digest_run.assemble(conn, readctx.load(conn, now))
     digest = digest_v2.build(summary, items, mode=args.mode, now=now)
-    _out(json.dumps({"text": digest.text, "cards": list(digest.cards)}, indent=2) + "\n" if args.json
-         else digest.text + "\n")
+    text = digest_v2.final_text(digest.text, "", digest_run.notes_line(0, summary))
+    _out(json.dumps({"text": text, "cards": list(digest.cards)}, indent=2) + "\n" if args.json else text + "\n")
     return EXIT_OK
 
 

@@ -8,6 +8,8 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, Mapping, Sequence
 
+from school_dashboard.state import canonical_name
+
 from . import merge, repo, schooldays, stages
 from .ingest_status import KidContext, apply_absence, apply_flags, refresh_status
 from .ingest_types import KidResult
@@ -33,7 +35,7 @@ def parse_aliases(rows: Sequence[tuple[str, int | None, str | None]]) -> dict[st
     for key, _, raw in rows:
         try:
             names = json.loads(raw) if raw else []
-        except ValueError:
+        except (ValueError, TypeError):
             continue
         if isinstance(names, list):
             out.update({n: key for n in names if isinstance(n, str) and n.strip()})
@@ -46,7 +48,7 @@ def build_context(conn: sqlite3.Connection, kid: str, *, now: datetime, no_schoo
     return KidContext(
         kid=kid, now=now, today=schooldays.school_today(now), baseline=baseline,
         aliases=parse_aliases(rows), grace={k: g for k, g, _ in rows if g is not None},
-        no_school=schooldays.no_school_dates(no_school_rows, kid), file_hashes=file_hashes)
+        no_school=schooldays.no_school_dates(no_school_rows, kid, canonical_name), file_hashes=file_hashes)
 
 
 def _raw_json(rec: SourceRecord) -> str:

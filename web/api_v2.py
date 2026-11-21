@@ -23,6 +23,12 @@ from web import api_v2_validate as V
 
 bp = Blueprint("api_v2", __name__, url_prefix="/api/v2")
 logger = logging.getLogger(__name__)
+
+
+class Unavailable(Exception):
+    """The item exists but its child could not be built right now (retry later)."""
+
+
 _CODE = re.compile(r"^[a-z_]{1,40}$")
 MAX_PATH_ID = 2 ** 53
 _HTTP_CODES = {400: "bad_request", 404: "not_found", 405: "method_not_allowed", 413: "payload_too_large",
@@ -119,11 +125,18 @@ def _rejected(exc: sqlite3.IntegrityError) -> Response:
     return _fail("rejected", 409)
 
 
+@bp.errorhandler(Unavailable)
+def _unavailable(_: Unavailable) -> Response:
+    return _fail("unavailable", 503)
+
+
 @bp.errorhandler(Exception)
 def _internal(exc: Exception) -> Response | HTTPException:
     if isinstance(exc, HTTPException):
         return _http_error(exc)
-    logger.error("api v2: unexpected %s", type(exc).__name__)
+    # Frames only: the message is replaced (it can echo stored text) and no locals are rendered.
+    safe = Exception(f"{type(exc).__module__}.{type(exc).__qualname__} (message withheld)")
+    logger.error("api v2: unexpected %s", type(exc).__name__, exc_info=(Exception, safe, exc.__traceback__))
     return _fail("internal", 500)
 
 
@@ -144,10 +157,16 @@ def _item(conn: sqlite3.Connection, ctx: ctxmod.ReadCtx, aid: int, *, events: bo
     if rec is None:  # unknown, or merged away
         raise service.NotFound("assignment")
     links = repo.link_records(conn, [aid])[aid]
-    if events:
-        return readmodel.build_detail(rec, links, repo.events_for(conn, aid), **ctx.view())
-    flt = ListFilters(include_closed=True)
-    return readmodel.build_list([rec], {aid: links}, filters=flt, **ctx.view())[0]
+    try:
+        if events:
+            return readmodel.build_detail(rec, links, repo.events_for(conn, aid), **ctx.view())
+        built = readmodel.build_list([rec], {aid: links}, filters=ListFilters(include_closed=True), **ctx.view())
+    except Exception as exc:
+        logger.error("api v2: item %d could not be built (%s)", aid, type(exc).__name__)
+        raise Unavailable from exc
+    if not built:  # the read model drops a kid whose build failed
+        raise Unavailable
+    return built[0]
 
 
 def _counts(conn: sqlite3.Connection, ctx: ctxmod.ReadCtx, kid: str) -> Mapping[str, Any]:
@@ -163,7 +182,11 @@ def _check_id(aid: int) -> None:
 
 def _written(conn: sqlite3.Connection, now: datetime, aid: int, **extra: Any) -> Response:
     ctx = ctxmod.load(conn, now)
-    item = _item(conn, ctx, aid)
+    try:
+        item = _item(conn, ctx, aid)
+    except Unavailable:  # the write is committed; the client refetches
+        api_v2_push.kick(ctxmod.db_file(), now)
+        return _ok({"item": None, "id": aid, "refetch": True, **extra})
     out = {"item": item, "counts": _counts(conn, ctx, str(item["kid"])), **extra}
     api_v2_push.kick(ctxmod.db_file(), now)
     return _ok(out)
@@ -190,7 +213,7 @@ def summary() -> Response:
     with ctxmod.connection(readonly=True) as conn:
         ctx = ctxmod.load(conn, now)
         rows = repo.assignment_records(conn, None, True)
-        return _ok(readmodel.build_summary(rows, _links(conn, rows), kids=ctx.roster, warnings=(), **ctx.view()))
+        return _ok(readmodel.build_summary(rows, _links(conn, rows), kids=ctx.roster, warnings=ctx.warnings(), **ctx.view()))
 
 
 @bp.get("/assignments")
@@ -201,7 +224,8 @@ def assignments() -> Response:
         flt = V.parse_list_query(request.args, ctx.kids)
         rows = repo.assignment_records(conn, flt.kid, True)
         page = readmodel.build_page(rows, _links(conn, rows), filters=flt, **ctx.view())
-        return _ok(page.items, count=len(page.items), total=page.total, limit=flt.limit, offset=flt.offset)
+        return _ok(page.items, count=len(page.items), total=page.total, limit=flt.limit, offset=flt.offset,
+                   **({"warnings": list(page.warnings)} if page.warnings else {}))
 
 
 @bp.get("/assignments/<int:aid>")
@@ -227,7 +251,7 @@ def _class_events(conn: sqlite3.Connection, kid: str) -> list[dict[str, Any]]:
     for e in repo_history.class_events(conn, kid):
         try:
             changes = json.loads(e["changes"])
-        except ValueError:
+        except (ValueError, TypeError):
             changes = {}
         out.append({**e, "changes": changes})
     return out

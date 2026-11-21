@@ -243,3 +243,37 @@ test('a switched-off v2 (cached "recon" answer, 404s) shows no error while the c
   expect(screen.queryByText(/could not load/i)).toBeNull()
   expect(screen.getByRole('status', { name: /loading/i })).toBeTruthy()
 })
+
+test('summary warnings show as plain info lines under the banners', async () => {
+  await show('/', fakeServer({ summary: { warnings: ['1 calendar rows had an unreadable date; ignored', '<b>x</b> second'] } }))
+  expect(screen.getByText('1 calendar rows had an unreadable date; ignored').closest('.banner--info')).not.toBeNull()
+  expect(screen.getByText('<b>x</b> second')).toBeTruthy()
+})
+
+test('more than five warnings show five lines and "+N more"', async () => {
+  const warnings = Array.from({ length: 8 }, (_, i) => `warning number ${i + 1}`)
+  await show('/', fakeServer({ summary: { warnings } }))
+  expect(screen.getByText('warning number 5')).toBeTruthy()
+  expect(screen.queryByText('warning number 6')).toBeNull()
+  expect(screen.getByText('+3 more')).toBeTruthy()
+})
+
+test('no warnings, no warning lines', async () => {
+  await show()
+  expect(document.querySelectorAll('.banner--info').length).toBe(0)
+})
+
+test('a kid the server could not load says so, never "All clear", and is left out of the tiles', async () => {
+  const items = sampleItems()
+  const base = summaryOf(items)
+  const zero = { done_not_received: 0, disputed: 0, missing: 0 }
+  const kids = base.kids.map(k => (k.name === 'Gamma'
+    ? { ...k, counts: { do_tonight: 9, waiting_on_teacher: 9, needs_action: 9, needs_action_detail: zero }, all_clear: false, error: 'unavailable' as const }
+    : k))
+  const expected = base.kids.filter(k => k.name !== 'Gamma').reduce((s, k) => s + k.counts.do_tonight, 0)
+  await show('/', fakeServer({ items, summary: { kids } }))
+  const gamma = screen.getByRole('heading', { level: 2, name: 'Gamma' }).closest('section') as HTMLElement
+  expect(within(gamma).getByText('Gamma: could not be loaded - try again')).toBeTruthy()
+  expect(within(gamma).queryByText(/all clear/i)).toBeNull()
+  expect(within(screen.getByRole('region', { name: 'Summary' })).getByRole('button', { name: /do tonight/i }).textContent).toContain(String(expected))
+})

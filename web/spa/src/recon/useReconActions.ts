@@ -63,7 +63,8 @@ export function useReconActions(config: ReconConfig | undefined) {
     replace(optimisticItem(item, action, localToday(new Date(), APP_TZ)))
     try {
       const res = await postStage(item.id, action, actor)
-      replace(res.item)
+      // Saved but not rebuilt: the invalidation below refetches the row.
+      if (res.item) replace(res.item)
       rows.set(item.id, IDLE)
       return res.item
     } catch (e) {

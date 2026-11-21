@@ -32,7 +32,7 @@ class AliasRow:
 def _names(raw: str | None) -> list[str]:
     try:
         data = json.loads(raw) if raw else []
-    except ValueError:
+    except (ValueError, TypeError):
         return []
     return [n for n in data if isinstance(n, str)] if isinstance(data, list) else []
 

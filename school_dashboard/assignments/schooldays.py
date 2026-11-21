@@ -1,10 +1,16 @@
 """School-day arithmetic: 04:00 rollover, NO_SCHOOL calendar rows, weekends."""
 from __future__ import annotations
 
+import logging
+import threading
 from datetime import date, datetime, timedelta
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
+
+from school_dashboard.assignments.dates import parse_date
 
 ROLLOVER_HOUR = 4
+logger = logging.getLogger(__name__)
+_LOGGED = threading.Event()
 
 
 def school_today(now: datetime) -> date:
@@ -15,27 +21,55 @@ def school_today(now: datetime) -> date:
     return (wall - timedelta(hours=ROLLOVER_HOUR)).date()
 
 
-def _applies_to(child: Any, kid: str) -> bool:
+def _applies_to(child: Any, kid: str, resolve: Callable[[str], str] | None = None) -> bool:
     if child is None or not str(child).strip():
         return True
-    names = {part.strip().casefold() for part in str(child).split(",")}
-    return kid.strip().casefold() in names
+    pick = resolve or (lambda n: n)
+    names = {pick(part.strip()).strip().casefold() for part in str(child).split(",")}
+    return pick(kid.strip()).strip().casefold() in names
 
 
-def _row_date(value: Any) -> date:
-    return value if isinstance(value, date) else date.fromisoformat(str(value)[:10])
+def _row_dates(event_rows: Iterable[Mapping[str, Any]], kind: str | None = None, kid: str | None = None,
+              resolve: Callable[[str], str] | None = None) -> Iterable[date]:
+    """Readable dates of the rows (of one type and applying to one kid when given); unreadable rows are skipped."""
+    for row in event_rows:
+        if kind is not None and row.get("type") != kind:
+            continue
+        if kid is not None and not _applies_to(row.get("child"), kid, resolve):
+            continue
+        day = parse_date(row.get("date"))
+        if day is not None:
+            yield day
 
 
-def no_school_dates(event_rows: Iterable[Mapping[str, Any]], kid: str) -> frozenset[date]:
-    return frozenset(
-        _row_date(row["date"])
-        for row in event_rows
-        if row.get("type") == "NO_SCHOOL" and _applies_to(row.get("child"), kid)
-    )
+def no_school_dates(event_rows: Iterable[Mapping[str, Any]], kid: str,
+                    resolve: Callable[[str], str] | None = None) -> frozenset[date]:
+    """NO_SCHOOL days for kid; `resolve` (e.g. state.canonical_name) maps calendar and kid names to one canonical form."""
+    return frozenset(_row_dates(event_rows, "NO_SCHOOL", kid, resolve))
 
 
 def calendar_covers(event_rows: Iterable[Mapping[str, Any]], today: date) -> bool:
-    return any(_row_date(row["date"]) >= today for row in event_rows)
+    return any(day >= today for day in _row_dates(event_rows))
+
+
+def bad_calendar_rows(event_rows: Iterable[Mapping[str, Any]]) -> int:
+    """How many rows have no readable date (they are ignored by the functions above)."""
+    return sum(parse_date(row.get("date")) is None for row in event_rows)
+
+
+def calendar_warning(count: int) -> str | None:
+    return f"{count} calendar rows had an unreadable date; ignored" if count else None
+
+
+def log_bad_calendar(count: int) -> None:
+    """One WARNING per process (counts only, never row text)."""
+    if count and not _LOGGED.is_set():
+        _LOGGED.set()
+        logger.warning("school calendar: %d row(s) with an unreadable date ignored", count)
+
+
+def reset_calendar_log() -> None:
+    _LOGGED.clear()
 
 
 def is_school_day(d: date, no_school: frozenset[date]) -> bool:

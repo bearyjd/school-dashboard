@@ -6,6 +6,8 @@ from contextlib import contextmanager
 from datetime import date, datetime
 from typing import Any, Iterator, Mapping, Sequence
 
+from school_dashboard import watchdog
+from school_dashboard.assignments.dates import parse_date, parse_dt
 from school_dashboard.assignments.model import AssignmentRecord, AssignmentState, LinkRecord, LinkState
 
 
@@ -49,28 +51,25 @@ def _iso(value: datetime | date | None) -> str | None:
     return value.isoformat() if value is not None else None
 
 
-def _date(value: str | None) -> date | None:
-    return date.fromisoformat(value) if value else None
-
-
-def _dt(value: str | None) -> datetime | None:
-    return datetime.fromisoformat(value) if value else None
-
-
-def _required_dt(value: str | None, column: str) -> datetime:
-    parsed = _dt(value)
-    if parsed is None:
-        raise RepoError(f"assignments.{column} is NULL but the schema forbids it")
-    return parsed
+def _unreadable(raw: str | None, parsed: object) -> bool:
+    return bool(raw) and parsed is None
 
 
 def _to_state(row: sqlite3.Row) -> AssignmentState:
+    """A record from a stored row. Unreadable dates never raise: a due date or closed_at becomes None, stage_since
+    falls back to created_at, then updated_at, then now; any such row is flagged `data_problem`."""
+    tz = watchdog.get_tz()
+    due, closed = parse_date(row["due_date"]), parse_dt(row["closed_at"], tz)
+    since = parse_dt(row["stage_since"], tz)
+    bad = _unreadable(row["due_date"], due) or _unreadable(row["closed_at"], closed) or since is None
+    if since is None:
+        since = parse_dt(row["created_at"], tz) or parse_dt(row["updated_at"], tz) or datetime.now(tz)
     return AssignmentState(
         id=row["id"], kid=row["kid"], class_name=row["class_name"], class_key=row["class_key"] or "",
-        title=row["title"], title_key=row["title_key"], due_date=_date(row["due_date"]), kind=row["kind"],
-        stage=row["stage"], stage_since=_required_dt(row["stage_since"], "stage_since"), received_evidence=row["received_evidence"],
+        title=row["title"], title_key=row["title_key"], due_date=due, kind=row["kind"],
+        stage=row["stage"], stage_since=since, received_evidence=row["received_evidence"],
         portal_status=row["portal_status"], portal_conflict=bool(row["portal_conflict"]),
-        closed_at=_dt(row["closed_at"]), paper_only=bool(row["paper_only_flag"]),
+        closed_at=closed, paper_only=bool(row["paper_only_flag"]), data_problem=bad,
     )
 
 
@@ -141,7 +140,7 @@ def upsert_link(conn: sqlite3.Connection, assignment_id: int, kid: str, link: Li
 def _to_link(r: sqlite3.Row) -> LinkState:
     return LinkState(source=r["source"], external_key=r["external_key"], norm_status=r["norm_status"],
                      score=r["score"], url=r["url"], live=bool(r["live"]),
-                     trusted_misses=r["trusted_misses"], absent_since=_date(r["absent_since"]),
+                     trusted_misses=r["trusted_misses"], absent_since=parse_date(r["absent_since"]),
                      last_miss_hash=r["last_miss_hash"], via=r["via"])
 
 

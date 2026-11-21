@@ -6,7 +6,9 @@ is shown as stored: it may hold the parent's own teacher-confirmation note (and 
 """
 from __future__ import annotations
 
+import logging
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Mapping, Sequence
@@ -17,6 +19,8 @@ from .flags import compute_flag
 from .health import INGEST_SOURCE, IngestHealth
 from .model import AssignmentRecord, FlagResult, LinkRecord
 
+logger = logging.getLogger(__name__)
+OUT_OF_DATE_NOTE = "Assignment data may be out of date: the last merge run did not succeed"
 DEFAULT_GRACE = 2
 MAX_EVENTS = 200
 _STAGE_LABELS = {1: "Assigned", 2: "Done at home", 3: "Turned in", 4: "Received"}
@@ -141,17 +145,39 @@ def _item(rec: AssignmentRecord, links: Sequence[LinkRecord], ctx: _Ctx) -> dict
         "id": s.id, "kid": s.kid, "title": clean_text(s.title, 300), "class": clean_text(s.class_name, 120) or None,
         "due": s.due_date.isoformat() if s.due_date else None, "kind": s.kind, "stage": s.stage,
         "stage_label": _label(s.stage, result.info), "flag": result.flag, "bucket": result.bucket,
-        "info": list(result.info), "unverified": result.unverified,
+        "info": [*result.info, *(("data_problem",) if s.data_problem else ())], "unverified": result.unverified,
         "unverified_sources": list(result.unverified_sources), "portal_status": s.portal_status,
         "conflict": s.portal_conflict, "received_evidence": s.received_evidence,
         "possible_duplicate": rec.possible_duplicate, "links": [_link(ln) for ln in links]}
 
 
+_Pairs = list[tuple[AssignmentRecord, dict[str, Any]]]
+
+
+def _sorted(pairs: _Pairs) -> _Pairs:
+    return sorted(pairs, key=lambda p: (p[0].state.due_date is None, p[0].state.due_date or date.max,
+                                        p[0].state.id or 0))
+
+
 def _items(rows: Sequence[AssignmentRecord], links_by_id: Mapping[int, Sequence[LinkRecord]],
-           ctx: _Ctx) -> list[tuple[AssignmentRecord, dict[str, Any]]]:
-    out = [(r, _item(r, links_by_id.get(r.state.id or 0, ()), ctx)) for r in rows]
-    return sorted(out, key=lambda p: (p[0].state.due_date is None, p[0].state.due_date or date.max,
-                                      p[0].state.id or 0))
+           ctx: _Ctx) -> tuple[_Pairs, frozenset[str]]:
+    """(pairs in display order, kids that could not be built). One kid raising never costs the others."""
+    by_kid: dict[str, list[AssignmentRecord]] = defaultdict(list)
+    for r in rows:
+        by_kid[r.state.kid].append(r)
+    out: _Pairs = []
+    failed: set[str] = set()
+    for kid, mine in by_kid.items():
+        try:
+            out += [(r, _item(r, links_by_id.get(r.state.id or 0, ()), ctx)) for r in mine]
+        except Exception as exc:
+            logger.error("read model: a child could not be built (%s)", type(exc).__name__)
+            failed.add(kid)
+    return _sorted(out), frozenset(failed)
+
+
+def _children_warning(count: int) -> str:
+    return f"{count} child could not be loaded" if count == 1 else f"{count} children could not be loaded"
 
 
 def _wanted(rec: AssignmentRecord, item: Mapping[str, Any], f: ListFilters) -> bool:
@@ -164,6 +190,7 @@ def _wanted(rec: AssignmentRecord, item: Mapping[str, Any], f: ListFilters) -> b
 class ListPage:
     items: tuple[Mapping[str, Any], ...]
     total: int  # after filters, before pagination
+    warnings: tuple[str, ...] = ()
 
 
 def build_page(rows: Sequence[AssignmentRecord], links_by_id: Mapping[int, Sequence[LinkRecord]], *, now: datetime,
@@ -171,8 +198,10 @@ def build_page(rows: Sequence[AssignmentRecord], links_by_id: Mapping[int, Seque
                stale_sources: frozenset[str], ingest: IngestHealth,
                filters: ListFilters) -> ListPage:
     ctx = _Ctx(now, no_school_by_kid, grace_by_class, stale_sources, ingest)
-    kept = [item for rec, item in _items(rows, links_by_id, ctx) if _wanted(rec, item, filters)]
-    return ListPage(tuple(kept[filters.offset:filters.offset + filters.limit]), len(kept))
+    pairs, failed = _items(rows, links_by_id, ctx)
+    kept = [item for rec, item in pairs if _wanted(rec, item, filters)]
+    notes = (_children_warning(len(failed)),) if failed else ()
+    return ListPage(tuple(kept[filters.offset:filters.offset + filters.limit]), len(kept), notes)
 
 
 def build_list(rows: Sequence[AssignmentRecord], links_by_id: Mapping[int, Sequence[LinkRecord]], *, now: datetime,
@@ -216,18 +245,41 @@ def _kid_summary(name: str, pairs: Sequence[tuple[AssignmentRecord, dict[str, An
             "all_clear_reason": "unverified" if clear and unverified else None}
 
 
+def _unavailable(name: str) -> dict[str, Any]:
+    zero = {"done_not_received": 0, "disputed": 0, "missing": 0}
+    return {"name": name, "counts": {"do_tonight": 0, "waiting_on_teacher": 0, "needs_action": 0,
+                                     "needs_action_detail": zero},
+            "practice": [], "all_clear": False, "all_clear_reason": None, "error": "unavailable"}
+
+
+def _section(name: str, pairs: _Pairs, ingest: IngestHealth, failed: frozenset[str]) -> dict[str, Any]:
+    if name in failed:
+        return _unavailable(name)
+    try:
+        return _kid_summary(name, pairs, ingest)
+    except Exception as exc:
+        logger.error("read model: a child summary could not be built (%s)", type(exc).__name__)
+        return _unavailable(name)
+
+
 def build_summary(rows: Sequence[AssignmentRecord], links_by_id: Mapping[int, Sequence[LinkRecord]], *,
                   kids: Sequence[str], now: datetime, no_school_by_kid: Mapping[str, frozenset[date]],
                   grace_by_class: Mapping[tuple[str, str], int], stale_sources: frozenset[str],
                   ingest: IngestHealth, warnings: Sequence[str]) -> Mapping[str, Any]:
     ctx = _Ctx(now, no_school_by_kid, grace_by_class, stale_sources, ingest)
-    pairs = _items(rows, links_by_id, ctx)
-    names = [*kids, *sorted({r.state.kid for r, _ in pairs} - set(kids))]
+    pairs, failed = _items(rows, links_by_id, ctx)
+    names = [*kids, *sorted(({r.state.kid for r, _ in pairs} | failed) - set(kids))]
     unverified = sorted({s for _, i in pairs for s in i["unverified_sources"]}
                         | ({INGEST_SOURCE} if not ingest.ok else set()))
+    sections = [_section(n, pairs, ingest, failed) for n in names]
     notes = [*warnings]
+    bad_rows = sum("data_problem" in i["info"] for _, i in pairs)
+    if bad_rows:
+        notes.append(f"{bad_rows} assignment rows had unreadable dates")
+    if unavailable := sum("error" in sec for sec in sections):
+        notes.append(_children_warning(unavailable))
     if not ingest.ok:
-        notes.append("Assignment data may be out of date: the last merge run did not succeed")
-    return {"kids": [_kid_summary(n, pairs, ingest) for n in names], "data_as_of": ingest.data_as_of.isoformat()
+        notes.append(OUT_OF_DATE_NOTE)
+    return {"kids": sections, "data_as_of": ingest.data_as_of.isoformat()
             if ingest.data_as_of else None, "ingest_ok": ingest.ok, "unverified_sources": unverified,
             "warnings": notes, "generated_at": now.isoformat()}

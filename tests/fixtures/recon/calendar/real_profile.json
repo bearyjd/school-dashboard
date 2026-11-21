@@ -1,0 +1,3206 @@
+{
+"columns": [
+"id",
+"date",
+"title",
+"type",
+"child",
+"source",
+"notes",
+"created_at"
+],
+"rows": [
+{
+"date": "2026-09-01",
+"title": "Synthetic event 0",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-08",
+"title": "Synthetic event 1",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-15",
+"title": "Synthetic event 2",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-22",
+"title": "Synthetic event 3",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-29",
+"title": "Synthetic event 4",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-06",
+"title": "Synthetic event 5",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-13",
+"title": "Synthetic event 6",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-20",
+"title": "Synthetic event 7",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-27",
+"title": "Synthetic event 8",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-03",
+"title": "Synthetic event 9",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-10",
+"title": "Synthetic event 10",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-17",
+"title": "Synthetic event 11",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-24",
+"title": "Synthetic event 12",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-01",
+"title": "Synthetic event 13",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-08",
+"title": "Synthetic event 14",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-15",
+"title": "Synthetic event 15",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-22",
+"title": "Synthetic event 16",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-29",
+"title": "Synthetic event 17",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-05",
+"title": "Synthetic event 18",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-12",
+"title": "Synthetic event 19",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-19",
+"title": "Synthetic event 20",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-26",
+"title": "Synthetic event 21",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-02",
+"title": "Synthetic event 22",
+"type": "OTHER",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-09",
+"title": "Synthetic event 23",
+"type": "PARENT_MTG",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-16",
+"title": "Synthetic event 24",
+"type": "PARENT_MTG",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-23",
+"title": "Synthetic event 25",
+"type": "PARENT_MTG",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-02",
+"title": "Synthetic event 26",
+"type": "PARENT_MTG",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-09",
+"title": "Synthetic event 27",
+"type": "PARENT_MTG",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-16",
+"title": "Synthetic event 28",
+"type": "PARENT_MTG",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-23",
+"title": "Synthetic event 29",
+"type": "PARENT_MTG",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-30",
+"title": "Synthetic event 30",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-06",
+"title": "Synthetic event 31",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-13",
+"title": "Synthetic event 32",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-20",
+"title": "Synthetic event 33",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-27",
+"title": "Synthetic event 34",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-04",
+"title": "Synthetic event 35",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-11",
+"title": "Synthetic event 36",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-18",
+"title": "Synthetic event 37",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-25",
+"title": "Synthetic event 38",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-01",
+"title": "Synthetic event 39",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-08",
+"title": "Synthetic event 40",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-15",
+"title": "Synthetic event 41",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-22",
+"title": "Synthetic event 42",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-02",
+"title": "Synthetic event 43",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-09",
+"title": "Synthetic event 44",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-16",
+"title": "Synthetic event 45",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-23",
+"title": "Synthetic event 46",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-30",
+"title": "Synthetic event 47",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-07",
+"title": "Synthetic event 48",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-14",
+"title": "Synthetic event 49",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-21",
+"title": "Synthetic event 50",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-28",
+"title": "Synthetic event 51",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-04",
+"title": "Synthetic event 52",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-11",
+"title": "Synthetic event 53",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-18",
+"title": "Synthetic event 54",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-25",
+"title": "Synthetic event 55",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-02",
+"title": "Synthetic event 56",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-09",
+"title": "Synthetic event 57",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-16",
+"title": "Synthetic event 58",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-23",
+"title": "Synthetic event 59",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-30",
+"title": "Synthetic event 60",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-06",
+"title": "Synthetic event 61",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-13",
+"title": "Synthetic event 62",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-20",
+"title": "Synthetic event 63",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-27",
+"title": "Synthetic event 64",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-03",
+"title": "Synthetic event 65",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-10",
+"title": "Synthetic event 66",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-17",
+"title": "Synthetic event 67",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-24",
+"title": "Synthetic event 68",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-03",
+"title": "Synthetic event 69",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-10",
+"title": "Synthetic event 70",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-17",
+"title": "Synthetic event 71",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-24",
+"title": "Synthetic event 72",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-31",
+"title": "Synthetic event 73",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-07",
+"title": "Synthetic event 74",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-14",
+"title": "Synthetic event 75",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-21",
+"title": "Synthetic event 76",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-28",
+"title": "Synthetic event 77",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-05",
+"title": "Synthetic event 78",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-12",
+"title": "Synthetic event 79",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-19",
+"title": "Synthetic event 80",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-26",
+"title": "Synthetic event 81",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-02",
+"title": "Synthetic event 82",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-09",
+"title": "Synthetic event 83",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-16",
+"title": "Synthetic event 84",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-23",
+"title": "Synthetic event 85",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-03",
+"title": "Synthetic event 86",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-10",
+"title": "Synthetic event 87",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-17",
+"title": "Synthetic event 88",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-24",
+"title": "Synthetic event 89",
+"type": "MASS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-01",
+"title": "Synthetic event 90",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-08",
+"title": "Synthetic event 91",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-15",
+"title": "Synthetic event 92",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-22",
+"title": "Synthetic event 93",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-29",
+"title": "Synthetic event 94",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-05",
+"title": "Synthetic event 95",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-12",
+"title": "Synthetic event 96",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-19",
+"title": "Synthetic event 97",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-26",
+"title": "Synthetic event 98",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-03",
+"title": "Synthetic event 99",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-10",
+"title": "Synthetic event 100",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-17",
+"title": "Synthetic event 101",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-24",
+"title": "Synthetic event 102",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-31",
+"title": "Synthetic event 103",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-07",
+"title": "Synthetic event 104",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-14",
+"title": "Synthetic event 105",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-21",
+"title": "Synthetic event 106",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-28",
+"title": "Synthetic event 107",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-04",
+"title": "Synthetic event 108",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-11",
+"title": "Synthetic event 109",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-18",
+"title": "Synthetic event 110",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-25",
+"title": "Synthetic event 111",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-04",
+"title": "Synthetic event 112",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-11",
+"title": "Synthetic event 113",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-18",
+"title": "Synthetic event 114",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-25",
+"title": "Synthetic event 115",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-01",
+"title": "Synthetic event 116",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-08",
+"title": "Synthetic event 117",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-15",
+"title": "Synthetic event 118",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-22",
+"title": "Synthetic event 119",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-29",
+"title": "Synthetic event 120",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-06",
+"title": "Synthetic event 121",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-13",
+"title": "Synthetic event 122",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-20",
+"title": "Synthetic event 123",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-27",
+"title": "Synthetic event 124",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-03",
+"title": "Synthetic event 125",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-10",
+"title": "Synthetic event 126",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-17",
+"title": "Synthetic event 127",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-24",
+"title": "Synthetic event 128",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-04",
+"title": "Synthetic event 129",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-11",
+"title": "Synthetic event 130",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-18",
+"title": "Synthetic event 131",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-25",
+"title": "Synthetic event 132",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-02",
+"title": "Synthetic event 133",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-09",
+"title": "Synthetic event 134",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-16",
+"title": "Synthetic event 135",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-23",
+"title": "Synthetic event 136",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-30",
+"title": "Synthetic event 137",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-06",
+"title": "Synthetic event 138",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-13",
+"title": "Synthetic event 139",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-20",
+"title": "Synthetic event 140",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-27",
+"title": "Synthetic event 141",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-04",
+"title": "Synthetic event 142",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-11",
+"title": "Synthetic event 143",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-18",
+"title": "Synthetic event 144",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-25",
+"title": "Synthetic event 145",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-01",
+"title": "Synthetic event 146",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-08",
+"title": "Synthetic event 147",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-15",
+"title": "Synthetic event 148",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-22",
+"title": "Synthetic event 149",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-29",
+"title": "Synthetic event 150",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-05",
+"title": "Synthetic event 151",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-12",
+"title": "Synthetic event 152",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-19",
+"title": "Synthetic event 153",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-26",
+"title": "Synthetic event 154",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-05",
+"title": "Synthetic event 155",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-12",
+"title": "Synthetic event 156",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-19",
+"title": "Synthetic event 157",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-26",
+"title": "Synthetic event 158",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-02",
+"title": "Synthetic event 159",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-09",
+"title": "Synthetic event 160",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-16",
+"title": "Synthetic event 161",
+"type": "EARLY_RELEASE",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2025-09-31",
+"title": "Synthetic event 162",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-20",
+"title": "Synthetic event 163",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-07",
+"title": "Synthetic event 164",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-14",
+"title": "Synthetic event 165",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-21",
+"title": "Synthetic event 166",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-28",
+"title": "Synthetic event 167",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-04",
+"title": "Synthetic event 168",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-11",
+"title": "Synthetic event 169",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-18",
+"title": "Synthetic event 170",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-25",
+"title": "Synthetic event 171",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-05",
+"title": "Synthetic event 172",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-12",
+"title": "Synthetic event 173",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-19",
+"title": "Synthetic event 174",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-26",
+"title": "Synthetic event 175",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-03",
+"title": "Synthetic event 176",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-10",
+"title": "Synthetic event 177",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-17",
+"title": "Synthetic event 178",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-24",
+"title": "Synthetic event 179",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-31",
+"title": "Synthetic event 180",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-07",
+"title": "Synthetic event 181",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-14",
+"title": "Synthetic event 182",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-21",
+"title": "Synthetic event 183",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-28",
+"title": "Synthetic event 184",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-05",
+"title": "Synthetic event 185",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-12",
+"title": "Synthetic event 186",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-19",
+"title": "Synthetic event 187",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-26",
+"title": "Synthetic event 188",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-02",
+"title": "Synthetic event 189",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-09",
+"title": "Synthetic event 190",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-16",
+"title": "Synthetic event 191",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-23",
+"title": "Synthetic event 192",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-30",
+"title": "Synthetic event 193",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-06",
+"title": "Synthetic event 194",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-13",
+"title": "Synthetic event 195",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-20",
+"title": "Synthetic event 196",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-27",
+"title": "Synthetic event 197",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-06",
+"title": "Synthetic event 198",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-13",
+"title": "Synthetic event 199",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-20",
+"title": "Synthetic event 200",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-27",
+"title": "Synthetic event 201",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-03",
+"title": "Synthetic event 202",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-10",
+"title": "Synthetic event 203",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-17",
+"title": "Synthetic event 204",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-24",
+"title": "Synthetic event 205",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-01",
+"title": "Synthetic event 206",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-08",
+"title": "Synthetic event 207",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-15",
+"title": "Synthetic event 208",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-22",
+"title": "Synthetic event 209",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-29",
+"title": "Synthetic event 210",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-05",
+"title": "Synthetic event 211",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-12",
+"title": "Synthetic event 212",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-19",
+"title": "Synthetic event 213",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-26",
+"title": "Synthetic event 214",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-06",
+"title": "Synthetic event 215",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-13",
+"title": "Synthetic event 216",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-20",
+"title": "Synthetic event 217",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-27",
+"title": "Synthetic event 218",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-04",
+"title": "Synthetic event 219",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-11",
+"title": "Synthetic event 220",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-18",
+"title": "Synthetic event 221",
+"type": "NO_SCHOOL",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-25",
+"title": "Synthetic event 222",
+"type": "ASSEMBLY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-01",
+"title": "Synthetic event 223",
+"type": "ASSEMBLY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-08",
+"title": "Synthetic event 224",
+"type": "ASSEMBLY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-15",
+"title": "Synthetic event 225",
+"type": "ASSEMBLY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-22",
+"title": "Synthetic event 226",
+"type": "ASSEMBLY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-29",
+"title": "Synthetic event 227",
+"type": "ASSEMBLY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-06",
+"title": "Synthetic event 228",
+"type": "ASSEMBLY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-13",
+"title": "Synthetic event 229",
+"type": "ASSEMBLY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-20",
+"title": "Synthetic event 230",
+"type": "ASSEMBLY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-27",
+"title": "Synthetic event 231",
+"type": "ASSEMBLY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-03",
+"title": "Synthetic event 232",
+"type": "ASSEMBLY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-10",
+"title": "Synthetic event 233",
+"type": "TESTING",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-17",
+"title": "Synthetic event 234",
+"type": "TESTING",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-24",
+"title": "Synthetic event 235",
+"type": "TESTING",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-31",
+"title": "Synthetic event 236",
+"type": "TESTING",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-07",
+"title": "Synthetic event 237",
+"type": "TESTING",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-14",
+"title": "Synthetic event 238",
+"type": "TESTING",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-21",
+"title": "Synthetic event 239",
+"type": "TESTING",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-28",
+"title": "Synthetic event 240",
+"type": "TESTING",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-07",
+"title": "Synthetic event 241",
+"type": "TESTING",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-14",
+"title": "Synthetic event 242",
+"type": "TESTING",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-21",
+"title": "Synthetic event 243",
+"type": "TESTING",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-28",
+"title": "Synthetic event 244",
+"type": "TESTING",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-04",
+"title": "Synthetic event 245",
+"type": "RETREAT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-11",
+"title": "Synthetic event 246",
+"type": "RETREAT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-18",
+"title": "Synthetic event 247",
+"type": "RETREAT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-25",
+"title": "Synthetic event 248",
+"type": "RETREAT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-02",
+"title": "Synthetic event 249",
+"type": "RETREAT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-09",
+"title": "Synthetic event 250",
+"type": "CONCERT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-16",
+"title": "Synthetic event 251",
+"type": "SPORTS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-23",
+"title": "Synthetic event 252",
+"type": "SPORTS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-30",
+"title": "Synthetic event 253",
+"type": "SPORTS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-06",
+"title": "Synthetic event 254",
+"type": "SPORTS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-13",
+"title": "Synthetic event 255",
+"type": "SPORTS",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-20",
+"title": "Synthetic event 256",
+"type": "EVENT",
+"child": "Alex,Sam",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-27",
+"title": "Synthetic event 257",
+"type": "EVENT",
+"child": "Sam, Jo",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-07",
+"title": "Synthetic event 258",
+"type": "EVENT",
+"child": "Alex,Jo",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-14",
+"title": "Synthetic event 259",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-21",
+"title": "Synthetic event 260",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-28",
+"title": "Synthetic event 261",
+"type": "EVENT",
+"child": "Alex",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-05",
+"title": "Synthetic event 262",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-12",
+"title": "Synthetic event 263",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-19",
+"title": "Synthetic event 264",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-26",
+"title": "Synthetic event 265",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-02",
+"title": "Synthetic event 266",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-09",
+"title": "Synthetic event 267",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-16",
+"title": "Synthetic event 268",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-23",
+"title": "Synthetic event 269",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-30",
+"title": "Synthetic event 270",
+"type": "EVENT",
+"child": "Sam",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-07",
+"title": "Synthetic event 271",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-14",
+"title": "Synthetic event 272",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-21",
+"title": "Synthetic event 273",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-28",
+"title": "Synthetic event 274",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-04",
+"title": "Synthetic event 275",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-11",
+"title": "Synthetic event 276",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-18",
+"title": "Synthetic event 277",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-25",
+"title": "Synthetic event 278",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-01",
+"title": "Synthetic event 279",
+"type": "EVENT",
+"child": "Jo",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-08",
+"title": "Synthetic event 280",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-15",
+"title": "Synthetic event 281",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-22",
+"title": "Synthetic event 282",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-01",
+"title": "Synthetic event 283",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-08",
+"title": "Synthetic event 284",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-15",
+"title": "Synthetic event 285",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-22",
+"title": "Synthetic event 286",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-29",
+"title": "Synthetic event 287",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-05",
+"title": "Synthetic event 288",
+"type": "EVENT",
+"child": "Alex",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-12",
+"title": "Synthetic event 289",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-19",
+"title": "Synthetic event 290",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-26",
+"title": "Synthetic event 291",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-03",
+"title": "Synthetic event 292",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-10",
+"title": "Synthetic event 293",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-17",
+"title": "Synthetic event 294",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-24",
+"title": "Synthetic event 295",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-31",
+"title": "Synthetic event 296",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-07",
+"title": "Synthetic event 297",
+"type": "EVENT",
+"child": "Sam",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-14",
+"title": "Synthetic event 298",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-21",
+"title": "Synthetic event 299",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-01",
+"title": "Synthetic event 300",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-08",
+"title": "Synthetic event 301",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-15",
+"title": "Synthetic event 302",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-22",
+"title": "Synthetic event 303",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-29",
+"title": "Synthetic event 304",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-06",
+"title": "Synthetic event 305",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-13",
+"title": "Synthetic event 306",
+"type": "EVENT",
+"child": "Jo",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-20",
+"title": "Synthetic event 307",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-27",
+"title": "Synthetic event 308",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-03",
+"title": "Synthetic event 309",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-10",
+"title": "Synthetic event 310",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-17",
+"title": "Synthetic event 311",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-24",
+"title": "Synthetic event 312",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-01",
+"title": "Synthetic event 313",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-08",
+"title": "Synthetic event 314",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-15",
+"title": "Synthetic event 315",
+"type": "EVENT",
+"child": "Alex",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-22",
+"title": "Synthetic event 316",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-29",
+"title": "Synthetic event 317",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-05",
+"title": "Synthetic event 318",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-12",
+"title": "Synthetic event 319",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-19",
+"title": "Synthetic event 320",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-26",
+"title": "Synthetic event 321",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-02",
+"title": "Synthetic event 322",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-09",
+"title": "Synthetic event 323",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-16",
+"title": "Synthetic event 324",
+"type": "EVENT",
+"child": "Sam",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-23",
+"title": "Synthetic event 325",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-02",
+"title": "Synthetic event 326",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-09",
+"title": "Synthetic event 327",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-16",
+"title": "Synthetic event 328",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-23",
+"title": "Synthetic event 329",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-30",
+"title": "Synthetic event 330",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-06",
+"title": "Synthetic event 331",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-13",
+"title": "Synthetic event 332",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-20",
+"title": "Synthetic event 333",
+"type": "EVENT",
+"child": "Jo",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-27",
+"title": "Synthetic event 334",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-04",
+"title": "Synthetic event 335",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-11",
+"title": "Synthetic event 336",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-18",
+"title": "Synthetic event 337",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-25",
+"title": "Synthetic event 338",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-01",
+"title": "Synthetic event 339",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-08",
+"title": "Synthetic event 340",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-15",
+"title": "Synthetic event 341",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-22",
+"title": "Synthetic event 342",
+"type": "EVENT",
+"child": "Alex",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-02",
+"title": "Synthetic event 343",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-09",
+"title": "Synthetic event 344",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-16",
+"title": "Synthetic event 345",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-23",
+"title": "Synthetic event 346",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-30",
+"title": "Synthetic event 347",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-07",
+"title": "Synthetic event 348",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-14",
+"title": "Synthetic event 349",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-21",
+"title": "Synthetic event 350",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-28",
+"title": "Synthetic event 351",
+"type": "EVENT",
+"child": "Sam",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-04",
+"title": "Synthetic event 352",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-11",
+"title": "Synthetic event 353",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-18",
+"title": "Synthetic event 354",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-25",
+"title": "Synthetic event 355",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-02",
+"title": "Synthetic event 356",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-09",
+"title": "Synthetic event 357",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-16",
+"title": "Synthetic event 358",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-23",
+"title": "Synthetic event 359",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-12-30",
+"title": "Synthetic event 360",
+"type": "EVENT",
+"child": "Jo",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-06",
+"title": "Synthetic event 361",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-13",
+"title": "Synthetic event 362",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-20",
+"title": "Synthetic event 363",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-01-27",
+"title": "Synthetic event 364",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-03",
+"title": "Synthetic event 365",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-10",
+"title": "Synthetic event 366",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-17",
+"title": "Synthetic event 367",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-02-24",
+"title": "Synthetic event 368",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-03",
+"title": "Synthetic event 369",
+"type": "EVENT",
+"child": "Alex",
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-10",
+"title": "Synthetic event 370",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-17",
+"title": "Synthetic event 371",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-24",
+"title": "Synthetic event 372",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-03-31",
+"title": "Synthetic event 373",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-07",
+"title": "Synthetic event 374",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-14",
+"title": "Synthetic event 375",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-21",
+"title": "Synthetic event 376",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-04-28",
+"title": "Synthetic event 377",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-05",
+"title": "Synthetic event 378",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-12",
+"title": "Synthetic event 379",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-19",
+"title": "Synthetic event 380",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-05-26",
+"title": "Synthetic event 381",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-02",
+"title": "Synthetic event 382",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-09",
+"title": "Synthetic event 383",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-16",
+"title": "Synthetic event 384",
+"type": "EVENT",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2027-06-23",
+"title": "Synthetic event 385",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-03",
+"title": "Synthetic event 386",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-10",
+"title": "Synthetic event 387",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-17",
+"title": "Synthetic event 388",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-09-24",
+"title": "Synthetic event 389",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-01",
+"title": "Synthetic event 390",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-08",
+"title": "Synthetic event 391",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-15",
+"title": "Synthetic event 392",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-22",
+"title": "Synthetic event 393",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-10-29",
+"title": "Synthetic event 394",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-05",
+"title": "Synthetic event 395",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-12",
+"title": "Synthetic event 396",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-19",
+"title": "Synthetic event 397",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+},
+{
+"date": "2026-11-26",
+"title": "Synthetic event 398",
+"type": "HALF_DAY",
+"child": null,
+"source": "calendar:synthetic",
+"notes": null
+}
+]
+}

@@ -72,6 +72,7 @@ def render_text(report: Mapping[str, Any]) -> str:
              f"baseline: set {_c(baseline)}" if baseline else "baseline: NOT set (immediate pushes are off)", ""]
     for kid, stat in report["kids"].items():
         lines += _kid_lines(kid, stat)
+    lines += [f"warning: {_c(w)}" for w in report.get("warnings", ())]
     more = " (list truncated)" if report.get("unmatched_truncated") else ""
     lines += ["", f"unmatched pairs: {len(report['unmatched_pairs'])}{more}"]
     for p in report["unmatched_pairs"]:

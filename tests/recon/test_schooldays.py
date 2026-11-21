@@ -117,3 +117,22 @@ def test_next_school_day_is_strictly_after(start, no_school, expected):
 ])
 def test_add_school_days_skips_weekends_and_no_school_dates(start, n, no_school, expected):
     assert sd.add_school_days(start, n, no_school) == expected
+
+
+def _alias(name: str) -> str:
+    return {"samantha": "Sam"}.get(name.strip().lower(), name.strip().title())
+
+
+@pytest.mark.parametrize("child", ["Samantha", "samantha, Alex", "Sam"])
+def test_no_school_dates_resolves_aliases_on_row_and_kid(child):
+    assert sd.no_school_dates([_row("2026-11-23", child=child)], "Sam", resolve=_alias) == frozenset({MON})
+    assert sd.no_school_dates([_row("2026-11-23", child=child)], "samantha", resolve=_alias) == frozenset({MON})
+
+
+def test_no_school_dates_resolve_keeps_other_kids_and_null_rows():
+    assert sd.no_school_dates([_row("2026-11-23", child="Alex")], "Sam", resolve=_alias) == frozenset()
+    assert sd.no_school_dates([_row("2026-11-23", child=None)], "Sam", resolve=_alias) == frozenset({MON})
+
+
+def test_no_school_dates_without_resolve_does_not_alias():
+    assert sd.no_school_dates([_row("2026-11-23", child="Samantha")], "Sam") == frozenset()

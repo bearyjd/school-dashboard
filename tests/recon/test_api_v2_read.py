@@ -216,7 +216,7 @@ def test_unexpected_exception_is_500_internal_and_logged_by_type(api_factory, mo
     from school_dashboard.assignments import readmodel
 
     def boom(*a, **kw):
-        raise RuntimeError("SECRET Essay title")
+        raise RuntimeError("SEC" + "RET Essay title")  # built at runtime: tracebacks print source lines
     monkeypatch.setattr(readmodel, "build_summary", boom)
     api = api_factory(one())
     with caplog.at_level("ERROR"):
@@ -254,3 +254,39 @@ def test_config_kid_colours_match_overview(api_factory):
     cfg = {k["name"]: k["color"] for k in data(api.get("/api/v2/config"))["data"]["kids"]}
     overview = {k["name"]: k["color"] for k in api.get("/api/overview").get_json()["kids"]}
     assert cfg and cfg == overview
+
+
+def test_unexpected_exception_log_carries_a_traceback_without_the_message(api_factory, monkeypatch, caplog):
+    from school_dashboard.assignments import readmodel
+
+    def boom(*a, **kw):
+        raise RuntimeError("SEC" + "RET Essay " + "X-Recon-" + "Token")  # built at runtime: tracebacks print source lines
+    monkeypatch.setattr(readmodel, "build_summary", boom)
+    api = api_factory(one())
+    with caplog.at_level("ERROR"):
+        api.get("/api/v2/summary")
+    rec = next(r for r in caplog.records if "unexpected" in r.getMessage())
+    assert rec.exc_info is not None and rec.exc_info[2] is not None
+    assert "boom" in caplog.text and "Traceback" in caplog.text  # our own frames are in the log
+    assert "SECRET" not in caplog.text and "X-Recon-Token" not in caplog.text
+
+
+def test_single_item_when_its_kid_cannot_be_built_is_503_not_500(api_factory, monkeypatch):
+    from school_dashboard.assignments import readmodel
+
+    def boom(*a, **kw):
+        raise RuntimeError("SECRET")
+    monkeypatch.setattr(readmodel, "_item", boom)
+    api = api_factory(one())
+    err(api.get("/api/v2/assignments/1"), 503, "unavailable")
+
+
+def test_post_write_response_falls_back_to_a_refetchable_payload(api_factory, monkeypatch):
+    from school_dashboard.assignments import readmodel
+    api = api_factory(one())
+    monkeypatch.setattr(readmodel, "_item", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("SECRET")))
+    r = api.post("/api/v2/assignments/1/stage", {"action": "done", "actor": {"role": "parent", "name": "D"}})
+    body = data(r)
+    assert r.status_code == 200 and body["ok"] and body["data"]["item"] is None
+    assert body["data"]["id"] == 1 and body["data"]["refetch"] is True
+    assert api.q("SELECT stage FROM assignments WHERE id = 1")[0]["stage"] == 2  # the write itself was committed

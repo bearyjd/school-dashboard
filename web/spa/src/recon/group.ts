@@ -17,7 +17,7 @@ export interface KidView {
   buckets: BucketView[]
   ixl: string | null
   /** The server's verdict for this kid: items: something to do; clear: nothing to do and verified; unverified_clear: nothing to do but data may be stale. */
-  state: 'items' | 'clear' | 'unverified_clear'
+  state: 'items' | 'clear' | 'unverified_clear' | 'error'
 }
 
 const REMAINING = /^\s*(\d+)/
@@ -70,6 +70,7 @@ function kidView(name: string, color: string, summary: ReconSummary, items: Reco
     return inBucket.length === 0 ? [] : [{ id, label: BUCKET_LABEL[id], count: inBucket.length, groups: groupsFor(id, inBucket) }]
   })
   const server = summary.kids.find(k => k.name === name)
+  if (server?.error) return { name, color, counts: countRows([]), buckets: [], ixl: null, state: 'error' }
   const counts = server?.counts ?? countRows(rows)
   // The empty state is the server's verdict for this kid, never derived here.
   const state = server === undefined ? (rows.length > 0 ? 'items' : 'clear')
