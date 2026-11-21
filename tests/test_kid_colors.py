@@ -176,7 +176,7 @@ def test_send_ntfy_stores_row_with_bad_child_card(tmp_path, monkeypatch, child):
 def test_send_ntfy_roster_failure_stores_uncoloured_and_warns(tmp_path, caplog):
     db = str(tmp_path / "s.db")
     cards = [{"child": "Ford", "title": "u"}]
-    with patch("school_dashboard.digest.get_roster", side_effect=RuntimeError("boom")), \
+    with patch("school_dashboard.digest.canonical_roster", side_effect=RuntimeError("boom")), \
             patch("school_dashboard.digest.requests.post") as post, caplog.at_level(logging.WARNING):
         send_ntfy("t", "m", "Homework Check", cards=cards, db_path=db)
     rows = _digest_rows(db)

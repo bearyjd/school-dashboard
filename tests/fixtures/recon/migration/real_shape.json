@@ -1,0 +1,1330 @@
+{
+ "synthetic": true,
+ "description": "Real legacy KEYS, synthetic values: 97 schoology action items incl. no/empty/blank/400-char/control-char summaries, mixed dues, long/short alias pair (Samantha -> Sam).",
+ "roster": {
+  "Alex": {
+   "grade": "6",
+   "school": "Test"
+  },
+  "Samantha": {
+   "grade": "4",
+   "school": "Test"
+  },
+  "Jo": {
+   "grade": "2",
+   "school": "Test"
+  }
+ },
+ "name_aliases": {
+  "samantha": "Sam"
+ },
+ "items": [
+  {
+   "id": 1,
+   "child": "Alex",
+   "title": "Library book",
+   "due_date": "2026-11-23",
+   "type": "task",
+   "source": "manual",
+   "completed": 0,
+   "completed_at": null,
+   "notes": null,
+   "created_at": "2026-11-10 08:00:00"
+  },
+  {
+   "id": 2,
+   "child": "Samantha",
+   "title": "Permission slip",
+   "due_date": null,
+   "type": "task",
+   "source": "manual",
+   "completed": 1,
+   "completed_at": null,
+   "notes": "n",
+   "created_at": "2026-11-10 08:00:00"
+  },
+  {
+   "id": 3,
+   "child": "Jo",
+   "title": "",
+   "due_date": "garbage",
+   "type": "task",
+   "source": "manual",
+   "completed": 0,
+   "completed_at": null,
+   "notes": null,
+   "created_at": "2026-11-10 08:00:00"
+  }
+ ],
+ "state": {
+  "children": {
+   "Alex": {
+    "grade": "6",
+    "school": "Test"
+   },
+   "Samantha": {
+    "grade": "4",
+    "school": "Test"
+   },
+   "Jo": {
+    "grade": "2",
+    "school": "Test"
+   }
+  },
+  "ixl": {
+   "Alex": {
+    "updated": "2026-11-18T06:00:00",
+    "totals": {
+     "math": {}
+    },
+    "remaining": []
+   },
+   "Samantha": {
+    "updated": "2026-11-18T06:00:00",
+    "totals": {
+     "math": {}
+    },
+    "remaining": []
+   },
+   "Sam": {
+    "updated": "2026-11-18T06:00:00",
+    "totals": {
+     "math": {}
+    },
+    "remaining": []
+   },
+   "Jo": {
+    "updated": "2026-11-18T06:00:00",
+    "totals": {
+     "math": {}
+    },
+    "remaining": []
+   }
+  },
+  "schoology": {
+   "Alex": {
+    "updated": "2026-11-18T06:00:00",
+    "assignments": [],
+    "grades": [],
+    "announcements": []
+   },
+   "Sam": {
+    "updated": "2026-11-18T06:00:00",
+    "assignments": [],
+    "grades": [],
+    "announcements": []
+   },
+   "Jo": {
+    "updated": "2026-11-18T06:00:00",
+    "assignments": [],
+    "grades": [],
+    "announcements": []
+   }
+  },
+  "powerschool": {
+   "Alex": {
+    "updated": "2026-11-18T06:00:00",
+    "missing": [],
+    "late": [],
+    "upcoming": []
+   },
+   "Sam": {
+    "updated": "2026-11-18T06:00:00",
+    "missing": [],
+    "late": [],
+    "upcoming": []
+   },
+   "Jo": {
+    "updated": "2026-11-18T06:00:00",
+    "missing": [],
+    "late": [],
+    "upcoming": []
+   }
+  },
+  "powerschool_meta": {
+   "warnings": []
+  },
+  "scrape_meta": {},
+  "schoology_autoarchive_scrape": {
+   "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+   "processed_at": "2026-11-18T06:00:00"
+  },
+  "action_items": [
+   {
+    "id": "act001",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "assignment",
+    "due": "",
+    "status": "pending",
+    "created": "2026-11-02T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act002",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "",
+    "due": "2026-11-20",
+    "status": "pending",
+    "created": "2026-11-03T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act003",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "task",
+    "summary": "   \t ",
+    "due": "2026-11-21T23:59:00-05:00",
+    "status": "pending",
+    "created": "2026-11-04T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act004",
+    "child": "alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 4",
+    "due": "11/22/2026",
+    "status": "completed",
+    "created": "2026-11-05T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act005",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL",
+    "due": "Mon, Nov 16",
+    "status": "pending",
+    "created": "2026-11-06T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act006",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Tab\u0007bell\u0000 title\u001b[0m",
+    "due": "not a date",
+    "status": "pending",
+    "created": "2026-11-07T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act007",
+    "child": "",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 7",
+    "due": "2026-12-01",
+    "status": "pending",
+    "created": "2026-11-08T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act008",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 8",
+    "due": null,
+    "status": "completed",
+    "created": "2026-11-09T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2,
+    "completed_at": "2026-11-17T10:00:00"
+   },
+   {
+    "id": "act009",
+    "child": "alex",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 9",
+    "due": null,
+    "status": "pending",
+    "created": "2026-11-10T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act010",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 10",
+    "due": "2026-11-20",
+    "status": "pending",
+    "created": "2026-11-11T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act011",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 11",
+    "due": "2026-11-21T23:59:00-05:00",
+    "status": "pending",
+    "created": "2026-11-12T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act012",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 12",
+    "due": "11/22/2026",
+    "status": "completed",
+    "created": "2026-11-13T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act013",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 13",
+    "due": "Mon, Nov 16",
+    "status": "pending",
+    "created": "2026-11-14T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act014",
+    "child": "alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 14",
+    "due": "not a date",
+    "status": "pending",
+    "created": "2026-11-15T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act015",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 15",
+    "due": "2026-12-01",
+    "status": "pending",
+    "created": "2026-11-01T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act016",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 16",
+    "due": null,
+    "status": "completed",
+    "created": "2026-11-02T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1,
+    "completed_at": "2026-11-17T10:00:00"
+   },
+   {
+    "id": "act017",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 17",
+    "due": "",
+    "status": "pending",
+    "created": "2026-11-03T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act018",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 18",
+    "due": "2026-11-20",
+    "status": "pending",
+    "created": "2026-11-04T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act019",
+    "child": "alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 19",
+    "due": "2026-11-21T23:59:00-05:00",
+    "status": "pending",
+    "created": "2026-11-05T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act020",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 20",
+    "due": "11/22/2026",
+    "status": "completed",
+    "created": "2026-11-06T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act021",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 21",
+    "due": "Mon, Nov 16",
+    "status": "pending",
+    "created": "2026-11-07T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act022",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 22",
+    "due": "not a date",
+    "status": "pending",
+    "created": "2026-11-08T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act023",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 23",
+    "due": "2026-12-01",
+    "status": "pending",
+    "created": "2026-11-09T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act024",
+    "child": "alex",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 24",
+    "due": null,
+    "status": "completed",
+    "created": "2026-11-10T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0,
+    "completed_at": "2026-11-17T10:00:00"
+   },
+   {
+    "id": "act025",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 25",
+    "due": "",
+    "status": "pending",
+    "created": "2026-11-11T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act026",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 26",
+    "due": "2026-11-20",
+    "status": "pending",
+    "created": "2026-11-12T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act027",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 27",
+    "due": "2026-11-21T23:59:00-05:00",
+    "status": "pending",
+    "created": "2026-11-13T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act028",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 28",
+    "due": "11/22/2026",
+    "status": "completed",
+    "created": "2026-11-14T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act029",
+    "child": "alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 29",
+    "due": "Mon, Nov 16",
+    "status": "pending",
+    "created": "2026-11-15T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act030",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 30",
+    "due": "not a date",
+    "status": "pending",
+    "created": "2026-11-01T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act031",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 31",
+    "due": "2026-12-01",
+    "status": "pending",
+    "created": "2026-11-02T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act032",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 32",
+    "due": null,
+    "status": "completed",
+    "created": "2026-11-03T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2,
+    "completed_at": "2026-11-17T10:00:00"
+   },
+   {
+    "id": "act033",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 33",
+    "due": "",
+    "status": "pending",
+    "created": "2026-11-04T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act034",
+    "child": "alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 34",
+    "due": "2026-11-20",
+    "status": "pending",
+    "created": "2026-11-05T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act035",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 35",
+    "due": "2026-11-21T23:59:00-05:00",
+    "status": "pending",
+    "created": "2026-11-06T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act036",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 36",
+    "due": "11/22/2026",
+    "status": "completed",
+    "created": "2026-11-07T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act037",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 37",
+    "due": "Mon, Nov 16",
+    "status": "pending",
+    "created": "2026-11-08T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act038",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 38",
+    "due": "not a date",
+    "status": "pending",
+    "created": "2026-11-09T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act039",
+    "child": "alex",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 39",
+    "due": "2026-12-01",
+    "status": "pending",
+    "created": "2026-11-10T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act040",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 40",
+    "due": null,
+    "status": "completed",
+    "created": "2026-11-11T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1,
+    "completed_at": "2026-11-17T10:00:00"
+   },
+   {
+    "id": "act041",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 41",
+    "due": "",
+    "status": "pending",
+    "created": "2026-11-12T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act042",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 42",
+    "due": "2026-11-20",
+    "status": "pending",
+    "created": "2026-11-13T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act043",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 43",
+    "due": "2026-11-21T23:59:00-05:00",
+    "status": "pending",
+    "created": "2026-11-14T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act044",
+    "child": "alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 44",
+    "due": "11/22/2026",
+    "status": "completed",
+    "created": "2026-11-15T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act045",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 45",
+    "due": "Mon, Nov 16",
+    "status": "pending",
+    "created": "2026-11-01T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act046",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 46",
+    "due": "not a date",
+    "status": "pending",
+    "created": "2026-11-02T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act047",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 47",
+    "due": "2026-12-01",
+    "status": "pending",
+    "created": "2026-11-03T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act048",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 48",
+    "due": null,
+    "status": "completed",
+    "created": "2026-11-04T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0,
+    "completed_at": "2026-11-17T10:00:00"
+   },
+   {
+    "id": "act049",
+    "child": "alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 49",
+    "due": "",
+    "status": "pending",
+    "created": "2026-11-05T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act050",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 50",
+    "due": "2026-11-20",
+    "status": "pending",
+    "created": "2026-11-06T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act051",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 51",
+    "due": "2026-11-21T23:59:00-05:00",
+    "status": "pending",
+    "created": "2026-11-07T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act052",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 52",
+    "due": "11/22/2026",
+    "status": "completed",
+    "created": "2026-11-08T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act053",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 53",
+    "due": "Mon, Nov 16",
+    "status": "pending",
+    "created": "2026-11-09T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act054",
+    "child": "alex",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 54",
+    "due": "not a date",
+    "status": "pending",
+    "created": "2026-11-10T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act055",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 55",
+    "due": "2026-12-01",
+    "status": "pending",
+    "created": "2026-11-11T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act056",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 56",
+    "due": null,
+    "status": "completed",
+    "created": "2026-11-12T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2,
+    "completed_at": "2026-11-17T10:00:00"
+   },
+   {
+    "id": "act057",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 57",
+    "due": "",
+    "status": "pending",
+    "created": "2026-11-13T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act058",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 58",
+    "due": "2026-11-20",
+    "status": "pending",
+    "created": "2026-11-14T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act059",
+    "child": "alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 59",
+    "due": "2026-11-21T23:59:00-05:00",
+    "status": "pending",
+    "created": "2026-11-15T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act060",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 60",
+    "due": "11/22/2026",
+    "status": "completed",
+    "created": "2026-11-01T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act061",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 61",
+    "due": "Mon, Nov 16",
+    "status": "pending",
+    "created": "2026-11-02T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act062",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 62",
+    "due": "not a date",
+    "status": "pending",
+    "created": "2026-11-03T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act063",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 63",
+    "due": "2026-12-01",
+    "status": "pending",
+    "created": "2026-11-04T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act064",
+    "child": "alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 64",
+    "due": null,
+    "status": "completed",
+    "created": "2026-11-05T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1,
+    "completed_at": "2026-11-17T10:00:00"
+   },
+   {
+    "id": "act065",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 65",
+    "due": "",
+    "status": "pending",
+    "created": "2026-11-06T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act066",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 66",
+    "due": "2026-11-20",
+    "status": "pending",
+    "created": "2026-11-07T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act067",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 67",
+    "due": "2026-11-21T23:59:00-05:00",
+    "status": "pending",
+    "created": "2026-11-08T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act068",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 68",
+    "due": "11/22/2026",
+    "status": "completed",
+    "created": "2026-11-09T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act069",
+    "child": "alex",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 69",
+    "due": "Mon, Nov 16",
+    "status": "pending",
+    "created": "2026-11-10T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act070",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 70",
+    "due": "not a date",
+    "status": "pending",
+    "created": "2026-11-11T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act071",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 71",
+    "due": "2026-12-01",
+    "status": "pending",
+    "created": "2026-11-12T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act072",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 72",
+    "due": null,
+    "status": "completed",
+    "created": "2026-11-13T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0,
+    "completed_at": "2026-11-17T10:00:00"
+   },
+   {
+    "id": "act073",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 73",
+    "due": "",
+    "status": "pending",
+    "created": "2026-11-14T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act074",
+    "child": "alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 74",
+    "due": "2026-11-20",
+    "status": "pending",
+    "created": "2026-11-15T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act075",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 75",
+    "due": "2026-11-21T23:59:00-05:00",
+    "status": "pending",
+    "created": "2026-11-01T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act076",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 76",
+    "due": "11/22/2026",
+    "status": "completed",
+    "created": "2026-11-02T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act077",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 77",
+    "due": "Mon, Nov 16",
+    "status": "pending",
+    "created": "2026-11-03T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act078",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 78",
+    "due": "not a date",
+    "status": "pending",
+    "created": "2026-11-04T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act079",
+    "child": "alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 79",
+    "due": "2026-12-01",
+    "status": "pending",
+    "created": "2026-11-05T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act080",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 80",
+    "due": null,
+    "status": "completed",
+    "created": "2026-11-06T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2,
+    "completed_at": "2026-11-17T10:00:00"
+   },
+   {
+    "id": "act081",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 81",
+    "due": "",
+    "status": "pending",
+    "created": "2026-11-07T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act082",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 82",
+    "due": "2026-11-20",
+    "status": "pending",
+    "created": "2026-11-08T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act083",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 83",
+    "due": "2026-11-21T23:59:00-05:00",
+    "status": "pending",
+    "created": "2026-11-09T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act084",
+    "child": "alex",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 84",
+    "due": "11/22/2026",
+    "status": "completed",
+    "created": "2026-11-10T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act085",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 85",
+    "due": "Mon, Nov 16",
+    "status": "pending",
+    "created": "2026-11-11T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act086",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 86",
+    "due": "not a date",
+    "status": "pending",
+    "created": "2026-11-12T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act087",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 87",
+    "due": "2026-12-01",
+    "status": "pending",
+    "created": "2026-11-13T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act088",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 88",
+    "due": null,
+    "status": "completed",
+    "created": "2026-11-14T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1,
+    "completed_at": "2026-11-17T10:00:00"
+   },
+   {
+    "id": "act089",
+    "child": "alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 89",
+    "due": "",
+    "status": "pending",
+    "created": "2026-11-15T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act090",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 90",
+    "due": "2026-11-20",
+    "status": "pending",
+    "created": "2026-11-01T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act091",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 91",
+    "due": "2026-11-21T23:59:00-05:00",
+    "status": "pending",
+    "created": "2026-11-02T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act092",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 92",
+    "due": "11/22/2026",
+    "status": "completed",
+    "created": "2026-11-03T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act093",
+    "child": "Jo",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 93",
+    "due": "Mon, Nov 16",
+    "status": "pending",
+    "created": "2026-11-04T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0
+   },
+   {
+    "id": "act094",
+    "child": "alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 94",
+    "due": "not a date",
+    "status": "pending",
+    "created": "2026-11-05T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   },
+   {
+    "id": "act095",
+    "child": "Alex",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 95",
+    "due": "2026-12-01",
+    "status": "pending",
+    "created": "2026-11-06T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 2
+   },
+   {
+    "id": "act096",
+    "child": "Sam",
+    "source": "schoology",
+    "type": "task",
+    "summary": "Synthetic task 96",
+    "due": null,
+    "status": "completed",
+    "created": "2026-11-07T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 0,
+    "completed_at": "2026-11-17T10:00:00"
+   },
+   {
+    "id": "act097",
+    "child": "Samantha",
+    "source": "schoology",
+    "type": "assignment",
+    "summary": "Synthetic task 97",
+    "due": "",
+    "status": "pending",
+    "created": "2026-11-08T07:00:00",
+    "last_seen": "2026-11-18T06:00:00",
+    "missed": 1
+   }
+  ]
+ }
+}

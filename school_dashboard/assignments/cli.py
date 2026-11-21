@@ -18,6 +18,7 @@ from school_dashboard.assignments.adapters.base import clean_text
 logger = logging.getLogger(__name__)
 
 EXIT_OK, EXIT_FAILED, EXIT_INPUT, EXIT_REFUSED = 0, 1, 2, 3
+EXIT_PARTIAL = 4  # migration committed, but some rows were rejected and left in the legacy store
 
 
 def _out(text: str) -> None:
@@ -28,7 +29,8 @@ def _render_text(rep: migrate.MigrationReport) -> str:
     mode = "dry run, nothing written" if rep.dry_run else "complete"
     lines = [f"Assignments migration ({mode})",
              f"  rows in: {rep.rows_in}, created: {rep.created}, merged: {len(rep.merged)}, "
-             f"already migrated: {rep.already_migrated}"]
+             f"already migrated: {rep.already_migrated}, skipped: {rep.skipped}"]
+    lines += [f"  skipped: {k}" for k in rep.skipped_keys]
     lines += [f"  warning: {w}" for w in rep.warnings]
     if rep.backup_dir:
         lines.append(f"  backup: {rep.backup_dir}")
@@ -40,7 +42,7 @@ def _migrate(args: argparse.Namespace) -> int:
     rep = migrate.run(str(paths.db_path()), state_file, dry_run=args.dry_run,
                       now=datetime.now().astimezone())
     _out(json.dumps(dataclasses.asdict(rep), indent=2, default=str) + "\n" if args.json else _render_text(rep))
-    return EXIT_OK
+    return EXIT_PARTIAL if rep.skipped else EXIT_OK
 
 
 def _export(args: argparse.Namespace) -> int:

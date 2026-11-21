@@ -176,7 +176,7 @@ def config() -> Response:
     The token value itself is never part of this response.
     """
     names = ctxmod.roster_names()
-    explicit = {r["name"]: r["color"] for r in state.get_roster() if r.get("color")}
+    explicit = {r["name"]: r["color"] for r in state.canonical_roster() if r.get("color")}
     colors = resolve_colors(names, explicit)  # same resolver and order as /api/overview
     return _ok({"enabled": flagsenv.enabled("RECON_INGEST_ENABLED"), "migrated": ctxmod.is_migrated(),
                 "kids": [{"name": n, "color": colors[n]} for n in names],

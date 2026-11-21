@@ -108,3 +108,29 @@ def test_input_is_not_mutated():
     before = deepcopy(data)
     ADAPTER.parse(data, resolve_kid=resolve)
     assert data == before
+
+
+def _sam(name: str) -> str:
+    return "Sam" if name.strip().casefold() in ("samantha", "sam") else name.title()
+
+
+def test_long_and_short_name_files_for_one_child_merge_deterministically():
+    older = _payload({"Math": _subject(4, 1, 3), "ELA": _subject(2, 1, 1)})
+    newer = _payload({"math": _subject(5, 4, 1)})
+    got = ADAPTER.parse({"samantha": older, "sam": newer}, resolve_kid=_sam)  # later entry = more recent file
+    by_key = {r.external_key: r for r in got.records}
+    assert len(got.records) == len(by_key) == 2 and {r.kid for r in got.records} == {"Sam"}
+    assert by_key["ixl:math"].raw_status == "1 remaining" and by_key["ixl:ela"].raw_status == "1 remaining"
+    assert got.trusted_kids == frozenset({"Sam"})
+    assert any("1 child entries sharing a name were merged" in w for w in got.warnings)
+    no_leaks(got.warnings)
+
+
+def test_a_malformed_duplicate_does_not_distrust_the_child_while_a_good_one_exists():
+    got = ADAPTER.parse({"samantha": _payload({"Math": _subject()}), "sam": {"status": "error"}}, resolve_kid=_sam)
+    assert got.trusted_kids == frozenset({"Sam"}) and len(got.records) == 1
+
+
+def test_all_duplicates_malformed_leaves_the_child_untrusted():
+    got = ADAPTER.parse({"samantha": {"status": "error"}, "sam": {"status": "error"}}, resolve_kid=_sam)
+    assert got.trusted_kids == frozenset() and got.seen_kids == frozenset({"Sam"})

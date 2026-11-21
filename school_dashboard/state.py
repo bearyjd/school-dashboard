@@ -123,6 +123,19 @@ def get_roster() -> list:
     return roster
 
 
+def canonical_roster() -> list:
+    """get_roster() with every name resolved through `name_aliases` (the name all scraped sections and
+    assignment rows use). New dicts; a second entry resolving to an already listed name is dropped."""
+    out: list = []
+    seen: set = set()
+    for entry in get_roster():
+        name = canonical_name(entry["name"]) or entry["name"]
+        if name not in seen:
+            seen.add(name)
+            out.append({**entry, "name": name})
+    return out
+
+
 def ixl_opted_out() -> set:
     """Canonical names of roster children configured with `"ixl": false` (left IXL).
 
