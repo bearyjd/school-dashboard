@@ -42,8 +42,14 @@ def last_ok_time(entry: dict[str, Any] | None) -> str | None:
     return None
 
 
-def write_sync_source(source: str, result: str, path: str | None = None) -> None:
-    """Write/update a single source entry in sync_meta.json."""
+def write_sync_source(
+    source: str, result: str, path: str | None = None, *, issue: str | None = None
+) -> None:
+    """Write/update a single source entry in sync_meta.json.
+
+    `issue` (e.g. "timeout") is stored as `last_issue` for this write only; the next
+    write without it clears it. Readers that do not know the key simply ignore it.
+    """
     p = _resolve_path(path)
     if maintenance.is_active():
         logger.info("Maintenance mode active; not recording sync result for %s", source)
@@ -62,6 +68,8 @@ def write_sync_source(source: str, result: str, path: str | None = None) -> None
         last_ok = now if result == "ok" else last_ok_time(previous)
         if last_ok:
             entry["last_ok"] = last_ok
+        if issue:
+            entry["last_issue"] = issue
         meta[source] = entry
         try:
             write_atomic(Path(p), json.dumps(meta, indent=2))

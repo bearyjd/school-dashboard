@@ -63,6 +63,12 @@ docker compose exec dashboard tail -f /tmp/digest.log
 | 3:15am (daily) | Scheduled state backup + pruning (`sync/run-backup.sh`) | `state/backup.log` |
 | 3:45am (daily) | Log rotation (`python3 -m school_dashboard.logrotate`) | `state/logrotate.log` |
 
+## Scraper timeouts
+
+`SGY_SCRAPE_TIMEOUT` (default 900 s), `POWERSCHOOL_SCRAPE_TIMEOUT` (900 s), `IXL_SCRAPE_TIMEOUT` (120 s per child) and `GC_SCRAPE_TIMEOUT` (300 s, on-demand sync only) bound each scraper in both `school-sync.sh` and `/api/sync`; invalid, zero or negative values fall back to the default, the cap is 3600 s. A scraper over its limit is sent TERM, then KILL after 10 s, together with its children (own session/process group). The source is recorded `error` with `last_issue: "timeout"` in `sync_meta.json`, its previous data file is kept, the sync carries on with the other sources and the state merge, the log says `WARN: <Source> scrape timed out after Ns`, and `/api/sync/status` shows `last_timeouts: ["sgy"]` and names the source in `last_error`. The next successful scrape clears the issue.
+
+Worst case with defaults (cron): IXL 120 s x children (4 = 480) + sgy 910 + PowerSchool 910 + gc 300 + state/HTML ~120 = ~2,700 s = 45 min. The syncs are 8.5 h apart (06:00 / 14:30), and the watchdog judges a source stale only 90 min after the run was due, so even an all-sources-hung sync finishes inside the grace and never overlaps the next one (a hung source is `error`, not `stale`). PowerSchool is currently slow upstream (waits ~45 s per class with no data): set `POWERSCHOOL_SCRAPE_TIMEOUT` low (e.g. 120) or pause it with `SOURCE_POWERSCHOOL_ENABLED=0`.
+
 ## One-off Commands
 
 ```bash

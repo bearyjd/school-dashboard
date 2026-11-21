@@ -56,6 +56,7 @@ export interface SyncStatus {
   last_result: string | null;
   last_sources: string[];
   last_error: string | null;
+  last_timeouts?: string[];
 }
 
 export type SyncResult = 'ok' | 'error' | 'paused' | (string & {});

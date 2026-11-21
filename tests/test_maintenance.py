@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from school_dashboard import maintenance
+from sync_support import route_scrapers
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -432,7 +433,7 @@ def test_background_sync_marker_written_before_check(state_env):
     def spy():
         seen.append(bool(list(state_env.glob("sync.running.*"))))
         return real()
-    with patch("web.app.maintenance.is_active", spy), patch("web.app.subprocess.run"):
+    with patch("web.app.maintenance.is_active", spy), patch("web.app.subprocess.run") as run, route_scrapers(run):
         maintenance.enable("t")
         m._run_sync_background("sgy", "none")
     assert seen and seen[0] is True
@@ -449,7 +450,7 @@ def _fresh_sync_state():
 def test_background_sync_aborts_when_active(state_env):
     m = _fresh_sync_state()
     maintenance.enable("t")
-    with patch("web.app.subprocess.run") as run:
+    with patch("web.app.subprocess.run") as run, route_scrapers(run):
         m._run_sync_background("sgy,gc", "none")
     run.assert_not_called()
     assert m._sync_status["last_result"] == "skipped: maintenance"
@@ -465,7 +466,7 @@ def test_background_sync_aborts_between_steps(state_env, tmp_path, monkeypatch):
     def flip(*a, **k):
         maintenance.enable("mid")
         return type("R", (), {"stdout": ""})()
-    with patch("web.app.subprocess.run", side_effect=flip) as run:
+    with patch("web.app.subprocess.run", side_effect=flip) as run, route_scrapers(run):
         m._run_sync_background("sgy,gc", "none")
     assert run.call_count == 1
     assert m._sync_status["last_result"] == "skipped: maintenance"
@@ -479,7 +480,7 @@ def test_background_sync_marker_present_during_run(state_env, tmp_path, monkeypa
     def spy(*a, **k):
         seen.append(bool(list(state_env.glob("sync.running.*"))))
         return type("R", (), {"stdout": ""})()
-    with patch("web.app.subprocess.run", side_effect=spy):
+    with patch("web.app.subprocess.run", side_effect=spy) as run, route_scrapers(run):
         m._run_sync_background("sgy", "none")
     assert seen and all(seen)
     assert not list(state_env.glob("sync.running*"))

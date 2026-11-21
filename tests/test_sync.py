@@ -3,6 +3,7 @@ import os
 import pytest
 from unittest.mock import patch, MagicMock
 from web.app import app as flask_app
+from sync_support import route_scrapers
 
 
 @pytest.fixture(autouse=True)
@@ -13,7 +14,7 @@ def reset_sync_state():
         app_module._sync_lock.release()
     app_module._sync_status.update({
         "running": False, "last_run": None, "last_result": None,
-        "last_sources": [], "last_error": None,
+        "last_sources": [], "last_error": None, "last_timeouts": [],
     })
     yield
 
@@ -133,7 +134,8 @@ def test_run_sync_background_writes_meta_on_success(mock_sub, tmp_path, monkeypa
     acquired = app_module._sync_lock.acquire(blocking=False)
     assert acquired, "lock should be free before test"
 
-    app_module._run_sync_background("ixl", "none")
+    with route_scrapers(mock_sub):
+        app_module._run_sync_background("ixl", "none")
 
     meta = read_sync_meta(meta_path)
     assert meta.get("ixl", {}).get("last_result") == "ok"
@@ -169,7 +171,8 @@ def test_run_sync_background_ixl_child_failure_marks_error(mock_sub, tmp_path, m
     ]
     assert app_module._sync_lock.acquire(blocking=False)
 
-    app_module._run_sync_background("ixl", "none")
+    with route_scrapers(mock_sub):
+        app_module._run_sync_background("ixl", "none")
 
     assert read_sync_meta(meta_path)["ixl"]["last_result"] == "error"
     assert (ixl_dir / "jack-assigned.json").exists()
@@ -195,7 +198,8 @@ def test_run_sync_background_writes_meta_on_error(mock_sub, tmp_path, monkeypatc
     acquired = app_module._sync_lock.acquire(blocking=False)
     assert acquired
 
-    app_module._run_sync_background("ixl", "none")
+    with route_scrapers(mock_sub):
+        app_module._run_sync_background("ixl", "none")
 
     meta = read_sync_meta(meta_path)
     assert meta.get("ixl", {}).get("last_result") == "error"
@@ -295,7 +299,8 @@ def test_run_sync_background_survives_state_command_timeout(mock_sub, tmp_path, 
     mock_sub.side_effect = fake_run
     assert app_module._sync_lock.acquire(blocking=False)
     with caplog.at_level(logging.ERROR):
-        app_module._run_sync_background("ixl", "none")
+        with route_scrapers(mock_sub):
+            app_module._run_sync_background("ixl", "none")
     assert app_module._sync_status["last_result"] == "error"
     assert app_module._sync_status["last_error"] == app_module.GENERIC_SYNC_ERROR
     assert "school-state update" in caplog.text  # detail reaches the server log
@@ -359,7 +364,8 @@ def test_run_sync_background_mixed_paused_and_enabled(mock_sub, tmp_path, monkey
     monkeypatch.delenv("SOURCE_SGY_ENABLED", raising=False)
     mock_sub.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
     assert app_module._sync_lock.acquire(blocking=False)
-    app_module._run_sync_background("ixl,sgy", "none")
+    with route_scrapers(mock_sub):
+        app_module._run_sync_background("ixl,sgy", "none")
     meta = read_sync_meta(meta_path)
     assert meta["ixl"]["last_result"] == "paused"
     assert meta["sgy"]["last_result"] == "ok"

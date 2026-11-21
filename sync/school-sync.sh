@@ -67,18 +67,18 @@ fi
 # that sees no marker knows we have not yet passed the check. Removed on any exit.
 SYNC_MARKER="$STATE_DIR/sync.running.$$"
 # Also removes the sgy scrape temp files so a TERM/timeout mid-scrape leaks nothing.
-trap 'rm -f "$SYNC_MARKER" "${sgy_tmp:-}" "${sgy_err:-}"' EXIT
+trap 'rm -f "$SYNC_MARKER" "${sgy_tmp:-}" "${sgy_err:-}" "${ps_tmp:-}"' EXIT
 { mkdir -p "$(dirname "$SYNC_MARKER")" && echo "$$" > "$SYNC_MARKER"; } 2>/dev/null \
     || log "ERROR: could not write sync marker $SYNC_MARKER — a concurrent backup will not wait for this sync"
 
 maintenance_skip "sync" && exit 0
 
 
-# Helper: write sync metadata for a source (non-fatal)
+# Helper: write sync metadata for a source (non-fatal). Optional 3rd arg: issue (e.g. timeout).
 write_sync_meta() {
-    local source="$1" result="$2"
+    local source="$1" result="$2" issue="${3:-}"
     local err rc=0
-    err="$(python3 -c "import sys; from school_dashboard.sync_meta import write_sync_source; write_sync_source(sys.argv[1], sys.argv[2])" "$source" "$result" 2>&1)" || rc=$?
+    err="$(python3 -c "import sys; from school_dashboard.sync_meta import write_sync_source; write_sync_source(sys.argv[1], sys.argv[2], issue=sys.argv[3] or None)" "$source" "$result" "$issue" 2>&1)" || rc=$?
     if [[ "$rc" -ne 0 ]]; then
         log "WARN: could not record sync result for $source ($result) (rc=$rc): $(printf '%s' "$err" | tail -n 3 | tr '\n' ' ')"
     fi
@@ -96,6 +96,59 @@ source_enabled() {
         *) return 0 ;;
     esac
 }
+
+# Helper: scrape timeout in seconds for <NAME> from <NAME>_SCRAPE_TIMEOUT, else <default>.
+# Same rules as school_dashboard/scrape_timeout.py: a value that is not a positive plain
+# number (digits, optional .digits) logs one warning and falls back; capped at 3600.
+scrape_timeout() {
+    local var="${1^^}_SCRAPE_TIMEOUT" def="$2" raw
+    raw="${!var:-}"
+    raw="${raw#"${raw%%[![:space:]]*}"}"
+    raw="${raw%"${raw##*[![:space:]]}"}"
+    if [[ -z "$raw" ]]; then
+        echo "$def"
+    elif ! [[ "$raw" =~ ^[0-9]+([.][0-9]+)?$ ]] || [[ "$raw" =~ ^0+([.]0*)?$ ]]; then
+        log "WARN: $var='$raw' is not a positive number of seconds — using $def"
+        echo "$def"
+    elif (( 10#${raw%%.*} >= 3600 )); then
+        echo 3600
+    else
+        echo "$raw"
+    fi
+}
+
+# Helper: run_with_timeout <seconds> <cmd...> — run cmd in its own session (setsid) under
+# GNU timeout (TERM, then KILL after 10 s). setsid first, timeout inside: timeout signals
+# its whole process group, which is then the scraper's session, so chromium and other
+# children die with it; leftovers that ignored TERM are swept with KILL afterwards.
+# Returns the command's status, 124 on timeout, 137 if it needed KILL. Without timeout
+# the command runs unbounded (WARN once), without setsid it is bounded but shares our group.
+RWT_WARNED=""
+run_with_timeout() {
+    local secs="$1" pid rc=0
+    shift
+    local -a wrap=()
+    if command -v timeout &>/dev/null; then
+        wrap=(timeout --signal=TERM --kill-after=10 "$secs" "$@")
+    else
+        [[ -n "$RWT_WARNED" ]] || log "WARN: timeout not found — scrapers run without a time limit"
+        RWT_WARNED=1
+        "$@" || rc=$?
+        return "$rc"
+    fi
+    if ! command -v setsid &>/dev/null; then
+        [[ -n "$RWT_WARNED" ]] || log "WARN: setsid not found — a timed-out scraper's children may survive"
+        RWT_WARNED=1
+        "${wrap[@]}" || rc=$?
+        return "$rc"
+    fi
+    setsid "${wrap[@]}" &
+    pid=$!
+    wait "$pid" || rc=$?
+    kill -KILL -- "-$pid" 2>/dev/null || true
+    return "$rc"
+}
+is_timeout_rc() { [[ "$1" -eq 124 || "$1" -eq 137 ]]; }
 
 # Helper: log + record a deliberately paused source (not a failure)
 pause_source() {
@@ -206,9 +259,14 @@ elif command -v sgy &>/dev/null; then
     sgy_err="$(mktemp "${STATE_DIR}/.sgy-stderr.XXXXXX" 2>/dev/null)" || sgy_err=""
     sgy_rc=0
     sgy_reason=""
+    sgy_timeout="$(scrape_timeout SGY 900)"
+    sgy_issue=""
     if sgy_tmp="$(mktemp "${SGY_FILE}.XXXXXX" 2>/dev/null)"; then
-        sgy summary --json > "$sgy_tmp" 2>"${sgy_err:-/dev/null}" || sgy_rc=$?
-        if [[ "$sgy_rc" -ne 0 ]]; then
+        run_with_timeout "$sgy_timeout" sgy summary --json > "$sgy_tmp" 2>"${sgy_err:-/dev/null}" </dev/null || sgy_rc=$?
+        if is_timeout_rc "$sgy_rc"; then
+            sgy_reason="timed out after ${sgy_timeout}s"
+            sgy_issue="timeout"
+        elif [[ "$sgy_rc" -ne 0 ]]; then
             sgy_reason="sgy exited with status $sgy_rc"
         elif ! python3 -c "$SGY_CHECK" "$sgy_tmp" 2>/dev/null; then
             sgy_reason="empty or invalid JSON"
@@ -222,8 +280,12 @@ elif command -v sgy &>/dev/null; then
     else
         [[ -n "$sgy_tmp" ]] && rm -f "$sgy_tmp"
         [[ -n "$sgy_err" && -s "$sgy_err" ]] && tail -n 20 "$sgy_err" >> "$STATE_DIR/school-sync.log"
-        log "WARN: SGY scrape had errors ($sgy_reason)"
-        write_sync_meta "sgy" "error"
+        if [[ -n "$sgy_issue" ]]; then
+            log "WARN: SGY scrape timed out after ${sgy_timeout}s"
+        else
+            log "WARN: SGY scrape had errors ($sgy_reason)"
+        fi
+        write_sync_meta "sgy" "error" "$sgy_issue"
     fi
     [[ -n "$sgy_err" ]] && rm -f "$sgy_err"
 else
@@ -245,11 +307,24 @@ elif [[ -n "$ps_skip" ]]; then
     log "INFO: powerschool skipped — $ps_skip"
 else
     log "Running PowerSchool scrape..."
-    if ps_tmp="$(mktemp "${PS_FILE}.XXXXXX" 2>/dev/null)" \
-        && powerschool summary --json > "$ps_tmp" 2>>"$STATE_DIR/school-sync.log" \
-        && ps_problem="$(python3 -c "$PS_CHECK" "$ps_tmp" 2>&1)"; then
+    ps_timeout="$(scrape_timeout POWERSCHOOL 900)"
+    ps_rc=0
+    if ps_tmp="$(mktemp "${PS_FILE}.XXXXXX" 2>/dev/null)"; then
+        run_with_timeout "$ps_timeout" powerschool summary --json > "$ps_tmp" 2>>"$STATE_DIR/school-sync.log" </dev/null || ps_rc=$?
+        if [[ "$ps_rc" -eq 0 ]]; then
+            ps_problem="$(python3 -c "$PS_CHECK" "$ps_tmp" 2>&1)" || ps_rc=1
+        fi
+    else
+        ps_tmp=""
+        ps_rc=1
+    fi
+    if [[ "$ps_rc" -eq 0 ]]; then
         mv "$ps_tmp" "$PS_FILE"
         write_sync_meta "powerschool" "ok"
+    elif is_timeout_rc "$ps_rc"; then
+        rm -f "$ps_tmp"
+        log "WARN: PowerSchool scrape timed out after ${ps_timeout}s"
+        write_sync_meta "powerschool" "error" "timeout"
     else
         [[ -n "$ps_tmp" ]] && rm -f "$ps_tmp"
         log "WARN: PowerSchool scrape failed${ps_problem:+ ($ps_problem)}"
