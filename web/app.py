@@ -7,9 +7,11 @@ import sqlite3
 import subprocess
 import tempfile
 import threading
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from flask import Flask, jsonify, redirect, render_template, request, Response, send_from_directory
+from school_dashboard.atomic import write_atomic
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, gc_warnings, powerschool_warnings, scrape_warnings
@@ -18,6 +20,8 @@ from school_dashboard import csp, db, hostcheck, maintenance, paths, powerschool
 from school_dashboard.csp import CSP_REPORT_ONLY  # noqa: F401  (re-exported for tests and docs)
 from school_dashboard.rate_limit import FailureLimiter, client_key, trusted_client_ip, trusted_proxy_count
 from school_dashboard.sources import source_enabled
+from school_dashboard.scrape_run import ScraperTimeout, run_scraper
+from school_dashboard.scrape_timeout import timeout_for
 from school_dashboard.sync_meta import write_sync_source, read_sync_meta
 
 app = Flask(__name__)
@@ -654,14 +658,18 @@ _sync_status: dict = {
     "last_result": None,
     "last_sources": [],
     "last_error": None,
+    "last_timeouts": [],
 }
 GENERIC_SYNC_ERROR = "Sync failed. See the server log for details."
 
 
-def _record_sync_error(detail: str) -> None:
-    """Clients get generic text via /api/sync/status; the detail goes to the server log only."""
+def _record_sync_error(detail: str, timeout_notes: Sequence[str] = ()) -> None:
+    """Clients get generic text via /api/sync/status; the detail goes to the server log only.
+
+    Scraper timeouts are the exception: "<source>: timed out after N s" is not sensitive.
+    """
     app.logger.error("Sync error: %s", detail)
-    _sync_status["last_error"] = GENERIC_SYNC_ERROR
+    _sync_status["last_error"] = " ".join([GENERIC_SYNC_ERROR, *timeout_notes])
 
 
 def _sync_paused_for_maintenance() -> bool:
@@ -688,9 +696,12 @@ SYNC_SOURCES = frozenset({"ixl", "sgy", "gc", "powerschool", "all"})
 
 def _scrape_powerschool(ps_file: str) -> None:
     """Run `powerschool summary --json`; write the file only on success (atomic replace)."""
-    result = subprocess.run(
-        ["powerschool", "summary", "--json"], capture_output=True, text=True, timeout=120,
-    )
+    timeout = timeout_for("powerschool")
+    result = run_scraper(["powerschool", "summary", "--json"], timeout=timeout)
+    if result.timed_out:
+        raise ScraperTimeout("powerschool", timeout)
+    if result.truncated:
+        raise RuntimeError("powerschool summary output too large")
     if result.returncode != 0 or not result.stdout:
         raise RuntimeError(f"powerschool summary failed (exit {result.returncode})")
     problem = powerschool.scrape_problem(result.stdout)
@@ -760,6 +771,7 @@ def _run_sync_background(sources: str, digest: str) -> None:
     _sync_status["running"] = True
     _sync_status["last_sources"] = [s.strip() for s in sources.split(",")]
     _sync_status["last_error"] = None
+    _sync_status["last_timeouts"] = []
 
     # Marker first, then the maintenance check: a backup that sees no marker
     # knows no sync can have passed the check before it.
@@ -786,7 +798,9 @@ def _run_sync_background(sources: str, digest: str) -> None:
     if "all" in source_list:
         source_list = ["ixl", "sgy", "gc", "powerschool"]
 
-    errors = []
+    errors: list[str] = []
+    timeouts: list[str] = []
+    timeout_notes: list[str] = []
 
     try:
         for src in source_list:
@@ -803,24 +817,27 @@ def _run_sync_background(sources: str, digest: str) -> None:
                         Path(ixl_dir).mkdir(parents=True, exist_ok=True)
                         files_written = 0
                         failed = 0
+                        ixl_timeout = timeout_for("ixl")
+                        ixl_timed_out = False
 
                         def _scrape_ixl_child(name: str, child_env: dict) -> bool:
                             """Write <name>-assigned.json only for a clean, non-error scrape;
                             otherwise remove the old file so stale data is not refreshed."""
                             target = Path(ixl_dir) / f"{name}-assigned.json"
-                            timeout = float(os.environ.get("IXL_SCRAPE_TIMEOUT", "120"))
+                            nonlocal ixl_timed_out
                             ok, detail = False, ""
                             try:
-                                r = subprocess.run(
-                                    ["ixl", "assigned", "--json"],
-                                    capture_output=True, text=True, timeout=timeout, env=child_env,
-                                )
+                                r = run_scraper(["ixl", "assigned", "--json"], timeout=ixl_timeout, env=child_env)
                                 detail = f"exit {r.returncode}"
-                                ok = r.returncode == 0 and ixl_payload_ok(json.loads(r.stdout))
+                                if r.timed_out:
+                                    detail = "timed out"
+                                    ixl_timed_out = True
+                                elif r.truncated:
+                                    detail = "output too large"
+                                else:
+                                    ok = r.returncode == 0 and ixl_payload_ok(json.loads(r.stdout))
                                 if ok:
                                     target.write_text(r.stdout)
-                            except subprocess.TimeoutExpired:
-                                detail = "timed out"
                             except (OSError, ValueError) as exc:
                                 detail = type(exc).__name__
                                 ok = False
@@ -851,17 +868,24 @@ def _run_sync_background(sources: str, digest: str) -> None:
                                 files_written += 1
                             else:
                                 failed += 1
+                        if ixl_timed_out:
+                            raise ScraperTimeout("ixl", ixl_timeout)
                         if files_written == 0:
                             raise RuntimeError("ixl assigned produced no output")
                         if failed:
                             raise RuntimeError(f"ixl assigned failed for {failed} child(ren)")
                 elif src == "sgy":
-                    result = subprocess.run(
-                        ["sgy", "summary", "--json"],
-                        capture_output=True, text=True, timeout=60,
-                    )
-                    if result.stdout:
-                        Path(sgy_file).write_text(result.stdout)
+                    sgy_timeout = timeout_for("sgy")
+                    result = run_scraper(["sgy", "summary", "--json"], timeout=sgy_timeout)
+                    if result.timed_out:
+                        raise ScraperTimeout("sgy", sgy_timeout)
+                    if result.truncated:
+                        raise RuntimeError("sgy summary output too large")
+                    if result.returncode != 0 or not result.stdout:
+                        raise RuntimeError(f"sgy summary failed (exit {result.returncode})")
+                    if not isinstance(json.loads(result.stdout), dict):
+                        raise RuntimeError("sgy summary unusable: not a JSON object")
+                    write_atomic(Path(sgy_file), result.stdout)  # atomic: a failed write keeps the previous file
                 elif src == "powerschool":
                     reason = powerschool.skip_reason()
                     if reason:
@@ -870,11 +894,17 @@ def _run_sync_background(sources: str, digest: str) -> None:
                     _scrape_powerschool(ps_file)
                 elif src == "gc":
                     _run_gc_scrape(os.environ.get("GC_SCRAPE_SCRIPT", "/app/sync/gc-scrape.sh"))
+            except ScraperTimeout as exc:
+                errors.append(str(exc))
+                timeouts.append(src)
+                timeout_notes.append(f"{exc}.")
+                write_sync_source(src, "error", issue="timeout")
             except Exception as exc:
                 errors.append(f"{src}: {exc}")
                 write_sync_source(src, "error")
             else:
                 write_sync_source(src, "ok")
+        _sync_status["last_timeouts"] = list(timeouts)
 
         # Update state (only if ixl, sgy or powerschool were synced)
         if any(s in source_list and source_enabled(s) for s in ("ixl", "sgy", "powerschool")):
@@ -899,7 +929,7 @@ def _run_sync_background(sources: str, digest: str) -> None:
         all_paused = bool(source_list) and not any(source_enabled(s) for s in source_list)
         _sync_status["last_result"] = "error" if errors else "ok (all paused)" if all_paused else "ok"
         if errors:
-            _record_sync_error("; ".join(errors))
+            _record_sync_error("; ".join(errors), timeout_notes)
     except Exception as exc:
         _sync_status["last_result"] = "error"
         _record_sync_error(str(exc))

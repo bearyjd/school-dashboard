@@ -7,6 +7,8 @@ Stub behaviour is steered by FAKE_* env vars; every stub call is appended to cal
 """
 import json
 import os
+import re
+import shutil
 import signal
 import site
 import subprocess
@@ -319,3 +321,136 @@ def test_sync_meta_write_failure_is_logged_but_non_fatal(env):
     r = env.run()
     assert r.returncode == 0, r.stderr
     assert "WARN: could not record sync result for sgy (ok)" in r.stderr
+
+
+# --- scraper timeouts (SGY_SCRAPE_TIMEOUT / POWERSCHOOL_SCRAPE_TIMEOUT) ---
+
+HANG_BODY = 'sleep 300 &\necho $! > "$FAKE_DATA/{name}.child"\nsleep 300'
+
+
+def _hang(env: Env, name: str) -> None:
+    stub = env.bin / name
+    stub.write_text(STUB.format(name=name, upper=name.upper(), body=HANG_BODY.format(name=name)))
+    stub.chmod(0o755)
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
+    except (OSError, IndexError):
+        return False
+
+
+def _reap_children(env: Env) -> None:
+    for f in env.data.glob("*.child"):
+        try:
+            os.kill(int(f.read_text()), signal.SIGKILL)
+        except (OSError, ValueError):
+            pass
+
+
+def test_hanging_powerschool_is_killed_and_does_not_stall_the_sync(env, tmp_path):
+    try:
+        assert env.run().returncode == 0
+        ps_before = (tmp_path / "ps-daily.json").read_bytes()
+        state_ps = env.state_json()["powerschool"]
+        _hang(env, "powerschool")
+        start = time.monotonic()
+        r = env.run(POWERSCHOOL_SCRAPE_TIMEOUT="2")
+        assert time.monotonic() - start < 60
+        assert r.returncode == 0, r.stderr
+        assert "PowerSchool scrape timed out after 2s" in r.stderr
+        assert "Sync complete." in r.stderr
+        meta = env.meta()
+        assert meta["powerschool"]["last_result"] == "error" and meta["powerschool"]["last_issue"] == "timeout"
+        assert meta["ixl"]["last_result"] == "ok" and meta["sgy"]["last_result"] == "ok"
+        assert "last_issue" not in meta["sgy"]
+        assert (tmp_path / "ps-daily.json").read_bytes() == ps_before
+        assert not list(tmp_path.glob("ps-daily.json.*"))
+        st = env.state_json()
+        assert st["powerschool"] == state_ps and st["ixl"] and st["schoology"]
+        assert not _pid_alive(int((env.data / "powerschool.child").read_text()))
+    finally:
+        _reap_children(env)
+
+
+def test_hanging_sgy_is_killed_keeps_previous_file_and_leaves_no_temp_files(env, tmp_path):
+    try:
+        (tmp_path / "sgy-daily.json").write_text('{"previous": 1}')
+        _hang(env, "sgy")
+        start = time.monotonic()
+        r = env.run(SGY_SCRAPE_TIMEOUT="2")
+        assert time.monotonic() - start < 60
+        assert r.returncode == 0, r.stderr
+        assert "SGY scrape timed out after 2s" in r.stderr
+        meta = env.meta()
+        assert meta["sgy"]["last_result"] == "error" and meta["sgy"]["last_issue"] == "timeout"
+        assert meta["ixl"]["last_result"] == "ok" and meta["powerschool"]["last_result"] == "ok"
+        assert (tmp_path / "sgy-daily.json").read_text() == '{"previous": 1}'
+        assert not list(tmp_path.glob("sgy-daily.json.*")) and not list(env.state.glob(".sgy-stderr.*"))
+        assert "Sync complete." in r.stderr
+        assert not _pid_alive(int((env.data / "sgy.child").read_text()))
+    finally:
+        _reap_children(env)
+
+
+def test_default_timeout_is_900_and_an_invalid_value_falls_back_to_it(env):
+    real = shutil.which("timeout")
+    stub = env.bin / "timeout"
+    stub.write_text(f'#!/bin/sh\necho "timeout $*" >> "$FAKE_CALLS"\nexec {real} "$@"\n')
+    stub.chmod(0o755)
+    r = env.run()
+    assert r.returncode == 0, r.stderr
+    lines = env.calls.read_text().splitlines()
+    assert any(re.search(r"^timeout .*\b900 sgy summary", ln) for ln in lines)
+    assert any(re.search(r"^timeout .*\b900 powerschool summary", ln) for ln in lines)
+    env.calls.write_text("")
+    r = env.run(SGY_SCRAPE_TIMEOUT="abc", POWERSCHOOL_SCRAPE_TIMEOUT="-4")
+    assert r.returncode == 0, r.stderr
+    lines = env.calls.read_text().splitlines()
+    assert any(re.search(r"^timeout .*\b900 sgy summary", ln) for ln in lines)
+    assert any(re.search(r"^timeout .*\b900 powerschool summary", ln) for ln in lines)
+    assert r.stderr.count("SGY_SCRAPE_TIMEOUT") == 1 and r.stderr.count("POWERSCHOOL_SCRAPE_TIMEOUT") == 1
+    assert env.results() == ALL_OK
+
+
+def test_custom_timeout_value_reaches_the_wrapper_and_is_capped(env):
+    real = shutil.which("timeout")
+    stub = env.bin / "timeout"
+    stub.write_text(f'#!/bin/sh\necho "timeout $*" >> "$FAKE_CALLS"\nexec {real} "$@"\n')
+    stub.chmod(0o755)
+    assert env.run(SGY_SCRAPE_TIMEOUT="45", POWERSCHOOL_SCRAPE_TIMEOUT="999999").returncode == 0
+    lines = env.calls.read_text().splitlines()
+    assert any(re.search(r"^timeout .*\b45 sgy summary", ln) for ln in lines)
+    assert any(re.search(r"^timeout .*\b3600 powerschool summary", ln) for ln in lines)
+
+
+def test_term_ignoring_ixl_is_killed_after_the_timeout(env):
+    stub = env.bin / "ixl"
+    stub.write_text("#!/bin/sh\ntrap '' TERM\necho $$ > \"$FAKE_DATA/ixl.child\"\n"
+                    "sleep 300 &\nwhile :; do sleep 1; done\n")
+    stub.chmod(0o755)
+    try:
+        start = time.monotonic()
+        r = env.run(IXL_SCRAPE_TIMEOUT="2")
+        assert time.monotonic() - start < 60
+        assert r.returncode == 0, r.stderr
+        assert "IXL scrape failed for alpha (timed out after 2s)" in r.stderr
+        assert env.results()["ixl"] == "error" and env.results()["sgy"] == "ok"
+        assert "Sync complete." in r.stderr
+        assert not _pid_alive(int((env.data / "ixl.child").read_text()))
+    finally:
+        _reap_children(env)
+
+
+def test_ixl_timeout_default_is_120_and_an_invalid_value_falls_back_to_it(env):
+    real = shutil.which("timeout")
+    stub = env.bin / "timeout"
+    stub.write_text(f'#!/bin/sh\necho "timeout $*" >> "$FAKE_CALLS"\nexec {real} "$@"\n')
+    stub.chmod(0o755)
+    for extra in ({}, {"IXL_SCRAPE_TIMEOUT": "abc"}):
+        env.calls.write_text("")
+        r = env.run(**extra)
+        assert r.returncode == 0, r.stderr
+        assert any(re.search(r"^timeout .*\b120 ixl assigned", ln) for ln in env.calls.read_text().splitlines())
+    assert r.stderr.count("IXL_SCRAPE_TIMEOUT") == 1

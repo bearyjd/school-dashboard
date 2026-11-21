@@ -104,3 +104,15 @@ def test_error_over_legacy_ok_entry_keeps_its_run_as_last_ok(tmp_path):
     p.write_text(json.dumps({"ixl": {"last_run": ts, "last_result": "ok"}}))
     write_sync_source("ixl", "error", path=str(p))
     assert read_sync_meta(str(p))["ixl"]["last_ok"] == ts
+
+
+def test_write_sync_source_records_an_issue_and_clears_it_on_the_next_write(tmp_path):
+    from school_dashboard.sync_meta import read_sync_meta, write_sync_source
+    p = str(tmp_path / "m.json")
+    write_sync_source("sgy", "error", p, issue="timeout")
+    entry = read_sync_meta(p)["sgy"]
+    assert entry["last_result"] == "error" and entry["last_issue"] == "timeout"
+    write_sync_source("sgy", "ok", p)
+    assert "last_issue" not in read_sync_meta(p)["sgy"]
+    write_sync_source("sgy", "error", p)
+    assert "last_issue" not in read_sync_meta(p)["sgy"]

@@ -7,6 +7,7 @@ import pytest
 import web.app as app_module
 from school_dashboard import powerschool, state
 from school_dashboard.sync_meta import read_sync_meta
+from sync_support import route_scrapers
 from web.app import app as flask_app
 
 PS_STATE = {
@@ -70,7 +71,8 @@ def test_sync_powerschool_runs_scraper_and_state_update(mock_sub, tmp_path, monk
     monkeypatch.setattr(powerschool, "skip_reason", lambda: "")
     mock_sub.return_value = MagicMock(returncode=0, stdout='{"children": []}', stderr="")
     assert app_module._sync_lock.acquire(blocking=False)
-    app_module._run_sync_background("powerschool", "none")
+    with route_scrapers(mock_sub):
+        app_module._run_sync_background("powerschool", "none")
     assert read_sync_meta(str(tmp_path / "meta.json"))["powerschool"]["last_result"] == "ok"
     assert (tmp_path / "ps.json").read_text() == '{"children": []}'
     update = [c.args[0] for c in mock_sub.call_args_list if c.args[0][:2] == ["school-state", "update"]]
@@ -95,7 +97,8 @@ def test_sync_powerschool_failure_is_error_and_keeps_old_file(mock_sub, tmp_path
     (tmp_path / "ps.json").write_text("OLD")
     mock_sub.return_value = MagicMock(returncode=1, stdout="", stderr="boom")
     assert app_module._sync_lock.acquire(blocking=False)
-    app_module._run_sync_background("powerschool", "none")
+    with route_scrapers(mock_sub):
+        app_module._run_sync_background("powerschool", "none")
     assert read_sync_meta(str(tmp_path / "meta.json"))["powerschool"]["last_result"] == "error"
     assert (tmp_path / "ps.json").read_text() == "OLD"
 
@@ -114,7 +117,7 @@ def test_sync_meta_failure_when_output_has_warnings(tmp_path, monkeypatch):
     _sync_env(tmp_path, monkeypatch)
     monkeypatch.setattr(powerschool, "skip_reason", lambda: "")
     (tmp_path / "ps.json").write_text("OLD")
-    with patch("web.app.subprocess.run") as mock_sub:
+    with patch("web.app.subprocess.run") as mock_sub, route_scrapers(mock_sub):
         mock_sub.return_value = MagicMock(returncode=0, stdout='{"children": [], "warnings": ["login"]}', stderr="")
         assert app_module._sync_lock.acquire(blocking=False)
         app_module._run_sync_background("powerschool", "none")
@@ -125,7 +128,7 @@ def test_sync_meta_failure_when_output_has_warnings(tmp_path, monkeypatch):
 def test_sync_meta_failure_when_output_not_json(tmp_path, monkeypatch):
     _sync_env(tmp_path, monkeypatch)
     monkeypatch.setattr(powerschool, "skip_reason", lambda: "")
-    with patch("web.app.subprocess.run") as mock_sub:
+    with patch("web.app.subprocess.run") as mock_sub, route_scrapers(mock_sub):
         mock_sub.return_value = MagicMock(returncode=0, stdout="<html>", stderr="")
         assert app_module._sync_lock.acquire(blocking=False)
         app_module._run_sync_background("powerschool", "none")
@@ -134,7 +137,7 @@ def test_sync_meta_failure_when_output_not_json(tmp_path, monkeypatch):
 
 
 def test_scrape_file_is_private_and_leaves_no_temp(tmp_path):
-    with patch("web.app.subprocess.run") as mock_sub:
+    with patch("web.app.subprocess.run") as mock_sub, route_scrapers(mock_sub):
         mock_sub.return_value = MagicMock(returncode=0, stdout='{"children": []}', stderr="")
         app_module._scrape_powerschool(str(tmp_path / "ps.json"))
     assert (tmp_path / "ps.json").stat().st_mode & 0o777 == 0o600

@@ -48,6 +48,9 @@ esac
 echo '{json.dumps(OK_PAYLOAD)}'
 """)
     ixl.chmod(0o755)
+    for other in ("sgy", "powerschool", "gc"):  # the real CLIs may be installed: never reachable from a test
+        (bindir / other).write_text("#!/bin/sh\nexit 0\n")
+        (bindir / other).chmod(0o755)
     env = {
         "PATH": f"{bindir}:{os.environ['PATH']}", "HOME": str(tmp_path), "PYTHONPATH": str(REPO),
         "SCHOOL_DASHBOARD_ENV": "/nonexistent", "SCHOOL_STATE_DIR": str(state), "IXL_DIR": str(ixl_dir),
