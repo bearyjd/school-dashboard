@@ -13,7 +13,6 @@ from school_dashboard import db
 from school_dashboard.overview_items import parse_date
 from school_dashboard.powerschool import clean_text
 from school_dashboard.state import canonical_name
-from school_dashboard.state import canonical_name
 
 _log = logging.getLogger(__name__)
 

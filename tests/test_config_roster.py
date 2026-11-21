@@ -201,3 +201,21 @@ def test_dashboard_tolerates_non_dict_child_entries(dash_client):
     body = resp.get_json()
     assert body["ixl"]["Jack"] == [{"subject": "math", "remaining": 3, "assigned": 5, "done": 2}]
     assert [a["title"] for a in body["schoology"]["Penn"]] == ["HW"]
+
+
+def test_dashboard_children_use_canonical_names_matching_has_data(dash_client):
+    cfg = {"children": {"Samantha": {"grade": "5th", "school": "St Mark"}, "Sam": {"grade": "9th", "school": "St Mark"}},
+           "name_aliases": {"samantha": "Sam"}}
+    c = dash_client({"ixl": {"Sam": {"totals": {}}}, "schoology": {}}, cfg)
+    body = c.get("/api/dashboard").get_json()
+    assert [r["name"] for r in body["children"]] == ["Sam"]
+    assert body["children"][0]["grade"] == "5th"  # first entry's attributes
+    assert all(r["name"] in body["has_data"] for r in body["children"])
+    assert body["has_data"]["Sam"]["ixl"] is True
+
+
+def test_canonical_roster_collapses_long_and_short_names_keeping_the_first_entry(tmp_path, monkeypatch):
+    _write_config(tmp_path, monkeypatch, {"children": {
+        "Samantha": {"grade": "5th", "school": "A"}, "Sam": {"grade": "9th", "school": "B"}},
+        "name_aliases": {"samantha": "Sam"}})
+    assert state.canonical_roster() == [{"id": "samantha", "name": "Sam", "grade": "5th", "school": "A"}]

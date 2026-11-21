@@ -164,8 +164,8 @@ def test_skipped_row_is_not_counted_as_migrated_and_is_retried(make_env):
     env = make_env([bad])
     run(env)
     again = run(env)
-    assert (again.created, again.already_migrated, again.skipped) == (0, 99 + 1, 1) or again.skipped == 1
-    assert again.already_migrated == 100
+    assert (again.created, again.already_migrated, again.skipped) == (0, 100, 1)
+    assert again.skipped_keys == ("legacy-action:bad001",)
     assert rows(env[1], "SELECT value FROM recon_meta WHERE key = 'migrated_at'")
 
 
@@ -206,3 +206,47 @@ def test_cli_exit_zero_when_everything_migrated(make_env):
     r = _cli(env, "migrate", "--json")
     assert r.returncode == 0, r.stderr
     assert json.loads(r.stdout)["skipped"] == 0
+
+
+def test_slash_dues_are_now_parsed_and_yearless_or_garbage_dues_are_counted(make_env):
+    """Fixture dues: 12 x 11/22/2026 now dated; 12 x 'Mon, Nov 16' (no year) + 12 x 'not a date' + 1 item
+    'garbage' stay undated and are counted (25 unreadable)."""
+    env = make_env()
+    r = run(env)
+    assert rows(env[1], "SELECT COUNT(*) FROM assignments WHERE due_date = '2026-11-22'")[0][0] == 12
+    assert "25 rows had an unreadable due; left undated" in r.warnings
+
+
+def _trap(env, sql):
+    c = schema.connect(env[1])
+    schema.ensure_schema(c)
+    c.execute(sql)
+    c.close()
+
+
+def test_rejected_link_insert_leaves_no_assignment_and_no_event_for_that_row(make_env):
+    done = {"id": "cmp001", "child": "Alex", "source": "schoology", "type": "task", "summary": "Closed one",
+            "due": None, "status": "completed", "completed_at": "2026-11-05T07:00:00",
+            "created": "2026-11-01T07:00:00"}
+    env = make_env([done])
+    _trap(env, "CREATE TRIGGER t BEFORE INSERT ON source_links WHEN NEW.external_key = 'legacy-action:cmp001' "
+               "BEGIN SELECT RAISE(ABORT, 'injected'); END")
+    r = run(env)
+    assert r.skipped_keys == ("legacy-action:cmp001",)
+    assert rows(env[1], "SELECT COUNT(*) FROM assignments WHERE legacy_action_id = 'cmp001'") == [(0,)]
+    assert rows(env[1], "SELECT COUNT(*) FROM assignments") == [(100,)]
+    assert rows(env[1], "SELECT COUNT(*) FROM assignment_events "
+                        "WHERE assignment_id NOT IN (SELECT id FROM assignments)") == [(0,)]
+    assert rows(env[1], "SELECT COUNT(*) FROM assignment_events WHERE setter = 'migration'") == [(
+        rows(env[1], "SELECT COUNT(*) FROM assignments WHERE stage = 4")[0][0],)]
+
+
+def test_every_row_rejected_leaves_migrated_at_unset_and_exits_four(make_env):
+    env = make_env()
+    _trap(env, "CREATE TRIGGER t BEFORE INSERT ON source_links BEGIN SELECT RAISE(ABORT, 'injected'); END")
+    r = _cli(env, "migrate", "--json")
+    assert r.returncode == 4, r.stderr
+    rep = json.loads(r.stdout)
+    assert rep["skipped"] == 100 and rep["created"] == 0
+    assert rows(env[1], "SELECT COUNT(*) FROM assignments") == [(0,)]
+    assert rows(env[1], "SELECT COUNT(*) FROM recon_meta WHERE key = 'migrated_at'") == [(0,)]

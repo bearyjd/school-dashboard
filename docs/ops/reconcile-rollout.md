@@ -11,8 +11,11 @@ Run commands on the Docker host from the compose directory. Replace `<name>` wit
 3. **Write token and host settings** in `config/env` (never paste them into chat or tickets):
    - `RECON_WRITE_TOKEN=<64 hex chars>` from `python3 -c "import secrets; print(secrets.token_hex(32))"` (at least 32 characters; shorter means writes answer 501).
    - Host allowlist and port binding as in `docs/ops/host-allowlist-and-port-binding.md` (`ALLOWED_HOSTS`, `HOST_CHECK_MODE`, `DASHBOARD_BIND_ADDR`). `RECON_WRITE_OPEN=1` skips the token and is only for a trusted private network, never a public hostname.
-4. **Dry run**: `docker exec <name> school-state assignments migrate --dry-run` (read-only; read the counts and any refusal reason).
+4. **Dry run**: `docker exec <name> school-state assignments migrate --dry-run` (it runs the real write path on a private temporary copy of the database, so it predicts the write and changes nothing real; read the counts, the warnings and any refusal reason).
 5. **Migrate**: `docker exec <name> school-state assignments migrate`. It copies legacy items and action items into assignments and writes a backup first. Exit 3 means maintenance is off or a sync is running.
+   - Exit codes: 0 done; 1 failed, nothing changed; 2 unusable input (state file or config), nothing changed; 3 refused (maintenance off or a sync running); 4 committed, but some rows were skipped and remain only in the legacy store. On 4, read `skipped_keys` in the report, fix those rows, and re-run; re-running is safe. If every row was skipped, the migration is not marked done (ingest stays gated) until a re-run succeeds.
+   - A kid named `"(unknown)"` appears if a legacy row had no child name.
+   - Pending legacy items with a past due date show under Needs action (Missing) on day one until they are dealt with or marked done.
 6. `school-state transition maintenance off`.
 7. **Turn the ingest on**: `RECON_INGEST_ENABLED=1` in `config/env`, `docker compose up -d`.
 8. **Run a sync**: `docker exec <name> /app/sync/school-sync.sh` (or wait for the next cron). The merge runs at the end of `school-state update`.

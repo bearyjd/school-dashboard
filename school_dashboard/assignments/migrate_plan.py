@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import date, datetime
@@ -49,15 +50,48 @@ def _when(value: Any, now: datetime, bad: Counter, kind: str) -> datetime:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=now.tzinfo)
 
 
+_US_DATE = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{4}|\d{2})$")
+_YMD_SLASH = re.compile(r"^(\d{4})/(\d{1,2})/(\d{1,2})$")
+_TEXT_DATE = re.compile(r"(?:^|[\s,])([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$")
+_MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+           "november", "december")
+
+
+def _month_number(name: str) -> int | None:
+    low = name.lower()
+    for number, full in enumerate(_MONTHS, 1):
+        if len(low) >= 3 and (full.startswith(low) or (low == "sept" and number == 9)):
+            return number
+    return None
+
+
+def _parse_due_text(raw: str) -> date | None:
+    """Legacy due text -> date; formats without a year are NOT parsed (the year is never guessed)."""
+    try:
+        return date.fromisoformat(raw[:10])
+    except ValueError:
+        pass
+    try:
+        if m := _US_DATE.match(raw):
+            year = int(m[3]) + (2000 if len(m[3]) == 2 else 0)
+            return date(year, int(m[1]), int(m[2]))
+        if m := _YMD_SLASH.match(raw):
+            return date(int(m[1]), int(m[2]), int(m[3]))
+        if (m := _TEXT_DATE.search(raw)) and (month := _month_number(m[1])):
+            return date(int(m[3]), month, int(m[2]))
+    except ValueError:
+        return None
+    return None
+
+
 def _due(value: Any, bad: Counter) -> date | None:
     raw = str(value).strip() if value is not None else ""
     if not raw:
         return None
-    try:
-        return date.fromisoformat(raw[:10])
-    except ValueError:
+    parsed = _parse_due_text(raw)
+    if parsed is None:
         bad["due"] += 1
-        return None
+    return parsed
 
 
 TITLE_CAP = 300
