@@ -14,7 +14,7 @@ from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, gc_warnings, powerschool_warnings, scrape_warnings
 from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
-from school_dashboard import csp, db, maintenance, paths, powerschool
+from school_dashboard import csp, db, hostcheck, maintenance, paths, powerschool
 from school_dashboard.csp import CSP_REPORT_ONLY  # noqa: F401  (re-exported for tests and docs)
 from school_dashboard.rate_limit import FailureLimiter, client_key, trusted_client_ip, trusted_proxy_count
 from school_dashboard.sources import source_enabled
@@ -28,6 +28,9 @@ _MAINTENANCE_RETRY_AFTER = "60"
 # /api/csp-report only counts browser reports; it persists nothing.
 _MAINTENANCE_EXEMPT = frozenset({"/api/chat", csp.REPORT_PATH})
 csp.init_app(app)
+hostcheck.init_app(app)
+from web.api_v2 import bp as api_v2_bp
+app.register_blueprint(api_v2_bp)
 
 
 @app.before_request
@@ -571,6 +574,15 @@ def api_overview():
     if not isinstance(gc_data, dict) or "error" in gc_data:
         gc_data = {}
     warnings.extend(gc_warnings(gc_data, clean=True))
+    from school_dashboard.assignments import flagsenv, health
+    if flagsenv.enabled("RECON_INGEST_ENABLED"):
+        try:
+            warnings.extend(health.ingest_warnings(
+                read_sync_meta(str(paths.sync_meta_path())), now=now, tz=tz,
+                first_seen=watchdog.load_first_seen().get("recon_ingest")))
+        except Exception as exc:  # a malformed sync_meta must not take the overview down
+            app.logger.error("assignment merge status unavailable (%s)", type(exc).__name__)
+            warnings.append("Assignment merge status unavailable")
     db_file = str(paths.db_path())
     try:
         manual = list_items(db_file)

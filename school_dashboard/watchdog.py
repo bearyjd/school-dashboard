@@ -307,7 +307,7 @@ def plan_alerts(problems: list[Problem], state: dict, now: datetime):
 
 
 _NAMES = {"sgy": "Schoology", "ixl": "IXL", "gc": "GameChanger",
-          "powerschool": "PowerSchool", STATE_KEY: "school data",
+          "powerschool": "PowerSchool", STATE_KEY: "school data", "recon_ingest": "Assignment merge",
           "ixl_scrape": "IXL scrape", "sgy_scrape": "Schoology scrape",
           MAINTENANCE_KEY: "maintenance mode",
           **{f"{DIGEST_KEY_PREFIX}{k}": f"{v.title} digest" for k, v in DIGEST_SCHEDULE.items()}}
@@ -363,6 +363,9 @@ def monitored_sources() -> list[str]:
         if s == "powerschool" and not _powerschool_configured():
             continue
         out.append(s)
+    from school_dashboard.assignments.flagsenv import enabled
+    if enabled("RECON_INGEST_ENABLED"):
+        out.append("recon_ingest")
     return out
 
 

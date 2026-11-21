@@ -1,0 +1,334 @@
+{
+ "description": "link match first, then full key (kid + class + title + due)",
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "exact_key",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": "Math 6",
+    "title": "Chapter 5 Quiz",
+    "due_date": "2026-11-20",
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Chapter 5 Quiz",
+     "title_key": "chapter 5 quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "key",
+    "assignment_id": 1
+   }
+  },
+  {
+   "id": "title_punctuation_and_case_ignored",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": "math 6",
+    "title": "CHAPTER 5: quiz!",
+    "due_date": "2026-11-20",
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Chapter 5 Quiz",
+     "title_key": "chapter 5 quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "key",
+    "assignment_id": 1
+   }
+  },
+  {
+   "id": "class_alias_resolves_to_same_class",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": "Mathematics Grade 6",
+    "title": "Chapter 5 Quiz",
+    "due_date": "2026-11-20",
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Chapter 5 Quiz",
+     "title_key": "chapter 5 quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [],
+   "aliases": {
+    "mathematics grade 6": "math 6"
+   },
+   "expect": {
+    "kind": "key",
+    "assignment_id": 1
+   }
+  },
+  {
+   "id": "link_match_survives_retitle",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": "Math 6",
+    "title": "Ch 5 Quiz (retake)",
+    "due_date": "2026-11-27",
+    "external_key": "a1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Chapter 5 Quiz",
+     "title_key": "chapter 5 quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [
+    [
+     "schoology",
+     "Alex",
+     "a1",
+     1
+    ]
+   ],
+   "aliases": {},
+   "expect": {
+    "kind": "link",
+    "assignment_id": 1
+   }
+  },
+  {
+   "id": "link_match_wins_over_key_match_on_other_row",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": "Math 6",
+    "title": "Chapter 5 Quiz",
+    "due_date": "2026-11-20",
+    "external_key": "a1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Chapter 5 Quiz",
+     "title_key": "chapter 5 quiz",
+     "due_date": "2026-11-20"
+    },
+    {
+     "id": 2,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Other",
+     "title_key": "other",
+     "due_date": "2026-11-21"
+    }
+   ],
+   "link_index": [
+    [
+     "schoology",
+     "Alex",
+     "a1",
+     2
+    ]
+   ],
+   "aliases": {},
+   "expect": {
+    "kind": "link",
+    "assignment_id": 2
+   }
+  },
+  {
+   "id": "same_external_key_for_other_kid_is_new",
+   "record": {
+    "source": "schoology",
+    "kid": "Sam",
+    "class_name": "Math 6",
+    "title": "Chapter 5 Quiz",
+    "due_date": "2026-11-20",
+    "external_key": "a1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Chapter 5 Quiz",
+     "title_key": "chapter 5 quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [
+    [
+     "schoology",
+     "Alex",
+     "a1",
+     1
+    ]
+   ],
+   "aliases": {},
+   "expect": {
+    "kind": "new",
+    "assignment_id": null
+   }
+  },
+  {
+   "id": "same_external_key_other_source_is_not_a_link_match",
+   "record": {
+    "source": "powerschool",
+    "kid": "Alex",
+    "class_name": "Math 6",
+    "title": "Chapter 5 Quiz",
+    "due_date": "2026-11-21",
+    "external_key": "a1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Chapter 5 Quiz",
+     "title_key": "chapter 5 quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [
+    [
+     "schoology",
+     "Alex",
+     "a1",
+     1
+    ]
+   ],
+   "aliases": {},
+   "expect": {
+    "kind": "new",
+    "assignment_id": null
+   }
+  },
+  {
+   "id": "different_due_date_is_new",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": "Math 6",
+    "title": "Chapter 5 Quiz",
+    "due_date": "2026-11-21",
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Chapter 5 Quiz",
+     "title_key": "chapter 5 quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "new",
+    "assignment_id": null
+   }
+  },
+  {
+   "id": "different_kid_is_new",
+   "record": {
+    "source": "schoology",
+    "kid": "Sam",
+    "class_name": "Math 6",
+    "title": "Chapter 5 Quiz",
+    "due_date": "2026-11-20",
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Chapter 5 Quiz",
+     "title_key": "chapter 5 quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "new",
+    "assignment_id": null
+   }
+  },
+  {
+   "id": "exact_key_beats_relaxed_candidates",
+   "record": {
+    "source": "schoology",
+    "kid": "Alex",
+    "class_name": "Math 6",
+    "title": "Chapter 5 Quiz",
+    "due_date": "2026-11-20",
+    "external_key": "x1"
+   },
+   "candidates": [
+    {
+     "id": 1,
+     "kid": "Alex",
+     "class_name": "Math 6",
+     "class_key": "math 6",
+     "title": "Chapter 5 Quiz",
+     "title_key": "chapter 5 quiz",
+     "due_date": "2026-11-20"
+    },
+    {
+     "id": 2,
+     "kid": "Alex",
+     "class_name": null,
+     "class_key": "",
+     "title": "Chapter 5 Quiz",
+     "title_key": "chapter 5 quiz",
+     "due_date": "2026-11-20"
+    }
+   ],
+   "link_index": [],
+   "aliases": {},
+   "expect": {
+    "kind": "key",
+    "assignment_id": 1
+   }
+  }
+ ]
+}

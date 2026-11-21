@@ -1,0 +1,186 @@
+{
+ "description": "missing: portal says missing, or stage 1 and past due (late is only a chip)",
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "portal_missing_future_due",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-30",
+    "portal_status": "missing"
+   },
+   "links": [
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "missing"
+    }
+   ],
+   "expect": {
+    "flag": "missing",
+    "bucket": "needs_action"
+   }
+  },
+  {
+   "id": "past_due_not_done_no_portal",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-17"
+   },
+   "links": [],
+   "expect": {
+    "flag": "missing",
+    "bucket": "needs_action"
+   }
+  },
+  {
+   "id": "stage2_portal_missing_is_missing_not_disputed",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 2,
+    "stage_since": "2026-11-18T10:00:00-05:00",
+    "due_date": "2026-11-20",
+    "portal_status": "missing"
+   },
+   "links": [
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "missing"
+    }
+   ],
+   "expect": {
+    "flag": "missing",
+    "bucket": "needs_action"
+   }
+  },
+  {
+   "id": "late_with_future_due_is_not_missing",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-30",
+    "portal_status": "late"
+   },
+   "links": [
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "late"
+    }
+   ],
+   "expect": {
+    "flag": "upcoming",
+    "bucket": null,
+    "info": [
+     "late"
+    ]
+   }
+  },
+  {
+   "id": "late_and_past_due_is_missing_by_date",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-17",
+    "portal_status": "late"
+   },
+   "links": [
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "late"
+    }
+   ],
+   "expect": {
+    "flag": "missing",
+    "bucket": "needs_action",
+    "info": [
+     "late"
+    ]
+   }
+  },
+  {
+   "id": "open_task_past_due_is_missing",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "kind": "task",
+    "due_date": "2026-11-17"
+   },
+   "links": [],
+   "expect": {
+    "flag": "missing",
+    "bucket": "needs_action"
+   }
+  },
+  {
+   "id": "open_practice_past_due_is_missing",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "kind": "practice",
+    "due_date": "2026-11-17"
+   },
+   "links": [],
+   "expect": {
+    "flag": "missing",
+    "bucket": "needs_action"
+   }
+  },
+  {
+   "id": "cleared_and_past_due_is_missing_by_date",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-17",
+    "portal_status": "cleared"
+   },
+   "links": [
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "missing",
+     "live": false,
+     "trusted_misses": 1,
+     "absent_since": "2026-11-18"
+    }
+   ],
+   "expect": {
+    "flag": "missing",
+    "bucket": "needs_action",
+    "info": [
+     "cleared_unconfirmed"
+    ]
+   }
+  },
+  {
+   "id": "before_0400_yesterdays_work_is_not_missing_yet",
+   "now": "2026-11-19T03:30:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-18"
+   },
+   "links": [],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight"
+   }
+  },
+  {
+   "id": "at_0400_yesterdays_work_is_missing",
+   "now": "2026-11-19T04:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-18"
+   },
+   "links": [],
+   "expect": {
+    "flag": "missing",
+    "bucket": "needs_action"
+   }
+  }
+ ]
+}

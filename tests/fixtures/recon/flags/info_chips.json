@@ -1,0 +1,79 @@
+{
+ "description": "info chips derived from links and state",
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "late_chip_needs_a_live_late_link",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-30",
+    "portal_status": "late"
+   },
+   "links": [
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "late",
+     "live": true
+    }
+   ],
+   "expect": {
+    "info": [
+     "late"
+    ]
+   }
+  },
+  {
+   "id": "absent_late_link_gives_no_late_chip",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-30",
+    "portal_status": "cleared"
+   },
+   "links": [
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "late",
+     "live": false,
+     "trusted_misses": 1,
+     "absent_since": "2026-11-18"
+    }
+   ],
+   "expect": {
+    "info": [
+     "cleared_unconfirmed"
+    ]
+   }
+  },
+  {
+   "id": "conflict_chip_from_portal_conflict",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-30",
+    "portal_status": "missing",
+    "portal_conflict": true
+   },
+   "links": [
+    {
+     "source": "schoology",
+     "external_key": "s1",
+     "norm_status": "graded"
+    },
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "missing"
+    }
+   ],
+   "expect": {
+    "info": [
+     "conflict"
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,38 @@
+{
+ "synthetic": true,
+ "id": "screenshot_link_graded_is_not_received",
+ "state": {
+  "stage": 1,
+  "due_date": "2026-11-30",
+  "stage_since": "2026-11-16T12:00:00-05:00",
+  "portal_status": "none"
+ },
+ "links": [
+  {
+   "source": "powerschool",
+   "external_key": "p1",
+   "norm_status": "open",
+   "via": "screenshot"
+  }
+ ],
+ "start": "2026-11-18T06:00:00-05:00",
+ "steps": [
+  {
+   "op": "scrape",
+   "at": "2026-11-18T06:00:00-05:00",
+   "trusted": true,
+   "file_hash": "h1",
+   "present": {
+    "powerschool:p1": {
+     "status": "graded",
+     "score": "95"
+    }
+   },
+   "expect": {
+    "stage": 1,
+    "received_evidence": null,
+    "portal_status": "graded"
+   }
+  }
+ ]
+}

@@ -1,0 +1,690 @@
+{
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "ps_absent_three_trusted_misses_over_two_days_stays_cleared_never_closed",
+   "runs": [
+    {
+     "now": "2026-11-12T17:00:00-05:00",
+     "ps": {
+      "Alex": {
+       "missing": [
+        {
+         "course": "Math 6",
+         "title": "Pack",
+         "due": "2026-11-10"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "powerschool": "p1"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "stage": 1,
+       "portal_status": "missing",
+       "flag": "missing",
+       "closed": false,
+       "links": {
+        "powerschool": {
+         "live": true,
+         "misses": 0
+        }
+       }
+      },
+      "_outbox": {
+       "pending": 1
+      }
+     }
+    },
+    {
+     "now": "2026-11-13T17:00:00-05:00",
+     "ps": {
+      "Alex": {}
+     },
+     "hash": {
+      "powerschool": "p2"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "stage": 1,
+       "portal_status": "cleared",
+       "closed": false,
+       "links": {
+        "powerschool": {
+         "live": false,
+         "misses": 1
+        }
+       }
+      }
+     }
+    },
+    {
+     "now": "2026-11-16T17:00:00-05:00",
+     "ps": {
+      "Alex": {
+       "missing": [
+        {
+         "course": "Math 6",
+         "title": "Pack",
+         "due": "2026-11-10"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "powerschool": "p3"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "stage": 1,
+       "closed": false,
+       "links": {
+        "powerschool": {
+         "live": false,
+         "misses": 1
+        }
+       }
+      },
+      "_events_delta": 0,
+      "_warnings": [
+       "untrusted"
+      ]
+     },
+     "ps_top": {
+      "warnings": [
+       "boom"
+      ]
+     }
+    },
+    {
+     "now": "2026-11-16T18:00:00-05:00",
+     "ps": {
+      "Alex": {}
+     },
+     "hash": {
+      "powerschool": "p2"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "stage": 1,
+       "links": {
+        "powerschool": {
+         "misses": 1
+        }
+       }
+      }
+     }
+    },
+    {
+     "now": "2026-11-17T17:00:00-05:00",
+     "ps": {
+      "Alex": {}
+     },
+     "hash": {
+      "powerschool": "p4"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "stage": 1,
+       "closed": false,
+       "links": {
+        "powerschool": {
+         "live": false,
+         "misses": 2
+        }
+       }
+      }
+     }
+    },
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "ps": {
+      "Alex": {}
+     },
+     "hash": {
+      "powerschool": "p5"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "stage": 1,
+       "closed": false,
+       "evidence": null,
+       "portal_status": "cleared",
+       "links": {
+        "powerschool": {
+         "live": false,
+         "misses": 3,
+         "absent_since": "2026-11-13"
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "three_misses_within_one_day_then_two_days_stays_cleared_never_closed",
+   "runs": [
+    {
+     "now": "2026-11-12T17:00:00-05:00",
+     "ps": {
+      "Alex": {
+       "missing": [
+        {
+         "course": "Math 6",
+         "title": "Pack",
+         "due": "2026-11-10"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "powerschool": "p1"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "stage": 1
+      }
+     }
+    },
+    {
+     "now": "2026-11-12T18:00:00-05:00",
+     "ps": {
+      "Alex": {}
+     },
+     "hash": {
+      "powerschool": "p2"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "stage": 1,
+       "links": {
+        "powerschool": {
+         "misses": 1
+        }
+       }
+      }
+     }
+    },
+    {
+     "now": "2026-11-12T19:00:00-05:00",
+     "ps": {
+      "Alex": {}
+     },
+     "hash": {
+      "powerschool": "p3"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "stage": 1,
+       "links": {
+        "powerschool": {
+         "misses": 2
+        }
+       }
+      }
+     }
+    },
+    {
+     "now": "2026-11-12T20:00:00-05:00",
+     "ps": {
+      "Alex": {}
+     },
+     "hash": {
+      "powerschool": "p4"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "stage": 1,
+       "closed": false,
+       "links": {
+        "powerschool": {
+         "misses": 3
+        }
+       }
+      }
+     }
+    },
+    {
+     "now": "2026-11-14T17:00:00-05:00",
+     "ps": {
+      "Alex": {}
+     },
+     "hash": {
+      "powerschool": "p5"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "stage": 1,
+       "closed": false,
+       "evidence": null,
+       "portal_status": "cleared"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "missing_to_late_is_a_status_change_only",
+   "runs": [
+    {
+     "now": "2026-11-12T17:00:00-05:00",
+     "ps": {
+      "Alex": {
+       "missing": [
+        {
+         "course": "Math 6",
+         "title": "Pack",
+         "due": "2026-11-25"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "powerschool": "p1"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "portal_status": "missing",
+       "stage": 1
+      }
+     }
+    },
+    {
+     "now": "2026-11-13T17:00:00-05:00",
+     "ps": {
+      "Alex": {
+       "late": [
+        {
+         "course": "Math 6",
+         "title": "Pack",
+         "due": "2026-11-25"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "powerschool": "p2"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "portal_status": "late",
+       "stage": 1,
+       "flag": "upcoming",
+       "link_count": 1,
+       "links": {
+        "powerschool": {
+         "live": true,
+         "misses": 0,
+         "status": "late"
+        }
+       }
+      },
+      "_count": 1,
+      "_kinds_delta": {
+       "portal_status": 1,
+       "stage": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "schoology_row_leaving_window_never_received_never_counts",
+   "runs": [
+    {
+     "now": "2026-11-12T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Old Quiz",
+        "course": "Math 6",
+        "due": "2026-11-10",
+        "status": "missing",
+        "link": "https://sgy.example.invalid/q/1"
+       }
+      ]
+     },
+     "hash": {
+      "schoology": "s1"
+     },
+     "expect": {
+      "Alex|Old Quiz|Math 6": {
+       "stage": 1,
+       "portal_status": "missing",
+       "flag": "missing"
+      },
+      "_outbox": {
+       "pending": 1
+      }
+     }
+    },
+    {
+     "now": "2026-11-13T17:00:00-05:00",
+     "sgy": {
+      "Alex": []
+     },
+     "hash": {
+      "schoology": "s2"
+     },
+     "expect": {
+      "Alex|Old Quiz|Math 6": {
+       "stage": 1,
+       "closed": false,
+       "links": {
+        "schoology": {
+         "live": false,
+         "misses": 0
+        }
+       }
+      }
+     }
+    },
+    {
+     "now": "2026-11-14T17:00:00-05:00",
+     "sgy": {
+      "Alex": []
+     },
+     "hash": {
+      "schoology": "s3"
+     },
+     "expect": {
+      "Alex|Old Quiz|Math 6": {
+       "stage": 1,
+       "closed": false,
+       "links": {
+        "schoology": {
+         "live": false,
+         "misses": 0
+        }
+       }
+      }
+     }
+    },
+    {
+     "now": "2026-11-17T17:00:00-05:00",
+     "sgy": {
+      "Alex": []
+     },
+     "hash": {
+      "schoology": "s4"
+     },
+     "expect": {
+      "Alex|Old Quiz|Math 6": {
+       "stage": 1,
+       "closed": false,
+       "links": {
+        "schoology": {
+         "live": false,
+         "misses": 0
+        }
+       }
+      }
+     }
+    },
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "sgy": {
+      "Alex": []
+     },
+     "hash": {
+      "schoology": "s5"
+     },
+     "expect": {
+      "Alex|Old Quiz|Math 6": {
+       "stage": 1,
+       "closed": false,
+       "links": {
+        "schoology": {
+         "live": false,
+         "misses": 0
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "mass_change_guard_skips_absence",
+   "runs": [
+    {
+     "now": "2026-11-12T17:00:00-05:00",
+     "ps": {
+      "Alex": {
+       "missing": [
+        {
+         "course": "Math 6",
+         "title": "Pack",
+         "due": "2026-11-10"
+        },
+        {
+         "course": "Math 6",
+         "title": "Lab",
+         "due": "2026-11-10"
+        },
+        {
+         "course": "Math 6",
+         "title": "Quiz",
+         "due": "2026-11-10"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "powerschool": "p1"
+     },
+     "expect": {
+      "_count": 3
+     }
+    },
+    {
+     "now": "2026-11-13T17:00:00-05:00",
+     "ps": {
+      "Alex": {}
+     },
+     "hash": {
+      "powerschool": "p2"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "links": {
+        "powerschool": {
+         "live": true,
+         "misses": 0
+        }
+       }
+      },
+      "Alex|Lab|Math 6": {
+       "links": {
+        "powerschool": {
+         "live": true,
+         "misses": 0
+        }
+       }
+      },
+      "Alex|Quiz|Math 6": {
+       "links": {
+        "powerschool": {
+         "live": true,
+         "misses": 0
+        }
+       }
+      },
+      "_warnings": [
+       "mass"
+      ],
+      "_ok": true
+     }
+    },
+    {
+     "now": "2026-11-14T17:00:00-05:00",
+     "ps": {
+      "Alex": {
+       "missing": [
+        {
+         "course": "Math 6",
+         "title": "Pack",
+         "due": "2026-11-10"
+        },
+        {
+         "course": "Math 6",
+         "title": "Lab",
+         "due": "2026-11-10"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "powerschool": "p3"
+     },
+     "expect": {
+      "Alex|Pack|Math 6": {
+       "links": {
+        "powerschool": {
+         "live": true,
+         "misses": 0
+        }
+       }
+      },
+      "Alex|Lab|Math 6": {
+       "links": {
+        "powerschool": {
+         "live": true,
+         "misses": 0
+        }
+       }
+      },
+      "Alex|Quiz|Math 6": {
+       "links": {
+        "powerschool": {
+         "live": false,
+         "misses": 1
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "graded_plus_another_live_missing_is_conflict_not_received",
+   "runs": [
+    {
+     "now": "2026-11-12T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Quiz 2",
+        "course": "Math 6",
+        "due": "2026-11-10",
+        "status": "graded",
+        "link": "https://sgy.example.invalid/z/2"
+       }
+      ]
+     },
+     "ps": {
+      "Alex": {
+       "missing": [
+        {
+         "course": "Math 6",
+         "title": "Quiz 2",
+         "due": "2026-11-10"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "schoology": "s1",
+      "powerschool": "p1"
+     },
+     "expect": {
+      "Alex|Quiz 2|Math 6": {
+       "stage": 1,
+       "portal_status": "missing",
+       "portal_conflict": true,
+       "closed": false,
+       "link_count": 2
+      },
+      "_count": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": "reopen_from_received_when_a_live_missing_returns",
+   "setup": {
+    "seed": [
+     {
+      "kid": "Alex",
+      "class_name": "Math 6",
+      "class_key": "math 6",
+      "title": "Worksheet",
+      "title_key": "worksheet",
+      "due_date": "2026-11-10",
+      "stage": 4,
+      "stage_since": "2026-11-12T12:00:00-05:00",
+      "closed_at": "2026-11-12T12:00:00-05:00",
+      "received_evidence": "portal",
+      "portal_status": "cleared",
+      "links": [
+       {
+        "source": "powerschool",
+        "external_key": {
+         "hkey": [
+          "math 6",
+          "worksheet",
+          "2026-11-10"
+         ]
+        },
+        "norm_status": "missing",
+        "live": false,
+        "trusted_misses": 3,
+        "absent_since": "2026-11-10"
+       }
+      ]
+     }
+    ]
+   },
+   "runs": [
+    {
+     "now": "2026-11-14T17:00:00-05:00",
+     "ps": {
+      "Alex": {
+       "missing": [
+        {
+         "course": "Math 6",
+         "title": "Worksheet",
+         "due": "2026-11-10"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "powerschool": "p9"
+     },
+     "expect": {
+      "Alex|Worksheet|Math 6": {
+       "stage": 1,
+       "closed": false,
+       "evidence": null,
+       "flag": "missing",
+       "links": {
+        "powerschool": {
+         "live": true,
+         "misses": 0
+        }
+       }
+      },
+      "_count": 1,
+      "_kinds_delta": {
+       "stage": 1
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

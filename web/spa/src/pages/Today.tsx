@@ -7,7 +7,7 @@ import { KidChip } from '../design/KidChip'
 import { Tile } from '../design/Tile'
 import { useOverview } from '../lib/overview'
 import { useUrlState } from '../lib/urlState'
-import { APP_TZ, eventMatchesKid, formatDay, formatTime, itemMatchesKid, kidIndex, kidParser } from '../lib/view'
+import { APP_TZ, eventMatchesKid, formatDay, formatTime, itemMatchesKid, kidColor, kidParser } from '../lib/view'
 import { localToday, todayAnchor, weekDays } from '../lib/week'
 import './Today.css'
 
@@ -36,7 +36,7 @@ function WeekPanel({ events, data }: { events: OverviewEvent[]; data: Overview }
             <li key={`${e.date}-${e.title}-${i}`} className="today__event">
               <span className="today__when">{formatDay(e.date)}{e.time && ` ${formatTime(e.time)}`}</span>
               <span className="today__event-title">{e.title}</span>
-              {e.kids.map(k => <KidChip key={k} name={k} index={kidIndex(data, k)} />)}
+              {e.kids.map(k => <KidChip key={k} name={k} color={kidColor(data, k)} />)}
             </li>
           ))}
         </ul>

@@ -1,0 +1,527 @@
+{
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "sgy_plus_ps_one_record_two_links_and_idempotent",
+   "runs": [
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Worksheet 3",
+        "course": "Math 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/a/1"
+       }
+      ]
+     },
+     "ps": {
+      "Alex": {
+       "upcoming": [
+        {
+         "course": "Math 6",
+         "title": "Worksheet 3",
+         "due": "2026-11-20"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "schoology": "s1",
+      "powerschool": "p1"
+     },
+     "expect": {
+      "Alex|Worksheet 3|Math 6": {
+       "stage": 1,
+       "portal_status": "open",
+       "flag": "upcoming",
+       "link_count": 2,
+       "links": {
+        "schoology": {
+         "live": true,
+         "misses": 0
+        },
+        "powerschool": {
+         "live": true,
+         "misses": 0
+        }
+       }
+      },
+      "_count": 1,
+      "_events_delta": 4,
+      "_ok": true
+     }
+    },
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Worksheet 3",
+        "course": "Math 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/a/1"
+       }
+      ]
+     },
+     "ps": {
+      "Alex": {
+       "upcoming": [
+        {
+         "course": "Math 6",
+         "title": "Worksheet 3",
+         "due": "2026-11-20"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "schoology": "s2",
+      "powerschool": "p2"
+     },
+     "expect": {
+      "Alex|Worksheet 3|Math 6": {
+       "stage": 1,
+       "portal_status": "open",
+       "flag": "upcoming",
+       "link_count": 2,
+       "links": {
+        "schoology": {
+         "live": true,
+         "misses": 0
+        },
+        "powerschool": {
+         "live": true,
+         "misses": 0
+        }
+       }
+      },
+      "_count": 1,
+      "_events_delta": 0,
+      "_outbox_delta": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": "alias_makes_a_merge",
+   "setup": {
+    "class_settings": [
+     {
+      "kid": "Alex",
+      "class_key": "math 6",
+      "aliases": [
+       "Mathematics 6"
+      ]
+     }
+    ]
+   },
+   "runs": [
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Worksheet 3",
+        "course": "Math 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/a/1"
+       }
+      ]
+     },
+     "ps": {
+      "Alex": {
+       "upcoming": [
+        {
+         "course": "Mathematics 6",
+         "title": "Worksheet 3",
+         "due": "2026-11-20"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "schoology": "s1",
+      "powerschool": "p1"
+     },
+     "expect": {
+      "_count": 1,
+      "Alex|Worksheet 3|Math 6": {
+       "link_count": 2
+      },
+      "_kinds_delta": {
+       "merge": 1
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "no_alias_stays_two",
+   "runs": [
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Worksheet 3",
+        "course": "Math 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/a/1"
+       }
+      ]
+     },
+     "ps": {
+      "Alex": {
+       "upcoming": [
+        {
+         "course": "Mathematics 6",
+         "title": "Worksheet 3",
+         "due": "2026-11-20"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "schoology": "s1",
+      "powerschool": "p1"
+     },
+     "expect": {
+      "_count": 2,
+      "_kinds_delta": {
+       "merge": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "same_title_in_two_classes_stays_two",
+   "runs": [
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Quiz 1",
+        "course": "Math 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/q/1"
+       },
+       {
+        "title": "Quiz 1",
+        "course": "Science 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/q/2"
+       }
+      ]
+     },
+     "hash": {
+      "schoology": "s1"
+     },
+     "expect": {
+      "_count": 2
+     }
+    },
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Quiz 1",
+        "course": "Math 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/q/1"
+       },
+       {
+        "title": "Quiz 1",
+        "course": "Science 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/q/2"
+       }
+      ]
+     },
+     "ps": {
+      "Alex": {
+       "upcoming": [
+        {
+         "course": "Math 6",
+         "title": "Quiz 1",
+         "due": "2026-11-20"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "schoology": "s2",
+      "powerschool": "p2"
+     },
+     "expect": {
+      "_count": 2,
+      "Alex|Quiz 1|Math 6": {
+       "link_count": 2
+      },
+      "Alex|Quiz 1|Science 6": {
+       "link_count": 1
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "ambiguous_goes_separate_with_possible_duplicate_event",
+   "runs": [
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Worksheet",
+        "course": "Math 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/w/1"
+       },
+       {
+        "title": "Worksheet",
+        "course": "Science 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/w/2"
+       }
+      ]
+     },
+     "hash": {
+      "schoology": "s1"
+     },
+     "expect": {
+      "_count": 2
+     }
+    },
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Worksheet",
+        "course": "Math 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/w/1"
+       },
+       {
+        "title": "Worksheet",
+        "course": "Science 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/w/2"
+       }
+      ]
+     },
+     "ps": {
+      "Alex": {
+       "upcoming": [
+        {
+         "course": "",
+         "title": "Worksheet",
+         "due": "2026-11-20"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "schoology": "s2",
+      "powerschool": "p2"
+     },
+     "expect": {
+      "_count": 3,
+      "_possible_duplicate": 1,
+      "Alex|Worksheet|": {
+       "link_count": 1,
+       "stage": 1
+      }
+     }
+    },
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Worksheet",
+        "course": "Math 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/w/1"
+       },
+       {
+        "title": "Worksheet",
+        "course": "Science 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/w/2"
+       }
+      ]
+     },
+     "ps": {
+      "Alex": {
+       "upcoming": [
+        {
+         "course": "",
+         "title": "Worksheet",
+         "due": "2026-11-20"
+        }
+       ]
+      }
+     },
+     "hash": {
+      "schoology": "s3",
+      "powerschool": "p3"
+     },
+     "expect": {
+      "_count": 3,
+      "_possible_duplicate": 1,
+      "_events_delta": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": "link_match_edits_title_and_due_with_an_edit_event",
+   "runs": [
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Worksheet 3",
+        "course": "Math 6",
+        "due": "2026-11-20",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/a/1"
+       }
+      ]
+     },
+     "hash": {
+      "schoology": "s1"
+     },
+     "expect": {
+      "_count": 1
+     }
+    },
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "sgy": {
+      "Alex": [
+       {
+        "title": "Worksheet 3 v2",
+        "course": "Math 6",
+        "due": "2026-11-23",
+        "status": "unknown",
+        "link": "https://sgy.example.invalid/a/1"
+       }
+      ]
+     },
+     "hash": {
+      "schoology": "s2"
+     },
+     "expect": {
+      "_count": 1,
+      "Alex|Worksheet 3 v2|Math 6": {
+       "link_count": 1
+      },
+      "_kinds_delta": {
+       "edit": 1
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "ixl_is_practice_and_never_absent",
+   "runs": [
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "ixl": {
+      "Alex": {
+       "Math": [
+        4,
+        1,
+        3
+       ]
+      }
+     },
+     "expect": {
+      "_count": 1,
+      "Alex|IXL Math|": {
+       "kind": "practice",
+       "stage": 1,
+       "portal_status": "open",
+       "links": {
+        "ixl": {
+         "live": true
+        }
+       }
+      }
+     }
+    },
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "ixl": {
+      "Alex": {
+       "Math": [
+        4,
+        4,
+        0
+       ]
+      }
+     },
+     "expect": {
+      "_count": 1,
+      "Alex|IXL Math|": {
+       "stage": 1,
+       "portal_status": "open",
+       "links": {
+        "ixl": {
+         "live": true
+        }
+       }
+      }
+     }
+    },
+    {
+     "now": "2026-11-18T17:00:00-05:00",
+     "ixl": {
+      "Alex": {
+       "Math": [
+        0,
+        0,
+        0
+       ]
+      }
+     },
+     "expect": {
+      "_count": 1,
+      "Alex|IXL Math|": {
+       "stage": 1,
+       "links": {
+        "ixl": {
+         "live": true,
+         "misses": 0
+        }
+       }
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

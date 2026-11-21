@@ -23,10 +23,11 @@ def _build(state=None, roster=("Alpha", "Beta", "Gamma"), meta=None, gc=None, sc
 def test_shape_and_kid_colour_order():
     out = _build()
     assert set(out) == {"generated_at", "kids", "items", "events", "freshness", "warnings"}
-    assert out["kids"] == [{"name": "Alpha", "colorIndex": 0}, {"name": "Beta", "colorIndex": 1},
-                           {"name": "Gamma", "colorIndex": 2}]
-    assert [k["colorIndex"] for k in _build(roster=("A", "B", "C", "D"))["kids"]] == [0, 1, 2, 3]
-    assert [k["colorIndex"] for k in _build(roster=("Solo",))["kids"]] == [0]
+    assert [k["name"] for k in out["kids"]] == ["Alpha", "Beta", "Gamma"]
+    assert [k["color"] for k in out["kids"]] == ["blue", "rose", "teal"]
+    assert [k["color"] for k in _build(roster=("Jack", "Penn", "Ford"))["kids"]] == ["green", "lavender", "amber"]
+    assert [k["color"] for k in _build(roster=("Ford", "Jack"))["kids"]] == ["amber", "green"]
+    assert _build(roster=("Solo",))["kids"] == [{"name": "Solo", "color": "blue"}]
     assert set(out["freshness"]) == {"ixl", "sgy", "gc", "powerschool"}
 
 

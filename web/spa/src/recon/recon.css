@@ -1,0 +1,133 @@
+/* Reconcile: colours come from tokens.css only; kid colour is an accent (rule + chip), the name is always text. */
+
+/* .screen.recon: global.css (loaded later) also sets .screen { overflow-y: auto }, which would break the sticky header. */
+.screen.recon { display: flex; flex-direction: column; gap: 12px; min-width: 0; max-width: 1100px; width: 100%; margin: 0 auto; overflow: visible; }
+.recon__top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.recon__top .page-title { margin: 0; }
+.recon__older { color: var(--tonight-text); font-weight: 700; display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; }
+.recon__asof { color: var(--muted); font-size: 12px; margin-top: -6px; }
+
+/* Header: counts and kid switcher stay in view while the list scrolls. */
+.recon__sticky {
+  position: sticky; top: 0; z-index: 20; display: flex; flex-direction: column; gap: 8px;
+  background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.recon__tiles { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.recon__tile { min-width: 0; display: flex; }
+.recon__tile > * { flex: 1; min-width: 0; }
+.recon__tile .tile { padding: 8px 10px; min-height: 64px; box-shadow: none; }
+.recon__tile .tile__value { font-size: 26px; }
+.recon__tile--needs_action .tile__value { font-size: 32px; }
+.recon__tile--hot .tile {
+  background: color-mix(in srgb, var(--overdue) 14%, var(--surface)); border-color: var(--overdue);
+}
+.recon__tile--hot .tile__value { color: var(--overdue-text); }
+.recon__tile--waiting_on_teacher .tile { background: transparent; }
+.recon__tile--waiting_on_teacher .tile__value { color: var(--muted); font-size: 22px; }
+.recon__tile .tile--action:hover { transform: none; }
+.recon__kids { display: flex; flex-wrap: wrap; gap: 6px; }
+.recon__kids .pill { min-height: 44px; }
+
+.recon__kids-list { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+
+/* A kid: coloured rule + chip, name as text. */
+.recon-kid { border-left: 4px solid var(--kid); padding-left: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.recon-kid__head { display: flex; align-items: center; gap: 8px; }
+.recon-kid__name { font-family: var(--font-head); font-weight: var(--head-weight); font-size: 1.3rem; }
+.recon-kid__ixl { font-size: 13px; color: var(--muted); font-weight: 600; overflow-wrap: anywhere; }
+.recon-kid__clear { color: var(--ok-text); font-weight: 700; }
+.recon-kid__clear--warn { color: var(--missing-text); }
+.recon-kid__buckets { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+
+.recon-bucket { min-width: 0; scroll-margin-top: 190px; } /* clears the sticky header when a tile scrolls here */
+.recon-bucket__h { font-family: var(--font-head); font-weight: var(--head-weight); font-size: 1.05rem; margin-bottom: 6px; }
+.recon-bucket--needs_action .recon-bucket__h { color: var(--overdue-text); font-size: 1.15rem; }
+.recon-bucket--waiting_on_teacher .recon-bucket__h { color: var(--muted); font-size: 0.95rem; }
+.recon-bucket--waiting_on_teacher .recon-row__title { font-weight: 600; color: var(--muted); }
+.recon-group__h { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin: 8px 0 4px; }
+.recon-list { list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.recon-bucket--needs_action .recon-list { border-color: var(--overdue); }
+.recon-row-item:last-child .recon-row { border-bottom: 0; }
+
+.recon-row { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-bottom: 1px solid var(--border); min-width: 0; }
+.recon-row__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.recon-row__title { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; min-width: 0; flex: 1 1 12ch; }
+.recon-row__meta { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12px; color: var(--muted); }
+.recon-row__msg { font-size: 13px; font-weight: 700; color: var(--overdue-text); }
+.recon-row__msg:empty { display: none; }
+.recon-row__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+
+.recon-chips, .recon-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.recon-chip {
+  display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 100px; font-size: 11px; font-weight: 700;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+}
+.recon-chip--stage { background: var(--selected); }
+.recon-chip--warn { color: var(--missing-text); border-color: currentColor; background: transparent; }
+.recon-badge {
+  display: inline-flex; align-items: center; min-height: 28px; padding: 2px 8px; border-radius: var(--r-sm);
+  font-size: 12px; border: 1px solid var(--border); color: var(--text); background: var(--surface); overflow-wrap: anywhere;
+}
+a.recon-badge--link { min-height: 36px; text-decoration: underline; text-underline-offset: 2px; color: var(--tonight-text); }
+
+/* Buttons: 44 px touch targets, no hover-only affordances. */
+.recon-btn {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; padding: 0 14px;
+  border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 14px; font-weight: 700; text-decoration: none; cursor: pointer;
+}
+.recon-btn:active { opacity: 0.8; }
+.recon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.recon-btn--primary { background: var(--tonight); color: var(--on-accent); border-color: transparent; }
+.recon-btn--alert { background: var(--overdue); color: var(--on-accent); border-color: transparent; }
+.recon-btn--quiet { border-color: transparent; background: transparent; color: var(--tonight-text); text-decoration: underline; }
+
+/* Sheets */
+.recon-sheet__overlay {
+  position: fixed; inset: 0; z-index: 200; display: flex; align-items: flex-end; justify-content: center;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+}
+.recon-sheet {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); width: 100%; max-width: 560px;
+  max-height: 88dvh; overflow-y: auto; border-radius: var(--r-lg) var(--r-lg) 0 0; box-shadow: var(--shadow);
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 10px; outline: none;
+}
+.recon-sheet__title { font-family: var(--font-head); font-weight: var(--head-weight); font-size: 1.2rem; overflow-wrap: anywhere; }
+.recon-sheet__sub { font-size: 13px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.recon-sheet__hint { font-size: 13px; color: var(--muted); }
+.recon-sheet__msg { font-size: 13px; font-weight: 700; color: var(--missing-text); }
+.recon-sheet__msg:empty { display: none; }
+.recon-sheet__text, .recon-sheet textarea { width: 100%; min-height: 88px; font: inherit; font-size: 14px; resize: vertical; }
+.recon-sheet__form { display: flex; flex-direction: column; gap: 8px; }
+.recon-sheet__actions { display: flex; gap: 8px; justify-content: flex-end; }
+.recon-sheet__actions--wrap { flex-wrap: wrap; justify-content: flex-start; }
+.recon-hist { list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.recon-hist li { display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.recon-hist__detail { color: var(--muted); }
+
+.recon-toast {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 150; display: flex; align-items: center; gap: 12px;
+  bottom: calc(var(--nav-height) + var(--safe-bottom) + 12px); max-width: calc(100vw - 24px);
+  background: var(--hero); color: var(--hero-text); padding: 8px 8px 8px 16px; border-radius: var(--r-md); box-shadow: var(--shadow);
+  font-size: 14px; font-weight: 600;
+}
+.recon-toast__undo { background: transparent; color: inherit; border-color: currentColor; }
+
+/* Loading skeleton: same row height as real rows, so nothing jumps when data arrives. */
+.recon-skel { display: flex; flex-direction: column; gap: 10px; }
+.recon-skel__row { height: 118px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); animation: recon-pulse 1.4s ease-in-out infinite; }
+@keyframes recon-pulse { 50% { opacity: 0.5; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .recon-skel__row { animation: none; }
+}
+@media (min-width: 768px) {
+  .recon__sticky { top: 50px; }
+  .recon-bucket { scroll-margin-top: 240px; }
+  .recon-toast { bottom: 16px; }
+  .recon-sheet__overlay { align-items: center; }
+  .recon-sheet { border-radius: var(--r-lg); }
+}
+@media (min-width: 900px) {
+  .recon-kid__buckets { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); align-items: start; }
+}

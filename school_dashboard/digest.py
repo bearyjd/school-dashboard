@@ -14,6 +14,7 @@ import requests
 from school_dashboard import db, maintenance, powerschool
 from school_dashboard import scrape_meta
 from school_dashboard.state import canonical_name, get_roster
+from school_dashboard.kid_colors import with_child_colors
 from school_dashboard.llm import chat_completion
 
 _log = logging.getLogger(__name__)
@@ -753,7 +754,14 @@ def send_ntfy(
             from school_dashboard.db import init_digests_table, create_digest, purge_old_digests
             init_digests_table(db_path)
             purge_old_digests(db_path, days=7)
-            digest_id = create_digest(db_path, title, cards)
+            try:
+                roster = get_roster()
+                stored = with_child_colors(
+                    cards, {r["name"]: r["color"] for r in roster if r.get("color")}, [r["name"] for r in roster])
+            except Exception as exc:  # colour is decoration: never lose the carousel over it
+                _log.warning("Digest colouring failed (%s); storing cards uncoloured", type(exc).__name__)
+                stored = cards
+            digest_id = create_digest(db_path, title, stored)
             # an empty digest has no carousel to open: keep the mode link
             url = f"{DASHBOARD_BASE}/?digest={digest_id}" if cards else static_url
         except Exception as exc:
@@ -801,6 +809,7 @@ def deliver_digest(
     title: str,
     state_path: str,
     db_path: str | None,
+    fallback_note: str | None = None,
 ) -> tuple[str, list[dict]]:
     """Build a digest and push it. If the build (LLM) fails, push the deterministic
     quick check titled "<title> (fallback)" and raise DigestFallbackSent so callers
@@ -813,7 +822,9 @@ def deliver_digest(
             _log.info("Maintenance mode active; fallback for %r skipped, nothing sent", title)
             raise
         quick, _ = build_quick_check(state_path)
-        send_ntfy(topic=topic, message=FALLBACK_NOTE + quick, title=f"{title} (fallback)")
-        raise DigestFallbackSent(f"{title}: LLM digest failed ({exc}); fallback sent") from exc
+        send_ntfy(topic=topic, message=(FALLBACK_NOTE if fallback_note is None else fallback_note) + quick,
+                  title=f"{title} (fallback)")
+        what = "LLM digest" if fallback_note is None else "digest build"
+        raise DigestFallbackSent(f"{title}: {what} failed ({exc}); fallback sent") from exc
     send_ntfy(topic=topic, message=text, title=title, cards=cards, db_path=db_path)
     return text, cards

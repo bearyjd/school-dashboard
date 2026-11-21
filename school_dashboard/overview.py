@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, tzinfo
 from typing import Optional
 
+from school_dashboard.kid_colors import resolve_colors
 from school_dashboard.overview_events import event_sort_key, gc_events
 from school_dashboard.overview_items import MAX_PER_STATUS, build_items_report, local_today
 from school_dashboard.sync_meta import last_ok_time
@@ -46,6 +47,7 @@ def build_overview(state: dict, manual_items: list[dict], gc_data: dict, school_
     source report `never_ok`, as the watchdog does.
     """
     names = [r["name"] for r in roster]
+    colors = resolve_colors(names, {r["name"]: r["color"] for r in roster if r.get("color")})
     today = local_today(now, tz)
     items, dropped = build_items_report(state, manual_items, today, names)
     events = sorted(
@@ -60,7 +62,7 @@ def build_overview(state: dict, manual_items: list[dict], gc_data: dict, school_
                                      first_seen=first_seen.get(s)) for s in SOURCES}
     return {
         "generated_at": now.isoformat(),
-        "kids": [{"name": n, "colorIndex": i} for i, n in enumerate(names)],
+        "kids": [{"name": n, "color": colors[n]} for n in names],
         "items": items,
         "events": events,
         "freshness": freshness,

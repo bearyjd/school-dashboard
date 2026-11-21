@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getStoredTheme, setTheme, type ThemeChoice } from '../design/theme'
 import { KidChip } from '../design/KidChip'
 import { useOverview } from '../lib/overview'
+import { AssignmentsSettings } from '../recon/AssignmentsSettings'
 import { clearSyncToken, getSyncToken, setSyncToken } from '../lib/syncToken'
 import './Settings.css'
 
@@ -69,12 +70,12 @@ export function Settings() {
       {kids.length > 0 && (
         <section className="settings__group" aria-labelledby="settings-kids">
           <h2 id="settings-kids" className="settings__legend">Kid colours</h2>
-          <p className="settings__hint">Colours follow the order of the roster.</p>
+          <p className="settings__hint">Each kid keeps a named colour; set "color" on a roster child to change it.</p>
           <ul aria-label="Kid colours" className="settings__kids">
             {kids.map(k => (
               <li key={k.name} className="settings__kid">
-                <KidChip name={k.name} index={k.colorIndex} wide />
-                <span className="settings__hint"> (colour {k.colorIndex + 1})</span>
+                <KidChip name={k.name} color={k.color} wide />
+                <span className="settings__hint"> ({k.color})</span>
               </li>
             ))}
           </ul>
@@ -105,6 +106,8 @@ export function Settings() {
         </form>
         <p role="status" className="settings__hint">{tokenNote}</p>
       </section>
+
+      <AssignmentsSettings />
 
       <section className="settings__group" aria-labelledby="settings-more">
         <h2 id="settings-more" className="settings__legend">More</h2>

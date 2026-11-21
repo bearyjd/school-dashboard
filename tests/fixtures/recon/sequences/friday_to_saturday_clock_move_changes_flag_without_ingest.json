@@ -1,0 +1,40 @@
+{
+ "synthetic": true,
+ "id": "friday_to_saturday_clock_move_changes_flag_without_ingest",
+ "state": {
+  "stage": 1,
+  "due_date": "2026-11-20",
+  "stage_since": "2026-11-16T12:00:00-05:00"
+ },
+ "links": [],
+ "start": "2026-11-20T18:00:00-05:00",
+ "steps": [
+  {
+   "op": "tick",
+   "at": "2026-11-21T03:59:00-05:00",
+   "expect": {
+    "flag": "do_tonight",
+    "transition": null
+   }
+  },
+  {
+   "op": "tick",
+   "at": "2026-11-21T04:00:00-05:00",
+   "expect": {
+    "flag": "missing",
+    "transition": [
+     "do_tonight",
+     "missing"
+    ]
+   }
+  },
+  {
+   "op": "tick",
+   "at": "2026-11-22T12:00:00-05:00",
+   "expect": {
+    "flag": "missing",
+    "transition": null
+   }
+  }
+ ]
+}

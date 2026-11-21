@@ -1,0 +1,47 @@
+{
+ "synthetic": true,
+ "id": "parent_and_kid_taps_move_between_stages_1_to_3_and_back",
+ "state": {
+  "stage": 1,
+  "due_date": "2026-11-20",
+  "stage_since": "2026-11-16T12:00:00-05:00"
+ },
+ "links": [],
+ "start": "2026-11-18T16:00:00-05:00",
+ "steps": [
+  {
+   "op": "tap",
+   "at": "2026-11-18T17:00:00-05:00",
+   "action": "done",
+   "setter": "kid",
+   "expect": {
+    "stage": 2,
+    "flag": "waiting_on_teacher",
+    "transition": [
+     "upcoming",
+     "waiting_on_teacher"
+    ]
+   }
+  },
+  {
+   "op": "tap",
+   "at": "2026-11-18T17:30:00-05:00",
+   "action": "turned_in",
+   "setter": "parent",
+   "expect": {
+    "stage": 3,
+    "flag": "waiting_on_teacher"
+   }
+  },
+  {
+   "op": "tap",
+   "at": "2026-11-18T18:00:00-05:00",
+   "action": "undo",
+   "setter": "parent",
+   "expect": {
+    "stage": 1,
+    "flag": "upcoming"
+   }
+  }
+ ]
+}

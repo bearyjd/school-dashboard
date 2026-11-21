@@ -1,0 +1,56 @@
+{
+ "synthetic": true,
+ "id": "graded_then_live_missing_reopens_to_stage_1",
+ "state": {
+  "stage": 2,
+  "due_date": "2026-11-18",
+  "stage_since": "2026-11-18T10:00:00-05:00"
+ },
+ "links": [
+  {
+   "source": "schoology",
+   "external_key": "s1",
+   "norm_status": "open"
+  }
+ ],
+ "start": "2026-11-18T11:00:00-05:00",
+ "steps": [
+  {
+   "op": "scrape",
+   "at": "2026-11-19T06:00:00-05:00",
+   "trusted": true,
+   "file_hash": "h1",
+   "present": {
+    "schoology:s1": {
+     "status": "graded",
+     "score": "90"
+    }
+   },
+   "expect": {
+    "stage": 4,
+    "received_evidence": "portal"
+   }
+  },
+  {
+   "op": "scrape",
+   "at": "2026-11-20T06:00:00-05:00",
+   "trusted": true,
+   "file_hash": "h2",
+   "present": {
+    "schoology:s1": {
+     "status": "missing"
+    }
+   },
+   "expect": {
+    "stage": 1,
+    "received_evidence": null,
+    "portal_status": "missing",
+    "flag": "missing",
+    "transition": [
+     null,
+     "missing"
+    ]
+   }
+  }
+ ]
+}

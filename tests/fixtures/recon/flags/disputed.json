@@ -1,0 +1,132 @@
+{
+ "description": "disputed: turned in (stage 3) while the portal says missing",
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "turned_in_portal_missing",
+   "now": "2026-11-20T18:00:00-05:00",
+   "state": {
+    "stage": 3,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18",
+    "portal_status": "missing"
+   },
+   "links": [
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "missing"
+    }
+   ],
+   "expect": {
+    "flag": "disputed",
+    "bucket": "needs_action"
+   }
+  },
+  {
+   "id": "conflict_between_two_sources",
+   "now": "2026-11-20T18:00:00-05:00",
+   "state": {
+    "stage": 3,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18",
+    "portal_status": "missing",
+    "portal_conflict": true
+   },
+   "links": [
+    {
+     "source": "schoology",
+     "external_key": "s1",
+     "norm_status": "graded"
+    },
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "missing"
+    }
+   ],
+   "expect": {
+    "flag": "disputed",
+    "bucket": "needs_action",
+    "info": [
+     "conflict"
+    ]
+   }
+  },
+  {
+   "id": "stage1_conflict_is_missing_not_disputed",
+   "now": "2026-11-20T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-30",
+    "portal_status": "missing",
+    "portal_conflict": true
+   },
+   "links": [
+    {
+     "source": "schoology",
+     "external_key": "s1",
+     "norm_status": "graded"
+    },
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "missing"
+    }
+   ],
+   "expect": {
+    "flag": "missing",
+    "bucket": "needs_action",
+    "info": [
+     "conflict"
+    ]
+   }
+  },
+  {
+   "id": "task_never_disputed",
+   "now": "2026-11-20T18:00:00-05:00",
+   "state": {
+    "stage": 3,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18",
+    "kind": "task",
+    "portal_status": "missing"
+   },
+   "links": [
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "missing"
+    }
+   ],
+   "expect": {
+    "flag_not_in": [
+     "disputed"
+    ]
+   }
+  },
+  {
+   "id": "practice_never_disputed",
+   "now": "2026-11-20T18:00:00-05:00",
+   "state": {
+    "stage": 3,
+    "stage_since": "2026-11-18T19:00:00-05:00",
+    "due_date": "2026-11-18",
+    "kind": "practice",
+    "portal_status": "missing"
+   },
+   "links": [
+    {
+     "source": "powerschool",
+     "external_key": "p1",
+     "norm_status": "missing"
+    }
+   ],
+   "expect": {
+    "flag_not_in": [
+     "disputed"
+    ]
+   }
+  }
+ ]
+}

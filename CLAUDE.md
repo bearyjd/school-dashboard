@@ -42,7 +42,7 @@ pytest -k "test_name"             # single test
 npm --prefix web/spa run dev   # → http://localhost:5173/app/
 npm --prefix web/spa run build # tsc -b && vite build
 npm --prefix web/spa run lint && npm --prefix web/spa test && npm --prefix web/spa run check-bundle
-# Screens (10 routes x 5 widths x 2 themes, screenshots only, no visual diff) + axe (10 routes x 375/1280 px x 2 themes,
+# Screens (12 routes x 5 widths x 2 themes, screenshots only, no visual diff) + axe (12 routes x 375/1280 px x 2 themes,
 # wcag2a/2aa/21a/21aa, serious+critical fail) against synthetic data;
 # needs `build` first and `pip install -e ".[server]"`; starts scripts/spa-qa-server.py itself:
 npm --prefix web/spa run e2e      # screenshots -> $E2E_SHOTS (default web/spa/test-results/shots)
@@ -171,7 +171,7 @@ school_dashboard/       Core Python package
 
 web/
   app.py                Flask app. Routes: /api/chat, /api/items*, /api/dashboard, /api/readiness, /api/digest/* (carousel), /api/sync, /api/sync/status. **Paths:** every state path resolves per call via `school_dashboard/paths.py` (`SCHOOL_STATE_DIR`, default `/app/state`, plus per-file overrides such as `SCHOOL_DB_PATH`), so `monkeypatch.setenv` works for all routes. Also: `/api/*` writes return 503 while `maintenance.json` is present (`school-state transition maintenance on|off`), except `/api/chat`.
-  spa/                  Vite + React + TypeScript SPA (`web/spa/`), data from `GET /api/overview`. Routes (under `/app`): `/` Today, `/tonight` `/overdue` `/missing` `/events` (sortable/filterable tables, state in the URL; manual items can be checked off), `/calendar`, `/chat`, `/sync`, `/settings`, `/classic/*` (the previous Home/Child views, kept as a fallback). Theme: Midnight / Daylight / System, chosen in Settings, stored in `localStorage['school-theme']`, applied as `data-theme` on `<html>` (`src/design/theme.ts`). Service worker cache is `school-v2`. Tests: vitest (`npm test`), Playwright screens + axe (`npm run e2e`, `web/spa/e2e/`; routes `/ /tonight /overdue /missing /events /calendar /settings /chat /sync /classic/home`; screens: 320/375/768/1024/1440 px x both themes, asserting no console errors, failed or unexpected 4xx/5xx requests, or horizontal overflow, and saving screenshots without comparing them; axe: 375 and 1280 px x both themes, impact serious and critical fail, moderate and minor are reported nowhere; CI job `e2e` is non-blocking). Lighthouse (performance >= 90, LCP < 2.5 s, CLS < 0.1) is a manual gate. Rollout/rollback: `docs/ops/spa-redesign-rollout.md`.
+  spa/                  Vite + React + TypeScript SPA (`web/spa/`), data from `GET /api/overview`. Routes (under `/app`): `/` Reconcile when `/api/v2/config` says `enabled && migrated` (any other answer: the old Today; `src/recon/`), `/today` always the old Today, `/recon` always Reconcile (a notice when v2 is off), `/tonight` `/overdue` `/missing` `/events` (sortable/filterable tables, state in the URL; manual items can be checked off), `/calendar`, `/chat`, `/sync`, `/settings`, `/classic/*` (the previous Home/Child views, kept as a fallback). Theme: Midnight / Daylight / System, chosen in Settings, stored in `localStorage['school-theme']`, applied as `data-theme` on `<html>` (`src/design/theme.ts`). Service worker cache is `school-v4`. Tests: vitest (`npm test`), Playwright screens + axe (`npm run e2e`, `web/spa/e2e/`; routes `/ /recon /today /tonight /overdue /missing /events /calendar /settings /chat /sync /classic/home`, plus `recon.spec.ts` (taps persist and undo, v2 404 falls back to Today, token setup sheet sends no write, draft-note sheet, first view < 2 s at 375 px, keyboard and focus trap, markup titles render as text); the QA server seeds v2 data through the real migrate and shadow ingest, `--no-recon` starts it with v2 off; screens: 320/375/768/1024/1440 px x both themes, asserting no console errors, failed or unexpected 4xx/5xx requests, or horizontal overflow, and saving screenshots without comparing them; axe: 375 and 1280 px x both themes, impact serious and critical fail, moderate and minor are reported nowhere; CI job `e2e` is non-blocking). Lighthouse (performance >= 90, LCP < 2.5 s, CLS < 0.1) is a manual gate. Rollout/rollback: `docs/ops/spa-redesign-rollout.md`.
   templates/index.html  Legacy dashboard iframe + chat tab (pre-SPA). Uses marked.js for markdown rendering.
 
 sync/
@@ -215,7 +215,7 @@ docker/
 | `/api/items/<id>` | DELETE | Delete item |
 | `/api/digest/<id>` | GET | Retrieve digest carousel (returns `{id, created_at, title, cards}`) |
 | `/api/digest/<id>/cards/<index>` | PATCH | Toggle card done state (JSON: `done: bool`) |
-| `/api/overview` | GET | Normalised items (status overdue/missing/late/tonight/upcoming), events (GameChanger + school calendar) and per-source freshness for the SPA (`?days=1..60`, `?past=1`) |
+| `/api/overview` | GET | Normalised items (status overdue/missing/late/tonight/upcoming), events (GameChanger + school calendar), `kids: [{name, color}]` and per-source freshness for the SPA (`?days=1..60`, `?past=1`) |
 | `/api/dashboard` | GET | Aggregate view (schoology, ixl, email_items) |
 | `/api/chat` | POST | Chat with LiteLLM (JSON: `message`, `history`) |
 | `/api/readiness` | GET | Get readiness checklist |
@@ -240,7 +240,7 @@ docker/
 
 ## Config
 
-All secrets in `config/env` (gitignored). Template at `.env.example`. `.env` at repo root is legacy — do not use as primary.
+All secrets in `config/env` (gitignored). Template at `.env.example`. `.env` at repo root is not read by the app (app secrets stay in `config/env`); it is only read by compose interpolation (`DASHBOARD_BIND_ADDR`, `DASHBOARD_PORT`).
 
 `LITELLM_URL` must be the full URL including `/v1` (e.g. `https://llm.grepon.cc/v1`). Both `web/app.py` and `digest.py` append `/v1/chat/completions` to this URL.
 
@@ -252,9 +252,19 @@ Optional on-demand sync: `SYNC_TOKEN` — shared secret for `POST /api/sync`. Ge
 
 Optional PowerSchool (4th source): `PS_USERNAME`, `PS_PASSWORD`, `PS_BASE_URL` (or `~/.powersched/.env`, which the scraper reads; the sync checks via `school_dashboard.powerschool.skip_reason`). The `powerschool summary --json` CLI is not yet vendored; with it missing or unconfigured the sync logs an INFO line and skips (no alert). Output file: `PS_FILE` (default `/tmp/powerschool-daily.json`), passed to `school-state update --ps-file`.
 
-Optional `TRUSTED_PROXY_COUNT` (default 0): number of trusted reverse proxies in front of Flask; with N > 0 the sync limiter keys on the Nth `X-Forwarded-For` entry from the right. WARNING: this repo's own `docker-compose.yml` publishes port 5000 on all interfaces, so keep it 0 unless the port is bound to the proxy interface (loopback or the proxy network); otherwise clients can spoof `X-Forwarded-For`. A non-empty invalid value logs one WARNING and counts as 0. Only set it when the port is reachable solely through the proxy (`docs/ops/spa-redesign-rollout.md`).
+Optional `TRUSTED_PROXY_COUNT` (default 0): number of trusted reverse proxies in front of Flask; with N > 0 the sync limiter keys on the Nth `X-Forwarded-For` entry from the right. WARNING: this repo's `docker-compose.yml` publishes `127.0.0.1:5000` by default (`DASHBOARD_BIND_ADDR`), so it is safe with a same-host proxy; keep it 0 if you set `DASHBOARD_BIND_ADDR=0.0.0.0` or any interface the proxy does not alone control, otherwise clients can spoof `X-Forwarded-For`. A non-empty invalid value logs one WARNING and counts as 0. Only set it when the port is reachable solely through the proxy (`docs/ops/spa-redesign-rollout.md`).
+
+Host check (`school_dashboard/hostcheck.py`, wired first in `web/app.py`, covers every route): only the raw `Host` header is judged (never `X-Forwarded-Host`). `HOST_CHECK_MODE` = `off` | `log` (default; one WARNING per distinct unknown host, 64 max) | `enforce` (421 `{"error":"host_not_allowed"}`). `ALLOWED_HOSTS` = comma/space list, port ignored, `.example.net` = subdomain suffix rule; `localhost`, `127.0.0.1`, `[::1]` and the `digest.DASHBOARD_BASE` host are always allowed (container healthcheck and `smoke-live.sh` default use them). `enforce` with no valid `ALLOWED_HOSTS` entry runs as `log` and warns (lock-out guard). Rollout/rollback: `docs/ops/host-allowlist-and-port-binding.md`.
+
+Port publishing: compose maps `${DASHBOARD_BIND_ADDR:-127.0.0.1}:${DASHBOARD_PORT:-5000}:5000`; set the two variables in the `.env` next to `docker-compose.yml` (compose interpolation), NOT in `config/env`. Default is loopback; a server whose reverse proxy runs on another host needs `DASHBOARD_BIND_ADDR` set to the interface the proxy reaches.
+
+Recon v2 flags: `RECON_INGEST_ENABLED`, `RECON_PUSH_ENABLED` (default 0). `/api/v2` writes need header `X-Recon-Token` equal to `RECON_WRITE_TOKEN` (>= 32 chars; 501 when unset/short, 401 wrong, 429 after repeated failures); `RECON_WRITE_OPEN=1` opts out of the token. `GET /api/v2/config` reports `write_auth`, `write_token_header`, `write_token_min_length`, never the token.
+
+Recon digest (`RECON_DIGEST_ENABLED`, default 0; details `docs/ops/recon-digest.md`): switches ONLY `school-state digest --mode morning|night` to `assignments/digest_run.py::build_for_cron` (recompute flags per kid, `readctx` context shared with `/api/v2`, pure `digest_v2.build`, then best-effort `notify.send_pending`); it is passed to the unchanged `deliver_digest`, so titles "Morning Briefing"/"Night Prep", the `digests` row and the watchdog landing check keep working; no `LITELLM_URL` needed; a v2 build failure sends the quick check with its own note and exits 1. `RECON_DIGEST_LLM=1` + `LITELLM_URL` adds a capped AI paragraph after the list (`RECON_SUMMARY_PROMPT`, a separate constant; failure omits it, the list stays byte-identical). Preview without sending: `school-state assignments digest --mode night [--now ISO] [--json]`. Flag off = v1 behaviour byte for byte.
 
 Optional per-source toggles: `SOURCE_IXL_ENABLED`, `SOURCE_SGY_ENABLED`, `SOURCE_GC_ENABLED`, `SOURCE_POWERSCHOOL_ENABLED` (default enabled; `0/false/no/off`, case-insensitive, disables). A disabled source is skipped by `school-sync.sh` and `/api/sync` with no failure alert and recorded in `sync_meta` as `last_result: "paused"` Cached data from a paused source stays in state and digests. (helpers: `school_dashboard/sources.py::source_enabled`, shell `source_enabled`).
+
+Roster config optional `"color"` (one of green, lavender, amber, blue, rose, teal; invalid is ignored with a warning). Defaults by name: Jack green, Penn lavender, Ford amber; other kids fall back positionally (`school_dashboard/kid_colors.py`). `/api/overview` returns `kids: [{name, color}]` (roster order, resolved colour name) which drives the SPA, an unknown kid renders neutral; colours are matched case-insensitively and fallback kids never share a colour with an explicit/default one until the palette is exhausted; digest cards carry `color`.
 
 Roster config (`school-dashboard.json`, `children.<Name>`): optional `"ixl": false` marks a child who left IXL; it is never flagged as `IXL unavailable` (quick check, digests, overview, watchdog `scrape_degraded`). Bool only (anything else is ignored with a warning); default true. A roster child with earlier IXL data but no IXL file now is flagged otherwise, with no auto-expiry. See `docs/ops/spa-redesign-rollout.md`.
 

@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { BottomNav } from './components/BottomNav'
 import { TopBar } from './components/TopBar'
 import { Today } from './pages/Today'
+import { HomeRoute, ReconRoute } from './recon/HomeRoute'
 import { ListPage } from './pages/ListPage'
 import { Calendar } from './pages/Calendar'
 import { Chat } from './views/Chat'
@@ -25,7 +26,9 @@ export default function App() {
       <div id="main" tabIndex={-1} className="app-main">
         <Suspense fallback={<main className="screen"><p>Loading…</p></main>}>
           <Routes>
-            <Route path="/" element={<Today />} />
+            <Route path="/" element={<HomeRoute />} />
+            <Route path="/today" element={<Today />} />
+            <Route path="/recon" element={<ReconRoute />} />
             <Route path="/tonight" element={<ListPage kind="tonight" />} />
             <Route path="/overdue" element={<ListPage kind="overdue" />} />
             <Route path="/missing" element={<ListPage kind="missing" />} />

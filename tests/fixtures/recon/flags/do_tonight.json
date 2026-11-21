@@ -1,0 +1,134 @@
+{
+ "description": "do_tonight: stage 1 due on or before the next school day",
+ "synthetic": true,
+ "scenarios": [
+  {
+   "id": "friday_work_due_monday",
+   "now": "2026-11-20T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-23"
+   },
+   "links": [],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight"
+   }
+  },
+  {
+   "id": "due_tomorrow_midweek",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-19"
+   },
+   "links": [],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight"
+   }
+  },
+  {
+   "id": "due_today_is_not_missing",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-18"
+   },
+   "links": [],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight"
+   }
+  },
+  {
+   "id": "across_no_school_monday_due_tuesday",
+   "now": "2026-11-20T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-24"
+   },
+   "links": [],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight"
+   },
+   "no_school": [
+    "2026-11-23"
+   ]
+  },
+  {
+   "id": "due_on_the_no_school_day_itself",
+   "now": "2026-11-20T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-23"
+   },
+   "links": [],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight"
+   },
+   "no_school": [
+    "2026-11-23"
+   ]
+  },
+  {
+   "id": "friday_holiday_thursday_night_pulls_in_monday",
+   "now": "2026-11-19T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-23"
+   },
+   "links": [],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight"
+   },
+   "no_school": [
+    "2026-11-20"
+   ]
+  },
+  {
+   "id": "before_0400_saturday_is_still_friday",
+   "now": "2026-11-21T03:30:00-05:00",
+   "state": {
+    "stage": 1,
+    "due_date": "2026-11-20"
+   },
+   "links": [],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight"
+   }
+  },
+  {
+   "id": "practice_kind_open_due_tomorrow",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "kind": "practice",
+    "due_date": "2026-11-19"
+   },
+   "links": [],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight"
+   }
+  },
+  {
+   "id": "task_kind_open_due_tomorrow",
+   "now": "2026-11-18T18:00:00-05:00",
+   "state": {
+    "stage": 1,
+    "kind": "task",
+    "due_date": "2026-11-19"
+   },
+   "links": [],
+   "expect": {
+    "flag": "do_tonight",
+    "bucket": "do_tonight"
+   }
+  }
+ ]
+}

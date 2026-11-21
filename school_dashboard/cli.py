@@ -1,5 +1,7 @@
 import argparse
+import importlib
 import json
+import logging
 import os
 import sys
 from contextlib import contextmanager
@@ -14,6 +16,7 @@ from school_dashboard.gcal import fetch_gcal_events
 
 
 EXIT_MAINTENANCE = 3
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -33,6 +36,7 @@ def locked_state(state_file: Optional[str]) -> Iterator[None]:
 def cmd_update(args: argparse.Namespace) -> None:
     with locked_state(args.state_file):
         _update_locked(args)
+    _recon_shadow(args)  # after the state lock is released: ingest and push may take a while
 
 
 def _load_for_write(state_file: Optional[str]) -> dict:
@@ -60,6 +64,22 @@ def _update_locked(args: argparse.Namespace) -> None:
           f"{pruned} stale items pruned, "
           f"auto-archived {auto_archived}", file=sys.stderr)
     print(f"State saved: {p}", file=sys.stderr)
+
+
+def _recon_shadow(args: argparse.Namespace) -> None:
+    """Recon v2 shadow ingest hook: nothing in it may ever change what `update` does or prints."""
+    try:
+        from school_dashboard.assignments import flagsenv
+        if not flagsenv.enabled("RECON_INGEST_ENABLED"):
+            return
+        importlib.import_module("school_dashboard.assignments.ingest").run_shadow(args)
+    except Exception as exc:  # ImportError, SyntaxError in recon code, anything before run_shadow's own guard
+        logger.error("recon shadow ingest could not run (%s)", type(exc).__name__)
+        try:
+            from school_dashboard import sync_meta
+            sync_meta.write_sync_source("recon_ingest", "error")
+        except Exception as inner:
+            logger.error("recon shadow ingest: could not record the error (%s)", type(inner).__name__)
 
 
 def cmd_html(args: argparse.Namespace) -> None:
@@ -165,6 +185,18 @@ def cmd_email_show(args: argparse.Namespace) -> None:
         print(email.digest_summary(args.digest_file))
 
 
+def _recon_digest_active(mode: str) -> bool:
+    """Whether the v2 digest applies; any failure of the recon package means False (the v1 digest must still run)."""
+    if mode not in ("morning", "night"):
+        return False
+    try:
+        from school_dashboard.assignments import digest_run, flagsenv  # noqa: F401
+        return flagsenv.enabled("RECON_DIGEST_ENABLED")
+    except Exception as exc:
+        logger.error("recon digest flag unavailable (%s); using the v1 digest", type(exc).__name__)
+        return False
+
+
 def cmd_digest(args: argparse.Namespace) -> None:
     litellm_url = os.environ.get("LITELLM_URL", "")
     api_key = os.environ.get("LITELLM_API_KEY", "")
@@ -175,7 +207,8 @@ def cmd_digest(args: argparse.Namespace) -> None:
     gog_account = os.environ.get("GOG_ACCOUNT", "")
     state_file = args.state_file or str(paths.state_path())
 
-    if not litellm_url:
+    recon = _recon_digest_active(args.mode)
+    if not litellm_url and not recon:
         print("Error: LITELLM_URL not set", file=sys.stderr)
         sys.exit(1)
     if not ntfy_topic:
@@ -183,7 +216,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     gc_path = str(paths.gc_path())
-    gcal_events = fetch_gcal_events(gog_account) if gog_account else []
+    gcal_events = fetch_gcal_events(gog_account) if gog_account and not recon else []
 
     builders = {
         "morning": ("Morning Briefing", lambda: _digest.build_morning_digest(
@@ -201,12 +234,21 @@ def cmd_digest(args: argparse.Namespace) -> None:
     if args.mode not in builders:
         raise ValueError(f"Unknown mode: {args.mode}")
     title, build = builders[args.mode]
+    note = None
+    if recon:
+        from school_dashboard.assignments import digest_run
+        build = lambda: digest_run.build_for_cron(args.mode)  # noqa: E731
+        note = "Assignment list unavailable - showing the basic homework check instead.\n\n"
     try:
         text, cards = _digest.deliver_digest(
-            build, topic=ntfy_topic, title=title, state_path=state_file, db_path=db_path)
+            build, topic=ntfy_topic, title=title, state_path=state_file, db_path=db_path, fallback_note=note)
     except _digest.DigestFallbackSent as exc:
+        if recon:
+            digest_run.flush_outbox()
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
+    if recon:
+        digest_run.flush_outbox()  # after the push: optional work never delays the digest
 
     print(f"Digest sent [{args.mode}]: {len(cards)} cards, {text[:80]}...", file=sys.stderr)
 
@@ -253,6 +295,23 @@ def cmd_gc_fallback_alert(args: argparse.Namespace) -> None:
         gc_fallback_alert.maybe_config_alert()
     else:
         gc_fallback_alert.maybe_alert(args.ics_teams, args.total)
+
+
+def _assignments_unavailable(args: argparse.Namespace) -> None:
+    print("Error: the assignments command is unavailable (its module failed to load; see the log)", file=sys.stderr)
+    sys.exit(1)
+
+
+def _register_assignments(subs: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
+    """Register `assignments` lazily: a broken module must not take the other commands down."""
+    try:
+        from school_dashboard.assignments import cli as assignments_cli
+        assignments_cli.add_parser(subs)
+    except Exception as exc:
+        logger.error("assignments CLI unavailable (%s)", type(exc).__name__)
+        stub = subs.add_parser("assignments", help="Unavailable: the module failed to load")
+        stub.add_argument("rest", nargs=argparse.REMAINDER)
+        stub.set_defaults(func=_assignments_unavailable)
 
 
 def main() -> None:
@@ -337,6 +396,7 @@ def main() -> None:
     transition.add_parser(subs)
     school_calendar.add_parser(subs)
     schoology_reset.add_parser(subs)
+    _register_assignments(subs)
 
     args = parser.parse_args()
     if not args.command:

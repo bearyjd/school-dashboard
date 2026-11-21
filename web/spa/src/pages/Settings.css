@@ -36,3 +36,5 @@
   font: inherit;
 }
 .settings__token-actions { display: flex; gap: 8px; }
+.settings__roles { border: 0; display: flex; gap: 16px; flex-wrap: wrap; margin: 4px 0; }
+.settings__roles legend { padding: 0; }

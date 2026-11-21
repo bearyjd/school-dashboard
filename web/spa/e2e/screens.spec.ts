@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
-import { ROUTES, THEMES, label, openRoute } from './shared'
+import { ROUTES, THEMES, label, openRoute, shotName } from './shared'
 
 // Captures screenshots for human review (there is no pixel diff) and checks, per screen: no console
 // errors, no failed requests, no unexpected 4xx/5xx, no horizontal overflow.
@@ -37,7 +37,7 @@ for (const theme of THEMES) {
           expect(problems).toEqual([])
 
           mkdirSync(SHOTS, { recursive: true })
-          await page.screenshot({ path: `${SHOTS}/${route.path.replace('/', '-') || 'today'}-${theme}-${width}.png`, fullPage: true })
+          await page.screenshot({ path: `${SHOTS}/${shotName(route)}-${theme}-${width}.png`, fullPage: true })
         })
       }
     })

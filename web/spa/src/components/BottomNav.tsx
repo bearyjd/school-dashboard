@@ -19,7 +19,8 @@ const TABS: Tab[] = [
 ]
 
 function isCurrent(tab: Tab, pathname: string): boolean {
-  if (tab.to === '/') return pathname === '/'
+  // Home covers the Reconcile screen (/, /recon) and the older Today view (/today).
+  if (tab.to === '/') return pathname === '/' || pathname === '/today' || pathname === '/recon'
   return tab.match.some(p => pathname === p || pathname.startsWith(`${p}/`))
 }
 

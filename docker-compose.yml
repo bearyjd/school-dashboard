@@ -10,7 +10,10 @@ services:
         max-size: "10m"
         max-file: "3"
     ports:
-      - "5000:5000"
+      # Loopback by default. Override DASHBOARD_BIND_ADDR / DASHBOARD_PORT in the `.env` file next to docker-compose.yml
+      # (compose reads that file for ${...} interpolation; config/env only feeds the container). See
+      # docs/ops/host-allowlist-and-port-binding.md. The gunicorn bind inside the container is unchanged.
+      - "${DASHBOARD_BIND_ADDR:-127.0.0.1}:${DASHBOARD_PORT:-5000}:5000"
     volumes:
       - ./state:/app/state
       # web/ is deliberately NOT mounted: a host copy would shadow the image's web/ (app.py,

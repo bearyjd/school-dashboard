@@ -1,15 +1,15 @@
+import { kidSlot } from '../lib/kidSlot'
 import './design.css'
-
-const PALETTE_SIZE = 3
 
 interface KidChipProps {
   name: string
-  index: number
+  /** Named palette colour from the API; anything unknown renders in the neutral token. */
+  color: string
   wide?: boolean
 }
 
-export function KidChip({ name, index, wide = false }: KidChipProps) {
-  const slot = ((Math.trunc(index) % PALETTE_SIZE) + PALETTE_SIZE) % PALETTE_SIZE
+export function KidChip({ name, color, wide = false }: KidChipProps) {
+  const slot = kidSlot(color)
   const initial = Array.from(name.trim())[0]?.toUpperCase() ?? '?'
   return (
     <span
