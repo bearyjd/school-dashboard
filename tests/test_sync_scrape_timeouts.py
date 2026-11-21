@@ -157,3 +157,153 @@ def test_ixl_child_timeout_is_reported_as_a_timeout(world, monkeypatch):
     assert app_module._sync_status["last_timeouts"] == ["ixl"]
     assert read_sync_meta()["ixl"]["last_issue"] == "timeout"
     assert not _alive(int((fake / "ixl.child").read_text()))
+
+
+# --- failed start / non-zero exit / bad output is an ERROR, previous data kept ----------------
+
+def _no_binary(tmp, bindir, monkeypatch, name):
+    """The binary cannot start: run_scraper's own failed-start result (rc 127)."""
+    (bindir / name).unlink()
+
+    def failed_start(cmd, *, timeout, env=None, **_kw):
+        if cmd[0] != name:
+            return ScrapeRun(0, {"ixl": IXL_JSON, "sgy": SGY_JSON}.get(cmd[0], PS_JSON), "", False)
+        return ScrapeRun(127, "", f"failed to start {name}: [Errno 2] No such file or directory", False)
+
+    monkeypatch.setattr(app_module, "run_scraper", failed_start)
+
+
+def _assert_error_kept(tmp, src, previous_file):
+    assert app_module._sync_status["last_result"] == "error"
+    assert read_sync_meta()[src]["last_result"] == "error"
+    assert "last_issue" not in read_sync_meta()[src]
+    assert app_module._sync_status["last_timeouts"] == []
+    assert (tmp / previous_file).read_text().startswith("PREVIOUS")
+
+
+SGY_BAD = {
+    "rc2_with_stdout": f"echo '{SGY_JSON}'\nexit 2\n",
+    "empty_stdout": "exit 0\n",
+    "invalid_json": "printf '{\"trunc'\n",
+    "json_array": "echo '[1, 2]'\n",
+}
+
+
+@pytest.mark.parametrize("case", list(SGY_BAD))
+def test_sgy_bad_run_is_an_error_and_keeps_previous_file(world, case):
+    tmp, bindir, _ = world
+    _stub(bindir, "sgy", SGY_BAD[case])
+    _sync("sgy")
+    _assert_error_kept(tmp, "sgy", "sgy.json")
+
+
+def test_sgy_missing_binary_is_an_error(world, monkeypatch):
+    tmp, bindir, _ = world
+    _no_binary(tmp, bindir, monkeypatch, "sgy")
+    _sync("sgy")
+    _assert_error_kept(tmp, "sgy", "sgy.json")
+
+
+def test_sgy_valid_json_is_written_and_ok(world):
+    tmp, _, _ = world
+    _sync("sgy")
+    assert read_sync_meta()["sgy"]["last_result"] == "ok"
+    assert json.loads((tmp / "sgy.json").read_text()) == json.loads(SGY_JSON)
+
+
+def test_powerschool_missing_binary_is_an_error(world, monkeypatch):
+    tmp, bindir, _ = world
+    _no_binary(tmp, bindir, monkeypatch, "powerschool")
+    monkeypatch.setattr(app_module.powerschool, "skip_reason", lambda: None)  # configured, binary vanished
+    _sync("powerschool")
+    _assert_error_kept(tmp, "powerschool", "ps.json")
+
+
+def test_powerschool_nonzero_exit_is_an_error(world):
+    tmp, bindir, _ = world
+    _stub(bindir, "powerschool", f"echo '{PS_JSON}'\nexit 2\n")
+    _sync("powerschool")
+    _assert_error_kept(tmp, "powerschool", "ps.json")
+
+
+def test_ixl_missing_binary_is_an_error(world, monkeypatch):
+    tmp, bindir, _ = world
+    _no_binary(tmp, bindir, monkeypatch, "ixl")
+    _sync("ixl")
+    assert app_module._sync_status["last_result"] == "error"
+    assert read_sync_meta()["ixl"]["last_result"] == "error"
+    assert "last_issue" not in read_sync_meta()["ixl"]
+
+
+def test_ixl_nonzero_exit_is_an_error(world):
+    _, bindir, _ = world
+    _stub(bindir, "ixl", f"echo '{IXL_JSON}'\nexit 2\n")
+    _sync("ixl")
+    assert read_sync_meta()["ixl"]["last_result"] == "error"
+    assert not list(Path(os.environ["IXL_DIR"]).glob("*-assigned.json"))
+
+
+# --- combinations -------------------------------------------------------------------------------
+
+def test_sgy_and_powerschool_both_time_out_in_one_run(world, monkeypatch):
+    tmp, bindir, fake = world
+    _stub(bindir, "sgy", HANG.format(name="sgy"))
+    _stub(bindir, "powerschool", HANG.format(name="powerschool"))
+    monkeypatch.setenv("SGY_SCRAPE_TIMEOUT", "1")
+    monkeypatch.setenv("POWERSCHOOL_SCRAPE_TIMEOUT", "1")
+    _sync("ixl,sgy,powerschool")
+    status = app_module._sync_status
+    assert status["last_timeouts"] == ["sgy", "powerschool"]
+    assert "sgy: timed out" in status["last_error"] and "powerschool: timed out" in status["last_error"]
+    meta = read_sync_meta()
+    for src in ("sgy", "powerschool"):
+        assert meta[src]["last_result"] == "error" and meta[src]["last_issue"] == "timeout"
+    assert meta["ixl"]["last_result"] == "ok"
+    assert "school-state update" in _calls(fake)
+    assert (tmp / "sgy.json").read_text().startswith("PREVIOUS")
+    assert (tmp / "ps.json").read_text().startswith("PREVIOUS")
+
+
+def test_last_timeouts_reset_at_start_of_next_run_and_after_worker_exception(world, monkeypatch):
+    _, bindir, _ = world
+    app_module._sync_status["last_timeouts"] = ["sgy"]
+    seen_at_start: list = []
+
+    def boom(*_a, **_k):
+        seen_at_start.append(list(app_module._sync_status["last_timeouts"]))
+        raise RuntimeError("worker blew up")
+
+    monkeypatch.setattr(app_module, "_scrape_powerschool", boom)
+    monkeypatch.setattr(app_module.powerschool, "skip_reason", lambda: None)
+    _sync("powerschool")
+    assert seen_at_start == [[]]
+    assert app_module._sync_status["last_timeouts"] == []
+    # a timeout run followed by a clean one starts from []
+    _stub(bindir, "sgy", HANG.format(name="sgy"))
+    monkeypatch.setenv("SGY_SCRAPE_TIMEOUT", "1")
+    _sync("sgy")
+    assert app_module._sync_status["last_timeouts"] == ["sgy"]
+    monkeypatch.setattr(app_module, "_scrape_powerschool", boom)
+    _sync("powerschool")
+    assert app_module._sync_status["last_timeouts"] == []
+
+
+@pytest.mark.parametrize("src,previous", [("sgy", "sgy.json"), ("powerschool", "ps.json"), ("ixl", None)])
+def test_truncated_output_is_an_error_output_too_large(world, monkeypatch, src, previous, caplog):
+    tmp, _, _ = world
+    out = {"sgy": SGY_JSON, "powerschool": PS_JSON, "ixl": IXL_JSON}[src]
+
+    def fake_run(cmd, *, timeout, env=None):
+        return ScrapeRun(returncode=0, stdout=out, stderr="", timed_out=False, truncated=True)
+
+    monkeypatch.setattr(app_module, "run_scraper", fake_run)
+    monkeypatch.setattr(app_module.powerschool, "skip_reason", lambda: None)
+    with caplog.at_level("WARNING"):
+        _sync(src)
+    assert app_module._sync_status["last_result"] == "error"
+    assert read_sync_meta()[src]["last_result"] == "error"
+    assert "too large" in caplog.text
+    if previous:
+        assert (tmp / previous).read_text().startswith("PREVIOUS")
+    else:
+        assert not list(Path(os.environ["IXL_DIR"]).glob("*-assigned.json"))

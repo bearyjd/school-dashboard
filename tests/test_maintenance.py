@@ -212,9 +212,17 @@ SCRIPTS = [
 ]
 
 
+def _fake_gc(bindir):
+    """A harmless `gc` first on PATH: /usr/bin/gc may be a real scraper; no script test may reach it."""
+    gc = bindir / "gc"
+    gc.write_text("#!/bin/sh\nexit 0\n")
+    gc.chmod(0o755)
+
+
 def _stub(tmp_path, exit_code, update_code=0):
     d = tmp_path / "bin"
     d.mkdir(exist_ok=True)
+    _fake_gc(d)
     calls = tmp_path / "calls.log"
     s = d / "school-state"
     s.write_text(f'#!/bin/sh\necho "$@" >> {calls}\n'
@@ -304,6 +312,7 @@ def _counting_stub(tmp_path, inactive_calls, update_code=0):
     """check exits 1 for the first N calls, then 0 (maintenance turns on)."""
     d = tmp_path / "bin"
     d.mkdir(exist_ok=True)
+    _fake_gc(d)
     calls, counter = tmp_path / "calls.log", tmp_path / "n"
     counter.write_text("0")
     s = d / "school-state"

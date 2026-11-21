@@ -17,10 +17,11 @@ from typing import IO
 logger = logging.getLogger(__name__)
 
 MAX_STDERR_BYTES = 64 * 1024  # keep the last 64 KiB of stderr
-MAX_STDOUT_BYTES = 64 * 1024 * 1024  # a scrape document; anything beyond is dropped
+MAX_STDOUT_BYTES = 16 * 1024 * 1024  # a scrape document; anything beyond is dropped and flagged
 TERM_GRACE_SECONDS = 10.0
 _CHUNK = 64 * 1024
 _START_FAILED = 127
+_JOIN_SECONDS = 2.0  # total wait for both reader threads
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class ScrapeRun:
     stdout: str
     stderr: str
     timed_out: bool
+    truncated: bool = False  # stdout hit the cap; the document is incomplete
 
 
 class ScraperTimeout(RuntimeError):
@@ -47,16 +49,23 @@ class _Capture(threading.Thread):
         super().__init__(daemon=True)
         self._stream, self._limit, self._tail = stream, limit, keep_tail
         self.data = bytearray()
+        self.truncated = False
 
     def run(self) -> None:
+        """Read until EOF, then close the stream. Only this thread ever closes it: if a detached
+        grandchild keeps the pipe open past the join timeout, closing it from another thread
+        while os.read is blocked would hand a recycled fd number to the reader."""
         fd = self._stream.fileno()
         try:
             while chunk := os.read(fd, _CHUNK):
                 self.data += chunk
                 if len(self.data) > self._limit:
+                    self.truncated = self.truncated or not self._tail
                     self._trim()
         except (OSError, ValueError):
             pass
+        finally:
+            self._stream.close()
 
     def _trim(self) -> None:
         if self._tail:
@@ -92,12 +101,12 @@ def _terminate_group(proc: "subprocess.Popen[bytes]") -> None:
 
 
 def _decode(cap: _Capture) -> str:
-    cap.join(timeout=2.0)
     return bytes(cap.data).decode("utf-8", errors="replace")
 
 
 def run_scraper(
-    cmd: Sequence[str], *, timeout: float, env: Mapping[str, str] | None = None
+    cmd: Sequence[str], *, timeout: float, env: Mapping[str, str] | None = None,
+    max_stdout_bytes: int = MAX_STDOUT_BYTES,
 ) -> ScrapeRun:
     """Run `cmd`; returns a ScrapeRun, never raises (a start failure is returncode 127)."""
     try:
@@ -108,7 +117,7 @@ def run_scraper(
     except OSError as exc:
         return ScrapeRun(_START_FAILED, "", f"failed to start {cmd[0]}: {exc}", False)
     assert proc.stdout is not None and proc.stderr is not None
-    out = _Capture(proc.stdout, MAX_STDOUT_BYTES, keep_tail=False)
+    out = _Capture(proc.stdout, max_stdout_bytes, keep_tail=False)
     err = _Capture(proc.stderr, MAX_STDERR_BYTES, keep_tail=True)
     out.start()
     err.start()
@@ -121,7 +130,7 @@ def run_scraper(
         _terminate_group(proc)
     else:
         _signal_group(proc.pid, signal.SIGKILL)  # sweep children the scraper left behind
-    stdout, stderr = _decode(out), _decode(err)
-    proc.stdout.close()
-    proc.stderr.close()
-    return ScrapeRun(proc.returncode, stdout, stderr, timed_out)
+    deadline = time.monotonic() + _JOIN_SECONDS
+    for cap in (out, err):  # a still-blocked reader keeps its fd; it is a daemon and closes it at EOF
+        cap.join(timeout=max(0.0, deadline - time.monotonic()))
+    return ScrapeRun(proc.returncode, _decode(out), _decode(err), timed_out, out.truncated)

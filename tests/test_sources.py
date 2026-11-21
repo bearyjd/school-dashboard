@@ -60,7 +60,11 @@ def test_shell_truthy_enables():
 
 def test_gc_scrape_exits_zero_when_paused(tmp_path):
     script = SCRIPT.parent / "gc-scrape.sh"
-    env = {"PATH": "/usr/bin:/bin", "SOURCE_GC_ENABLED": "off", "SCHOOL_DASHBOARD_ENV": "/nonexistent",
+    fakebin = tmp_path / "bin"  # /usr/bin/gc may be a real scraper: put a harmless gc first
+    fakebin.mkdir()
+    (fakebin / "gc").write_text("#!/bin/sh\nexit 0\n")
+    (fakebin / "gc").chmod(0o755)
+    env = {"PATH": f"{fakebin}:/usr/bin:/bin", "SOURCE_GC_ENABLED": "off", "SCHOOL_DASHBOARD_ENV": "/nonexistent",
            "SCHOOL_GC_PATH": str(tmp_path / "gc-schedule.json")}
     r = subprocess.run(["bash", str(script)], env=env, capture_output=True, text=True)
     assert r.returncode == 0

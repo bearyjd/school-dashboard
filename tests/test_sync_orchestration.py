@@ -423,3 +423,34 @@ def test_custom_timeout_value_reaches_the_wrapper_and_is_capped(env):
     lines = env.calls.read_text().splitlines()
     assert any(re.search(r"^timeout .*\b45 sgy summary", ln) for ln in lines)
     assert any(re.search(r"^timeout .*\b3600 powerschool summary", ln) for ln in lines)
+
+
+def test_term_ignoring_ixl_is_killed_after_the_timeout(env):
+    stub = env.bin / "ixl"
+    stub.write_text("#!/bin/sh\ntrap '' TERM\necho $$ > \"$FAKE_DATA/ixl.child\"\n"
+                    "sleep 300 &\nwhile :; do sleep 1; done\n")
+    stub.chmod(0o755)
+    try:
+        start = time.monotonic()
+        r = env.run(IXL_SCRAPE_TIMEOUT="2")
+        assert time.monotonic() - start < 60
+        assert r.returncode == 0, r.stderr
+        assert "IXL scrape failed for alpha (timed out after 2s)" in r.stderr
+        assert env.results()["ixl"] == "error" and env.results()["sgy"] == "ok"
+        assert "Sync complete." in r.stderr
+        assert not _pid_alive(int((env.data / "ixl.child").read_text()))
+    finally:
+        _reap_children(env)
+
+
+def test_ixl_timeout_default_is_120_and_an_invalid_value_falls_back_to_it(env):
+    real = shutil.which("timeout")
+    stub = env.bin / "timeout"
+    stub.write_text(f'#!/bin/sh\necho "timeout $*" >> "$FAKE_CALLS"\nexec {real} "$@"\n')
+    stub.chmod(0o755)
+    for extra in ({}, {"IXL_SCRAPE_TIMEOUT": "abc"}):
+        env.calls.write_text("")
+        r = env.run(**extra)
+        assert r.returncode == 0, r.stderr
+        assert any(re.search(r"^timeout .*\b120 ixl assigned", ln) for ln in env.calls.read_text().splitlines())
+    assert r.stderr.count("IXL_SCRAPE_TIMEOUT") == 1

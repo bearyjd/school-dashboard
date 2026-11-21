@@ -115,3 +115,46 @@ def test_missing_command_returns_a_failure_without_raising():
     run = run_scraper(["/nonexistent/scraper-xyz"], timeout=5)
     assert run.returncode != 0 and run.timed_out is False
     assert "scraper-xyz" in run.stderr
+
+
+# --- output caps, truncation flag, detached grandchildren --------------------------------------
+
+def test_stdout_cap_is_16_mib():
+    from school_dashboard.scrape_run import MAX_STDOUT_BYTES
+    assert MAX_STDOUT_BYTES == 16 * 1024 * 1024
+
+
+def test_output_over_the_cap_is_truncated_and_flagged(tmp_path):
+    cmd = _script(tmp_path, "printf 'x%.0s' $(seq 1 100)\n")
+    run = run_scraper(cmd, timeout=10, max_stdout_bytes=10)
+    assert run.truncated is True
+    assert run.stdout == "x" * 10
+
+
+def test_output_exactly_at_the_cap_is_not_truncated(tmp_path):
+    cmd = _script(tmp_path, "printf 'x%.0s' $(seq 1 10)\n")
+    run = run_scraper(cmd, timeout=10, max_stdout_bytes=10)
+    assert run.truncated is False and run.stdout == "x" * 10
+
+
+def test_normal_output_is_not_flagged_truncated(tmp_path):
+    assert run_scraper(_script(tmp_path, "echo hi\n"), timeout=10).truncated is False
+
+
+def test_stderr_stays_bounded_at_64_kib(tmp_path):
+    cmd = _script(tmp_path, "head -c 1048576 /dev/zero | tr '\\0' 'e' >&2\necho done\n")
+    run = run_scraper(cmd, timeout=20)
+    assert len(run.stderr) <= 64 * 1024
+    assert run.stderr.startswith("eee") and run.stdout == "done\n"
+
+
+def test_returns_promptly_when_a_detached_grandchild_holds_the_pipe(tmp_path):
+    cmd = _script(tmp_path, 'setsid sleep 30 &\necho $! > "$1"\necho out\n')
+    start = time.monotonic()
+    try:
+        run = run_scraper(cmd, timeout=10)
+        elapsed = time.monotonic() - start
+    finally:
+        _cleanup(tmp_path / "pids")
+    assert run.returncode == 0 and run.stdout == "out\n" and not run.timed_out
+    assert elapsed < 3.5

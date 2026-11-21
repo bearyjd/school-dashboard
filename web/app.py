@@ -700,6 +700,8 @@ def _scrape_powerschool(ps_file: str) -> None:
     result = run_scraper(["powerschool", "summary", "--json"], timeout=timeout)
     if result.timed_out:
         raise ScraperTimeout("powerschool", timeout)
+    if result.truncated:
+        raise RuntimeError("powerschool summary output too large")
     if result.returncode != 0 or not result.stdout:
         raise RuntimeError(f"powerschool summary failed (exit {result.returncode})")
     problem = powerschool.scrape_problem(result.stdout)
@@ -830,6 +832,8 @@ def _run_sync_background(sources: str, digest: str) -> None:
                                 if r.timed_out:
                                     detail = "timed out"
                                     ixl_timed_out = True
+                                elif r.truncated:
+                                    detail = "output too large"
                                 else:
                                     ok = r.returncode == 0 and ixl_payload_ok(json.loads(r.stdout))
                                 if ok:
@@ -875,8 +879,13 @@ def _run_sync_background(sources: str, digest: str) -> None:
                     result = run_scraper(["sgy", "summary", "--json"], timeout=sgy_timeout)
                     if result.timed_out:
                         raise ScraperTimeout("sgy", sgy_timeout)
-                    if result.stdout:  # replace atomically: a failed write keeps the previous file
-                        write_atomic(Path(sgy_file), result.stdout)
+                    if result.truncated:
+                        raise RuntimeError("sgy summary output too large")
+                    if result.returncode != 0 or not result.stdout:
+                        raise RuntimeError(f"sgy summary failed (exit {result.returncode})")
+                    if not isinstance(json.loads(result.stdout), dict):
+                        raise RuntimeError("sgy summary unusable: not a JSON object")
+                    write_atomic(Path(sgy_file), result.stdout)  # atomic: a failed write keeps the previous file
                 elif src == "powerschool":
                     reason = powerschool.skip_reason()
                     if reason:
