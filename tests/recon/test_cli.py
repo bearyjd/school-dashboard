@@ -83,12 +83,12 @@ def test_missing_state_file_exits_2(env):
     assert cli(env, "migrate", "--dry-run").returncode == 2
 
 
-def test_rolled_back_migration_exits_1_and_leaves_items_alone(env):
+def test_rejected_row_exits_4_and_leaves_items_alone(env):
     maintenance.enable("test")
     c = schema.connect(env[1]); schema.ensure_schema(c)
     c.execute("CREATE TRIGGER t BEFORE INSERT ON assignments WHEN NEW.title='Quiz' BEGIN SELECT RAISE(ABORT,'x'); END"); c.close()
     before = table_sha(env[1])
-    assert cli(env, "migrate").returncode == 1
+    assert cli(env, "migrate").returncode == 4
     assert table_sha(env[1]) == before
 
 

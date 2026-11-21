@@ -4,9 +4,13 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Iterator
 
+from school_dashboard.assignments import schema
 from school_dashboard.atomic import mkdir_private, write_atomic
 
 logger = logging.getLogger(__name__)
@@ -69,3 +73,19 @@ def make_backup(db_path: str, state_path: str, archive_root: Path, now: datetime
         raise BackupError(f"backup failed ({type(exc).__name__})") from exc
     logger.info("pre-migration backup written")
     return str(target)
+
+
+@contextmanager
+def scratch_copy(db_path: str) -> Iterator[str]:
+    """A verified private (0700 dir, 0600 file) copy of the database for a dry run; removed on exit."""
+    with tempfile.TemporaryDirectory(prefix="recon-dryrun-") as tmp:
+        dest = Path(tmp) / DB_COPY_NAME
+        src = schema.connect(db_path, readonly=True)  # leaves no -wal/-shm files beside the real database
+        dst = sqlite3.connect(str(dest))
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+            src.close()
+        os.chmod(dest, 0o600)
+        yield str(dest)

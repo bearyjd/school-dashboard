@@ -69,9 +69,17 @@ def _load_ps(path: str, resolve: Resolve, now: datetime) -> Loaded:
     return PowerSchoolAdapter().parse(payload, resolve_kid=resolve, file_ok=clean), _sha(raw), None
 
 
+def _mtime_then_name(path: Path) -> tuple[float, str]:
+    """Oldest file first, so that of two files for one child (long and short name) the newest wins."""
+    try:
+        return path.stat().st_mtime, path.name
+    except OSError:
+        return 0.0, path.name
+
+
 def _load_ixl(path: str, resolve: Resolve, now: datetime) -> Loaded:
     folder = Path(path)
-    files = sorted(folder.glob("*-assigned.json")) if folder.is_dir() else []
+    files = sorted(folder.glob("*-assigned.json"), key=_mtime_then_name) if folder.is_dir() else []
     payload: dict[str, Any] = {}
     digest = hashlib.sha256()
     for f in files:

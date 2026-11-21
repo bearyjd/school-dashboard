@@ -14,7 +14,7 @@ from school_dashboard import paths, watchdog
 from school_dashboard.assignments import health, repo, schema
 from school_dashboard.assignments.health import IngestHealth
 from school_dashboard.assignments.schooldays import no_school_dates
-from school_dashboard.state import get_roster
+from school_dashboard.state import canonical_roster
 from school_dashboard.sync_meta import read_sync_meta
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class ReadCtx:
 
 
 def roster_names() -> tuple[str, ...]:
-    return tuple(str(c["name"]) for c in get_roster())
+    return tuple(str(c["name"]) for c in canonical_roster())
 
 
 def db_file() -> str:

@@ -101,7 +101,7 @@ def test_title_fallbacks_and_counted_warnings(make_env):
     assert len(titles["act005"]) == 300 and titles["act005"].endswith("…")
     assert titles["act006"] == "Tabbell title[0m"
     joined = " | ".join(r.warnings)
-    assert "had no title; placeholder used" in joined and "was shortened" in joined
+    assert "had no title; placeholder used" in joined and "title was shortened" in joined or "titles were shortened" in joined
     assert "Synthetic" not in joined and "Alex" not in joined
 
 

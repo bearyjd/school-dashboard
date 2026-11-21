@@ -13,6 +13,7 @@ from school_dashboard import db
 from school_dashboard.overview_items import parse_date
 from school_dashboard.powerschool import clean_text
 from school_dashboard.state import canonical_name
+from school_dashboard.state import canonical_name
 
 _log = logging.getLogger(__name__)
 
@@ -22,7 +23,11 @@ def split_kids(label: str, roster: list[str]) -> list[str]:
     if not isinstance(label, str):
         return []
     by_lower = {name.lower(): name for name in roster}
-    found = [by_lower[p.strip().lower()] for p in label.split("+") if p.strip().lower() in by_lower]
+    found = []
+    for piece in (p.strip() for p in label.split("+")):  # a label may carry the long form of an aliased name
+        key = piece.lower() if piece.lower() in by_lower else canonical_name(piece).lower()
+        if key in by_lower:
+            found.append(by_lower[key])
     return list(dict.fromkeys(found))
 
 

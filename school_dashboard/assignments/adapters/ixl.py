@@ -52,20 +52,25 @@ class IxlAdapter:
         """`payload` is `{kid name: ixl payload}`."""
         if not isinstance(payload, dict):
             return empty_result(self.source, "payload is not a per-child mapping")
-        records: list[SourceRecord] = []
         seen: set[str] = set()
-        untrusted: set[str] = set()
-        counts = {"children without a usable name": 0, "child payloads malformed": 0}
-        for name, data in payload.items():
+        merged: dict[str, dict[str, tuple[str, Any]]] = {}  # kid -> subject key -> (subject, counts)
+        counts = {"children without a usable name": 0, "child payloads malformed": 0,
+                  "child entries sharing a name were merged": 0}
+        for name, data in payload.items():  # later entries are more recent files (see ingest_io._load_ixl)
             kid = resolve_name(resolve_kid, text(name))
             if not kid:
                 counts["children without a usable name"] += 1
                 continue
+            if kid in seen:
+                counts["child entries sharing a name were merged"] += 1
             seen.add(kid)
             if payload_problem(data):
                 counts["child payloads malformed"] += 1
-                untrusted.add(kid)
                 continue
-            records.extend(_records(kid, data["totals"]))
-        return AdapterResult(self.source, tuple(records), frozenset(seen), frozenset(seen - untrusted),
+            subjects = merged.setdefault(kid, {})
+            for raw_subject, subject_counts in data["totals"].items():
+                subjects[str(raw_subject).strip().casefold()] = (raw_subject, subject_counts)
+        records = [r for kid, subjects in merged.items()
+                   for r in _records(kid, dict(subjects.values()))]
+        return AdapterResult(self.source, tuple(records), frozenset(seen), frozenset(merged),
                              counted(self.source, counts))

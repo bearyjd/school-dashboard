@@ -13,7 +13,7 @@ import requests
 
 from school_dashboard import db, maintenance, powerschool
 from school_dashboard import scrape_meta
-from school_dashboard.state import canonical_name, get_roster
+from school_dashboard.state import canonical_name, canonical_roster, get_roster
 from school_dashboard.kid_colors import with_child_colors
 from school_dashboard.llm import chat_completion
 
@@ -755,7 +755,7 @@ def send_ntfy(
             init_digests_table(db_path)
             purge_old_digests(db_path, days=7)
             try:
-                roster = get_roster()
+                roster = canonical_roster()
                 stored = with_child_colors(
                     cards, {r["name"]: r["color"] for r in roster if r.get("color")}, [r["name"] for r in roster])
             except Exception as exc:  # colour is decoration: never lose the carousel over it

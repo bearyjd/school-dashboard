@@ -13,7 +13,7 @@ from flask import Flask, jsonify, redirect, render_template, request, Response, 
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, gc_warnings, powerschool_warnings, scrape_warnings
-from school_dashboard.state import canonical_name, get_roster, ixl_payload_ok
+from school_dashboard.state import canonical_name, canonical_roster, get_roster, ixl_payload_ok
 from school_dashboard import csp, db, hostcheck, maintenance, paths, powerschool
 from school_dashboard.csp import CSP_REPORT_ONLY  # noqa: F401  (re-exported for tests and docs)
 from school_dashboard.rate_limit import FailureLimiter, client_key, trusted_client_ip, trusted_proxy_count
@@ -441,8 +441,9 @@ def _has_data_flags(state: dict) -> dict:
     ixl_keys = populated(state.get("ixl"))
     sgy_keys = populated(state.get("schoology"))
     ps_keys = populated(state.get("powerschool"))
-    roster_names = {r["name"] for r in get_roster()}
-    names = [r["name"] for r in get_roster()] + sorted((ixl_keys | sgy_keys | ps_keys) - roster_names)
+    roster = canonical_roster()
+    roster_names = {r["name"] for r in roster}
+    names = [r["name"] for r in roster] + sorted((ixl_keys | sgy_keys | ps_keys) - roster_names)
     return {n: {"ixl": n in ixl_keys, "sgy": n in sgy_keys, "ps": n in ps_keys} for n in names}
 
 
@@ -593,7 +594,7 @@ def api_overview():
     school = overview_events.school_events(db_file, today, days)
     payload = overview.build_overview(
         state, manual, gc_data, school, read_sync_meta(str(paths.sync_meta_path())),
-        get_roster(), now, tz, days=days, include_past_seasons=include_past,
+        canonical_roster(), now, tz, days=days, include_past_seasons=include_past,
         active=watchdog.monitored_sources(), first_seen=watchdog.load_first_seen())
     return jsonify({**payload, "warnings": warnings + payload["warnings"]})
 

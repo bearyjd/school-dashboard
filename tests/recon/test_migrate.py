@@ -352,12 +352,26 @@ def _trap(env, sql):
     c = schema.connect(env[1]); schema.ensure_schema(c); c.execute(sql); c.close()
 
 
+def _break_second_write(monkeypatch):
+    """A non-constraint database failure mid-run (a constraint failure now only skips that row)."""
+    real, calls = migrate._write_record, []
+
+    def wrapper(conn, rec, now):
+        calls.append(1)
+        if len(calls) == 2:
+            raise sqlite3.OperationalError("disk I/O error")
+        real(conn, rec, now)
+    monkeypatch.setattr(migrate, "_write_record", wrapper)
+
+
 @pytest.mark.parametrize("sql", [
-    "CREATE TRIGGER t BEFORE INSERT ON assignments WHEN NEW.title='Quiz' BEGIN SELECT RAISE(ABORT,'injected'); END",
+    None,
     "CREATE TRIGGER t BEFORE INSERT ON recon_meta WHEN NEW.key='migrated_at' BEGIN SELECT RAISE(ABORT,'injected'); END",
 ], ids=["mid-run", "last-step"])
-def test_failure_during_migration_leaves_no_v2_rows(env, sql):
-    _trap(env, sql)
+def test_failure_during_migration_leaves_no_v2_rows(env, sql, monkeypatch):
+    _trap(env, sql or "SELECT 1")
+    if not sql:
+        _break_second_write(monkeypatch)
     with pytest.raises(Exception):
         run(env)
     c = ro(env[1])
@@ -365,9 +379,9 @@ def test_failure_during_migration_leaves_no_v2_rows(env, sql):
     assert counts == [0, 0, 0] and repo.get_meta(c, "migrated_at") is None
 
 
-def test_failure_during_migration_leaves_items_untouched(env):
+def test_failure_during_migration_leaves_items_untouched(env, monkeypatch):
     before = table_sha(env[1])
-    _trap(env, "CREATE TRIGGER t BEFORE INSERT ON assignments WHEN NEW.title='Quiz' BEGIN SELECT RAISE(ABORT,'x'); END")
+    _break_second_write(monkeypatch)
     with pytest.raises(Exception):
         run(env)
     assert table_sha(env[1]) == before

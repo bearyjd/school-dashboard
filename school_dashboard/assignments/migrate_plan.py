@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime
 from typing import Any, Callable, Mapping, Sequence
 
+from school_dashboard.assignments.adapters.base import clean_text
 from school_dashboard.assignments.model import AssignmentState
 from school_dashboard.assignments.normalize import title_key
 
@@ -49,17 +50,58 @@ def _when(value: Any, now: datetime, bad: Counter, kind: str) -> datetime:
 
 
 def _due(value: Any, bad: Counter) -> date | None:
+    raw = str(value).strip() if value is not None else ""
+    if not raw:
+        return None
     try:
-        return date.fromisoformat(str(value)[:10]) if value else None
+        return date.fromisoformat(raw[:10])
     except ValueError:
         bad["due"] += 1
         return None
 
 
+TITLE_CAP = 300
+UNKNOWN_KID = "(unknown)"
+_TITLE_KEYS = ("title", "summary", "text", "name")
+_PLACEHOLDERS = {"schoology": "(untitled Schoology item)"}
+_GENERIC_PLACEHOLDER = "(untitled item)"
+
+
+def _title(row: Mapping[str, Any], source: str, bad: Counter) -> tuple[str, bool]:
+    """(title, placeholder?): first non-empty cleaned title/summary/text/name, else a placeholder; always 1..300."""
+    for key in _TITLE_KEYS:
+        found = clean_text(row.get(key), 100_000)
+        if found:
+            if len(found) > TITLE_CAP:
+                bad["shortened"] += 1
+                return found[:TITLE_CAP - 1] + "\u2026", False
+            return found, False
+    bad["untitled"] += 1
+    return _PLACEHOLDERS.get(source, _GENERIC_PLACEHOLDER), True
+
+
+def _kid(raw: Any, resolve_kid: Callable[[str], str], bad: Counter) -> str:
+    text = str(raw or "")
+    kid = resolve_kid(text) or text.strip()
+    if not kid:
+        bad["no_kid"] += 1
+        return UNKNOWN_KID
+    return kid
+
+
 def _bad_warnings(bad: Counter) -> tuple[str, ...]:
     texts = {"created_at": "migration time used", "completed_at": "migration time used",
              "due": "left undated"}
-    return tuple(f"{bad[k]} rows had an unreadable {k}; {t}" for k, t in texts.items() if bad[k])
+    out = [f"{bad[k]} rows had an unreadable {k}; {t}" for k, t in texts.items() if bad[k]]
+    if bad["untitled"]:
+        out.append(f"{bad['untitled']} row{'s' if bad['untitled'] != 1 else ''} had no title; placeholder used")
+    if bad["shortened"]:
+        n = bad["shortened"]
+        out.append(f"{n} title{'s were' if n != 1 else ' was'} shortened")
+    if bad["no_kid"]:
+        n = bad["no_kid"]
+        out.append(f"{n} row{'s' if n != 1 else ''} had no usable kid; kept under {UNKNOWN_KID!r}")
+    return tuple(out)
 
 
 def _state(kid: str, title: str, due: date | None, kind: str, created: datetime,
@@ -86,8 +128,9 @@ def _plan_items(items: Sequence[Mapping[str, Any]], now: datetime, bad: Counter,
         if it.get("completed"):
             closed = _when(it["completed_at"], now, bad, "completed_at") if it.get("completed_at") else created
         kind = "assignment" if it.get("type") == "assignment" else "task"
-        raw_kid = str(it.get("child") or "")
-        state = _state(resolve_kid(raw_kid) or raw_kid.strip(), str(it.get("title") or ""),
+        source = str(it.get("source") or "manual")
+        title, _ = _title(it, source, bad)
+        state = _state(_kid(it.get("child"), resolve_kid, bad), title,
                        _due(it.get("due_date"), bad), kind, created, closed)
         out.append(_record(state, it, str(it.get("source") or "manual"), f"item:{it['id']}",
                            it.get("notes"), int(it["id"]), None))
@@ -114,12 +157,13 @@ def _plan_actions(records: list[PlannedRecord], actions: Sequence[Mapping[str, A
         if act.get("status") == "completed":
             closed = _when(act["completed_at"], now, bad, "completed_at") if act.get("completed_at") else created
         kind = "assignment" if act.get("type") == "assignment" else "task"
-        raw_kid = str(act.get("child") or "")
-        state = _state(resolve_kid(raw_kid) or raw_kid.strip(), str(act.get("summary") or ""),
+        source = str(act.get("source") or "manual")
+        title, placeholder = _title(act, source, bad)
+        state = _state(_kid(act.get("child"), resolve_kid, bad), title,
                        _due(act.get("due"), bad), kind, created, closed)
         key = f"legacy-action:{act['id']}"
-        new = _record(state, act, str(act.get("source") or "manual"), key, None, None, str(act["id"]))
-        idx = _merge_target(records, state)
+        new = _record(state, act, source, key, None, None, str(act["id"]))
+        idx = None if placeholder else _merge_target(records, state)  # two untitled rows are not one assignment
         if idx is None:
             records.append(new)
             continue
