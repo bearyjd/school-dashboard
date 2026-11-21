@@ -245,3 +245,15 @@ def test_digest_dates_that_are_not_real_are_omitted(value):
     assert digest_v2._day(value) == ""
     summary = {"kids": [], "ingest_ok": True, "data_as_of": value, "unverified_sources": []}
     assert digest_v2.build(summary, [], mode="night", now=NOW).text.startswith("Data as of")
+
+
+@pytest.mark.parametrize("text", ["2025-09-30garbage", "2025-09-30Z", "2025-09-30T", "2025-09-30 ", "2025-09-30x08:00"])
+def test_parse_date_rejects_trailing_garbage(text):
+    from school_dashboard.assignments.dates import parse_date
+    assert (parse_date(text) is None) == (text != "2025-09-30 ")  # surrounding whitespace is trimmed
+
+
+@pytest.mark.parametrize("text", ["2025-09-30T00:00:00", "2025-09-30 08:00", " 2025-09-30 "])
+def test_parse_date_keeps_time_suffixes_and_trims(text):
+    from school_dashboard.assignments.dates import parse_date
+    assert parse_date(text) == date(2025, 9, 30)

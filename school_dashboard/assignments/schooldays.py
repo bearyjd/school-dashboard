@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import threading
 from datetime import date, datetime, timedelta
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from school_dashboard.assignments.dates import parse_date
 
@@ -21,27 +21,31 @@ def school_today(now: datetime) -> date:
     return (wall - timedelta(hours=ROLLOVER_HOUR)).date()
 
 
-def _applies_to(child: Any, kid: str) -> bool:
+def _applies_to(child: Any, kid: str, resolve: Callable[[str], str] | None = None) -> bool:
     if child is None or not str(child).strip():
         return True
-    names = {part.strip().casefold() for part in str(child).split(",")}
-    return kid.strip().casefold() in names
+    pick = resolve or (lambda n: n)
+    names = {pick(part.strip()).strip().casefold() for part in str(child).split(",")}
+    return pick(kid.strip()).strip().casefold() in names
 
 
-def _row_dates(event_rows: Iterable[Mapping[str, Any]], kind: str | None = None, kid: str | None = None) -> Iterable[date]:
+def _row_dates(event_rows: Iterable[Mapping[str, Any]], kind: str | None = None, kid: str | None = None,
+              resolve: Callable[[str], str] | None = None) -> Iterable[date]:
     """Readable dates of the rows (of one type and applying to one kid when given); unreadable rows are skipped."""
     for row in event_rows:
         if kind is not None and row.get("type") != kind:
             continue
-        if kid is not None and not _applies_to(row.get("child"), kid):
+        if kid is not None and not _applies_to(row.get("child"), kid, resolve):
             continue
         day = parse_date(row.get("date"))
         if day is not None:
             yield day
 
 
-def no_school_dates(event_rows: Iterable[Mapping[str, Any]], kid: str) -> frozenset[date]:
-    return frozenset(_row_dates(event_rows, "NO_SCHOOL", kid))
+def no_school_dates(event_rows: Iterable[Mapping[str, Any]], kid: str,
+                    resolve: Callable[[str], str] | None = None) -> frozenset[date]:
+    """NO_SCHOOL days for kid; `resolve` (e.g. state.canonical_name) maps calendar and kid names to one canonical form."""
+    return frozenset(_row_dates(event_rows, "NO_SCHOOL", kid, resolve))
 
 
 def calendar_covers(event_rows: Iterable[Mapping[str, Any]], today: date) -> bool:

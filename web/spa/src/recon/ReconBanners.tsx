@@ -6,6 +6,7 @@ import { problemSources, sourceLabel } from '../lib/view'
 import type { ReconSummary } from './types'
 
 const INGEST = 'recon_ingest'
+const MAX_WARNINGS = 5
 
 /** The overview names Schoology "sgy"; the v2 summary names it "schoology". */
 const freshnessKey = (source: string): string => (source === 'schoology' ? 'sgy' : source)
@@ -33,6 +34,8 @@ export function ReconBanners({ summary }: { summary: ReconSummary }) {
       })}
       {mergeFailed && <Banner tone="warn">Not verified: the last assignment merge did not succeed, so this may be out of date</Banner>}
       {overview && <SourceBanners freshness={rest} />}
+      {summary.warnings.slice(0, MAX_WARNINGS).map((w, i) => <Banner key={i} tone="info">{w}</Banner>)}
+      {summary.warnings.length > MAX_WARNINGS && <Banner tone="info">{`+${summary.warnings.length - MAX_WARNINGS} more`}</Banner>}
     </div>
   )
 }

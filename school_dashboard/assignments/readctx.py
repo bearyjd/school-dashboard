@@ -14,7 +14,7 @@ from school_dashboard import paths, watchdog
 from school_dashboard.assignments import health, repo, schema
 from school_dashboard.assignments.health import IngestHealth
 from school_dashboard.assignments.schooldays import bad_calendar_rows, calendar_warning, log_bad_calendar, no_school_dates
-from school_dashboard.state import canonical_roster
+from school_dashboard.state import canonical_name, canonical_roster
 from school_dashboard.sync_meta import read_sync_meta
 
 logger = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ def load(conn: sqlite3.Connection, now: datetime) -> ReadCtx:
     tz, meta, seen = watchdog.get_tz(), _sync_meta(), _first_seen()
     return ReadCtx(
         now=now, roster=roster, kids=kids, events=events,
-        no_school_by_kid={k: no_school_dates(events, k) for k in everyone}, grace_by_class=repo.class_grace(conn),
+        no_school_by_kid={k: no_school_dates(events, k, canonical_name) for k in everyone}, grace_by_class=repo.class_grace(conn),
         stale_sources=health.stale_sources(meta, now=now, tz=tz, first_seen=seen),
         ingest=health.ingest_health(meta, now=now, tz=tz, first_seen=seen.get("recon_ingest")),
         bad_calendar=bad_calendar)

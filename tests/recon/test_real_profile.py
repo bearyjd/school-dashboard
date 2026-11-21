@@ -142,3 +142,21 @@ def test_valid_no_school_days_are_still_honoured(env):
     assert ctx.bad_calendar == 1
     nxt = schooldays.next_school_day(date(2026, 11, 19), ctx.no_school_by_kid["Alex"])
     assert nxt == date(2026, 11, 23)  # Fri 11-20 is NO_SCHOOL, then the weekend
+
+
+def test_long_name_calendar_row_applies_to_the_aliased_kid(env, monkeypatch, tmp_path):
+    from school_dashboard.assignments import ingest_kid, readctx, schema
+    _, db, _ = env
+    cfg = tmp_path / "cfg.json"
+    cfg.write_text(json.dumps({"children": {}, "name_aliases": {"samantha": "Sam"}}))
+    monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(cfg))
+    conn = schema.connect(db)
+    with conn:
+        conn.executemany("INSERT INTO events (date, title, type, child, source) VALUES (?, 'x', 'NO_SCHOOL', ?, 'manual')",
+                         [("2031-03-03", "Samantha"), ("2031-03-04", "samantha, Alex"), ("2031-03-05", "Alex")])
+    ctx = readctx.load(conn, NOW)
+    assert {date(2031, 3, 3), date(2031, 3, 4)} <= ctx.no_school_by_kid["Sam"]
+    assert date(2031, 3, 5) not in ctx.no_school_by_kid["Sam"]
+    built = ingest_kid.build_context(conn, "Sam", now=NOW, no_school_rows=ctx.events, baseline=False, file_hashes={})
+    conn.close()
+    assert {date(2031, 3, 3), date(2031, 3, 4)} <= built.no_school

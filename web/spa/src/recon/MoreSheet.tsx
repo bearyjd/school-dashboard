@@ -72,7 +72,9 @@ export function MoreSheet({ item, role, opener, requireWrite, onClose, onConfirm
     setBusy(true)
     setMessage('')
     try {
-      onConfirmed((await postTeacherConfirmed(item.id, trimmed, actor)).item)
+      const res = await postTeacherConfirmed(item.id, trimmed, actor)
+      if (res.item) onConfirmed(res.item)
+      else { setMessage('Saved, but this row could not be refreshed - reload to see it'); setBusy(false) }
     } catch (e) {
       setMessage(messageFor(e))
       setBusy(false)

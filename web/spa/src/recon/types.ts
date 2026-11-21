@@ -67,6 +67,8 @@ export interface ReconKidSummary {
   practice: ReconItem[]
   all_clear: boolean
   all_clear_reason: 'unverified' | null
+  /** Set when the server could not build this kid; counts are then zeros and mean nothing. */
+  error?: 'unavailable'
 }
 
 export interface ReconSummary {
@@ -128,8 +130,10 @@ export interface Actor {
 
 /** Server reply to a stage tap or a teacher confirmation. */
 export interface WriteResult {
-  item: ReconItem
-  counts: Counts
+  /** null when the write was saved but the server could not rebuild the row: refetch the list. */
+  item: ReconItem | null
+  counts?: Counts
+  refetch?: boolean
 }
 
 export interface ListData {

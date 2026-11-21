@@ -45,6 +45,7 @@ export function KidSection({ view, rows }: { view: KidView; rows: RowProps }) {
         <h2 id={id} className="recon-kid__name">{view.name}</h2>
       </div>
       {view.ixl && <p className="recon-kid__ixl">{view.ixl}</p>}
+      {view.state === 'error' && <p className="recon-kid__clear recon-kid__clear--warn">{`${view.name}: could not be loaded - try again`}</p>}
       {view.state === 'clear' && <p className="recon-kid__clear">All clear</p>}
       {view.state === 'unverified_clear' && <p className="recon-kid__clear recon-kid__clear--warn">Nothing open (not verified)</p>}
       <div className="recon-kid__buckets">

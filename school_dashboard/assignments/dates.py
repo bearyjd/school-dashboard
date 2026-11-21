@@ -5,11 +5,11 @@ import re
 from datetime import date, datetime, tzinfo
 from typing import Any
 
-_ISO_DAY = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?![\d])")
+_ISO_DAY = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:[T ]\d{2}:\d{2}.*)?$")
 
 
 def parse_date(value: Any) -> date | None:
-    """A date from `YYYY-MM-DD` (extra characters after the day, e.g. a time, are ignored); None otherwise."""
+    """A date from `YYYY-MM-DD` (optionally followed by `T` or a space and a time); None otherwise."""
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date):
