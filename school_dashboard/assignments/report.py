@@ -15,7 +15,8 @@ from typing import Any, Iterator, Mapping, Sequence
 
 from school_dashboard import sync_meta, watchdog
 
-from . import repo, schema
+from . import repo, schema, schooldays
+from .dates import parse_date
 from .health import IngestHealth, ingest_health
 from .report_render import redact, render_text
 
@@ -62,6 +63,8 @@ class ReportInput:
     debounced: int = 0  # pushes skipped by the debounce in the last 24h (counts only)
     schema_version: int = 1
     legacy_rows: int = 0
+    bad_calendar: int = 0  # calendar rows with an unreadable date
+    bad_due: int = 0  # assignment rows with an unreadable due date
 
 
 # ---- reader ---------------------------------------------------------------
@@ -73,12 +76,14 @@ def read_input(conn: sqlite3.Connection, now: datetime | None = None) -> ReportI
     links: dict[int, list[LinkRow]] = defaultdict(list)
     for r in conn.execute("SELECT assignment_id, source, norm_status, live FROM source_links ORDER BY id"):
         links[r["assignment_id"]].append(LinkRow(r["source"], r["norm_status"], bool(r["live"])))
+    stored = conn.execute(f"SELECT * FROM assignments{live} ORDER BY id").fetchall()
     rows = tuple(
         AssignmentRow(id=r["id"], kid=r["kid"], class_name=r["class_name"], class_key=r["class_key"] or "",
-                      title=r["title"], title_key=r["title_key"],
-                      due_date=date.fromisoformat(r["due_date"]) if r["due_date"] else None,
+                      title=r["title"], title_key=r["title_key"], due_date=parse_date(r["due_date"]),
                       stage=r["stage"], flag=r["flag"], links=tuple(links.get(r["id"], ())))
-        for r in conn.execute(f"SELECT * FROM assignments{live} ORDER BY id"))
+        for r in stored)
+    bad_due = sum(bool(r["due_date"]) and parse_date(r["due_date"]) is None for r in stored)
+    calendar = repo.calendar_rows(conn)
     dups = {r["kid"]: r["n"] for r in conn.execute(
         "SELECT a.kid, COUNT(*) AS n FROM assignment_events e JOIN assignments a ON a.id = e.assignment_id"
         f" WHERE e.kind = 'merge' AND e.detail LIKE 'possible_duplicate%'{live_join} GROUP BY a.kid")}
@@ -91,7 +96,8 @@ def read_input(conn: sqlite3.Connection, now: datetime | None = None) -> ReportI
         (repo.DEBOUNCED, since)).fetchone()[0]
     legacy = schema.legacy_violations(conn) if version >= 2 else 0
     return ReportInput(rows, dups, outbox, repo.get_meta(conn, "baseline_at"), schema_version=version,
-                       legacy_rows=legacy, debounced=debounced)
+                       legacy_rows=legacy, debounced=debounced, bad_calendar=schooldays.bad_calendar_rows(calendar),
+                       bad_due=bad_due)
 
 
 # ---- pure builders ---------------------------------------------------------
@@ -171,6 +177,12 @@ def alias_suggestions(pairs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]
     return [{"kid": k, "class_a": a, "class_b": b, "count": n} for (k, a, b), n in ranked]
 
 
+def _warnings(inp: ReportInput) -> list[str]:
+    notes = [schooldays.calendar_warning(inp.bad_calendar),
+             f"{inp.bad_due} assignment rows had unreadable dates" if inp.bad_due else None]
+    return [n for n in notes if n]
+
+
 def build_report(inp: ReportInput, health: IngestHealth) -> dict[str, Any]:
     by_kid: dict[str, list[AssignmentRow]] = defaultdict(list)
     for row in inp.assignments:
@@ -184,6 +196,7 @@ def build_report(inp: ReportInput, health: IngestHealth) -> dict[str, Any]:
                    "issue": health.issue},
         "outbox": dict(sorted(inp.outbox.items())), "debounced_last_24h": inp.debounced,
         "schema": {"version": inp.schema_version, "legacy_rows_outside_limits": inp.legacy_rows},
+        "warnings": _warnings(inp),
     }
 
 
@@ -198,5 +211,6 @@ def run(db_path: str, *, now: datetime, meta: Mapping[str, Any] | None = None) -
             conn.close()
     except sqlite3.OperationalError as exc:
         raise repo.NotMigratedError("legacy items are not migrated; run: school-state assignments migrate") from exc
+    schooldays.log_bad_calendar(inp.bad_calendar)
     health = ingest_health(sync_meta.read_sync_meta() if meta is None else meta, now=now, tz=watchdog.get_tz())
     return build_report(inp, health)

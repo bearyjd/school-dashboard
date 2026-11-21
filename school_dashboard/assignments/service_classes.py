@@ -30,7 +30,7 @@ def dump_aliases(names: Sequence[str]) -> str | None:
 def load_aliases(raw: str | None) -> list[str]:
     try:
         data = json.loads(raw) if raw else []
-    except ValueError:
+    except (ValueError, TypeError):
         return []
     return [n for n in data if isinstance(n, str)] if isinstance(data, list) else []
 

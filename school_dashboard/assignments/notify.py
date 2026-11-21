@@ -20,9 +20,10 @@ from typing import Callable, Mapping, Sequence
 
 import requests
 
-from school_dashboard import maintenance
+from school_dashboard import maintenance, watchdog
 
 from . import flagsenv, repo
+from .dates import parse_dt
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,8 @@ def _expire(conn: sqlite3.Connection, rows: Sequence[Mapping[str, object]], now:
     live: list[Mapping[str, object]] = []
     expired = 0
     for row in rows:
-        if now - datetime.fromisoformat(str(row["created_at"])) > MAX_PENDING_AGE:
+        created = parse_dt(row["created_at"], now.tzinfo or watchdog.get_tz())
+        if created is None or now - created > MAX_PENDING_AGE:  # unreadable: never sent, counted as expired
             conn.execute("UPDATE push_outbox SET status = 'suppressed', last_error = 'expired' WHERE id = ?",
                          (row["id"],))
             expired += 1

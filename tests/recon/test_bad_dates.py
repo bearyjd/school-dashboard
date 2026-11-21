@@ -2,8 +2,8 @@
 import argparse
 import logging
 import sqlite3
-from datetime import date, datetime, timezone
-from unittest.mock import patch
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -26,12 +26,6 @@ def _rows(*dates, type_="NO_SCHOOL", child=None):
 
 # ---- schooldays -------------------------------------------------------------
 
-def test_the_real_failure_is_a_value_error_from_the_row_parse():
-    from school_dashboard.assignments import schooldays
-    with pytest.raises(ValueError):
-        schooldays.no_school_dates(_rows("2025-09-31"), "Alex")
-
-
 @pytest.mark.parametrize("bad", BAD)
 def test_unreadable_calendar_dates_are_skipped_and_counted(bad):
     from school_dashboard.assignments import schooldays as sd
@@ -53,7 +47,7 @@ def test_calendar_rows_tolerate_missing_keys_extra_columns_and_datetime_strings(
 
 def test_calendar_warning_text_and_single_log(caplog):
     from school_dashboard.assignments import schooldays as sd
-    sd.log_bad_calendar.cache_clear()
+    sd.reset_calendar_log()
     caplog.set_level(logging.WARNING)
     assert sd.calendar_warning(0) is None and sd.calendar_warning(1) == CAL
     for _ in range(3):
@@ -61,7 +55,7 @@ def test_calendar_warning_text_and_single_log(caplog):
     sd.log_bad_calendar(0)
     hits = [r for r in caplog.records if "unreadable date" in r.getMessage()]
     assert len(hits) == 1 and "2025" not in hits[0].getMessage()
-    sd.log_bad_calendar.cache_clear()
+    sd.reset_calendar_log()
 
 
 # ---- shared parsers -----------------------------------------------------------
@@ -77,11 +71,11 @@ def test_parse_date_is_total_and_never_guesses():
 
 def test_parse_dt_is_total_and_zones_naive_values():
     from school_dashboard.assignments.dates import parse_dt
-    tz = local(2026, 1, 1).tzinfo
+    tz = ZoneInfo("America/New_York")
     naive = parse_dt("2026-11-16T12:00:00", tz)
     assert naive is not None and naive.utcoffset() is not None and naive.hour == 12
     aware = parse_dt("2026-11-16T12:00:00+00:00", tz)
-    assert aware is not None and aware.utcoffset().total_seconds() == 0
+    assert aware is not None and aware.utcoffset() == timedelta(0)
     for bad in (None, "", "garbage", "2025-09-31T10:00:00", 5, b"x"):
         assert parse_dt(bad, tz) is None
 
@@ -130,7 +124,7 @@ def test_naive_stored_timestamps_are_read_in_the_configured_zone(api_factory):
     api = api_factory(one())
     api.exec("UPDATE assignments SET stage_since = '2026-11-16T12:00:00', closed_at = NULL")
     r = api.get("/api/v2/assignments")
-    assert r.status_code == 200 and data(r)[0]["id"] == 1
+    assert r.status_code == 200 and data(r)["data"][0]["id"] == 1
     assert api.get("/api/v2/summary").status_code == 200
 
 
@@ -143,10 +137,11 @@ def test_clean_rows_are_not_flagged(tmp_path):
 def test_one_corrupt_row_does_not_blank_the_list(api_factory):
     api = api_factory([*one(), _sam()])
     api.exec("UPDATE assignments SET due_date = '2025-09-31', stage_since = 'garbage' WHERE id = 1")
-    listing = data(api.get("/api/v2/assignments"))
-    assert [i["id"] for i in listing] == [1, 2]
-    assert "data_problem" in listing[0]["info"] and "data_problem" not in listing[1]["info"]
-    s = data(api.get("/api/v2/summary"))
+    listing = data(api.get("/api/v2/assignments"))["data"]
+    by_id = {i["id"]: i for i in listing}
+    assert sorted(by_id) == [1, 2]
+    assert "data_problem" in by_id[1]["info"] and "data_problem" not in by_id[2]["info"]
+    s = data(api.get("/api/v2/summary"))["data"]
     assert s["warnings"].count("1 assignment rows had unreadable dates") == 1
 
 
@@ -154,7 +149,7 @@ def test_summary_warns_about_a_bad_calendar_row_exactly_once(api_factory):
     api = api_factory(one())
     api.exec("INSERT INTO events (date, title, type, child) VALUES ('2025-09-31', 't', 'NO_SCHOOL', NULL)")
     r = api.get("/api/v2/summary")
-    assert r.status_code == 200 and data(r)["warnings"].count(CAL) == 1
+    assert r.status_code == 200 and data(r)["data"]["warnings"].count(CAL) == 1
     assert api.get("/api/v2/assignments").status_code == 200
 
 
@@ -165,8 +160,10 @@ def test_outbox_rows_with_unreadable_or_naive_created_at_are_suppressed_not_rais
     from school_dashboard.assignments import notify
     conn = _conn(tmp_path, one())
     rows = [{"id": 1, "created_at": stamp}]
-    conn.execute("INSERT INTO push_outbox (assignment_id, flag, status, attempts, created_at) "
-                 "VALUES (1, 'missing', 'pending', 0, ?)", (stamp,))
+    from school_dashboard.assignments import repo
+    with repo.transaction(conn):
+        repo.enqueue_push(conn, 1, "missing", NOW, "transition")
+        conn.execute("UPDATE push_outbox SET created_at = ?", (stamp,))
     live, expired = notify._expire(conn, [{"id": 1, "created_at": stamp}], NOW)
     if stamp == "2026-11-18T09:00:00":
         assert (live, expired) == (rows, 0)
@@ -179,7 +176,7 @@ def test_corrupt_aliases_json_degrades_everywhere(api_factory, caplog):
     api = api_factory(one(), setup={"class_settings": [{"kid": "Alex", "class_key": "math 6", "aliases": ["x"]}]})
     api.exec("UPDATE class_settings SET aliases = '{not json'")
     r = api.get("/api/v2/classes?kid=Alex")
-    assert r.status_code == 200 and all(c["aliases"] == [] for c in data(r))
+    assert r.status_code == 200 and all(c["aliases"] == [] for c in data(r)["data"])
     from school_dashboard.assignments import ingest_kid
     assert ingest_kid.parse_aliases([("math 6", None, "{not json"), ("art", None, "5")]) == {}
 
@@ -216,11 +213,11 @@ def test_summary_degrades_per_kid(api_factory, monkeypatch, caplog):
     caplog.set_level(logging.WARNING)
     r = api.get("/api/v2/summary")
     assert r.status_code == 200
-    kids = {k["name"]: k for k in data(r)["kids"]}
+    kids = {k["name"]: k for k in data(r)["data"]["kids"]}
     assert kids["Sam"]["error"] == "unavailable" and kids["Sam"]["counts"]["needs_action"] == 0
     assert kids["Sam"]["all_clear"] is False and "error" not in kids["Alex"]
     assert kids["Alex"]["counts"]["do_tonight"] == 1
-    assert data(r)["warnings"].count("1 child could not be loaded") == 1
+    assert data(r)["data"]["warnings"].count("1 child could not be loaded") == 1
     assert any("RuntimeError" in x.getMessage() for x in caplog.records)
     assert "synthetic" not in caplog.text
 
@@ -230,7 +227,7 @@ def test_list_degrades_per_kid(api_factory, monkeypatch):
     api = api_factory([*one(), _sam()])
     monkeypatch.setattr(readmodel, "_item", _boom_for_sam(readmodel._item))
     r = api.get("/api/v2/assignments")
-    assert r.status_code == 200 and [i["kid"] for i in data(r)] == ["Alex"]
+    assert r.status_code == 200 and [i["kid"] for i in data(r)["data"]] == ["Alex"]
     assert r.get_json()["meta"]["warnings"] == ["1 child could not be loaded"]
 
 

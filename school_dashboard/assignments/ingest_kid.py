@@ -33,7 +33,7 @@ def parse_aliases(rows: Sequence[tuple[str, int | None, str | None]]) -> dict[st
     for key, _, raw in rows:
         try:
             names = json.loads(raw) if raw else []
-        except ValueError:
+        except (ValueError, TypeError):
             continue
         if isinstance(names, list):
             out.update({n: key for n in names if isinstance(n, str) and n.strip()})

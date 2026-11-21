@@ -7,12 +7,13 @@ I/O shell) used for the "turned in" / "done" dates. Plain text, no markdown, no 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from datetime import date, datetime
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from itertools import zip_longest
 from typing import Any, Mapping, Sequence
 
 from .adapters.base import clean_text
+from .dates import parse_date, parse_dt
 
 MAX_BYTES = 3500
 FINAL_MAX_BYTES = 3900  # deterministic text + optional AI paragraph + optional Notes line, UTF-8
@@ -58,10 +59,11 @@ class _Kid:
     wait: tuple[_Row, ...]
     needs: tuple[_Row, ...]
     ixl: tuple[_Row, ...]  # one row per IXL subject with work left (or unknown status)
+    error: bool = False  # the kid's section could not be built
 
     @property
     def clear(self) -> bool:
-        return not (self.do or self.wait or self.needs or self.ixl)
+        return self.error or not (self.do or self.wait or self.needs or self.ixl)
 
     @property
     def card_rows(self) -> int:
@@ -69,9 +71,8 @@ class _Kid:
 
 
 def _day(value: Any) -> str:
-    try:
-        d = date.fromisoformat(str(value)[:10])
-    except ValueError:
+    d = parse_date(value)
+    if d is None:
         return ""
     return f"{_MONTHS[d.month - 1]} {d.day}"
 
@@ -163,6 +164,8 @@ def _bucket(heading: str, rows: Sequence[_Row], cap: int) -> list[str]:
 
 
 def _clear_line(k: _Kid) -> str:
+    if k.error:
+        return f"{k.label}: could not be loaded"
     if k.no_records:
         return f"{k.label}: nothing on record"
     return f"{k.label}: nothing open (not verified)" if k.unverified else f"{k.label}: all clear"
@@ -186,11 +189,10 @@ def _counts_line(k: _Kid, word: str) -> str:
 
 
 def _clock(value: Any, now: datetime) -> str:
-    try:
-        at = datetime.fromisoformat(str(value))
-    except ValueError:
+    at = parse_dt(value, now.tzinfo or timezone.utc)
+    if at is None:
         return "unknown"
-    at = at.astimezone(now.tzinfo) if at.tzinfo and now.tzinfo else at
+    at = at.astimezone(now.tzinfo) if now.tzinfo else at
     hour = at.hour % 12 or 12
     return (f"{_DAYS[at.weekday()]} {_MONTHS[at.month - 1]} {at.day}, "
             f"{hour}:{at.minute:02d} {'AM' if at.hour < 12 else 'PM'}")
@@ -198,7 +200,8 @@ def _clock(value: Any, now: datetime) -> str:
 
 def _header(summary: Mapping[str, Any], now: datetime, no_records: bool) -> list[str]:
     as_of = summary.get("data_as_of")
-    lines = [f"Data as of {_clock(as_of, now)}" if as_of else "Data as of: unknown"]
+    clock = _clock(as_of, now) if as_of else "unknown"
+    lines = [f"Data as of {clock}" if clock != "unknown" else "Data as of: unknown"]
     if no_records:
         lines.append("No assignments on record yet.")
     names = [_SOURCES.get(str(s)) or clean_text(s, CLASS_CHARS) or "unknown source"
@@ -264,7 +267,8 @@ def build(summary: Mapping[str, Any], items: Sequence[Mapping[str, Any]], *, mod
     bad = not summary.get("ingest_ok", True)
     names = [str(k["name"]) for k in summary.get("kids") or ()]
     empty = _no_records(summary, names)
-    kids = [_kid(n, items, word, bad, empty) for n in names]
+    broken = {str(k["name"]) for k in summary.get("kids") or () if k.get("error")}
+    kids = [replace(_kid(n, items, word, bad, empty), error=n in broken) for n in names]
     header = _header(summary, now, empty)
     shown = 0
     for cap in CAPS:

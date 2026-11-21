@@ -13,7 +13,7 @@ from typing import Any, Iterator, Mapping
 from school_dashboard import paths, watchdog
 from school_dashboard.assignments import health, repo, schema
 from school_dashboard.assignments.health import IngestHealth
-from school_dashboard.assignments.schooldays import no_school_dates
+from school_dashboard.assignments.schooldays import bad_calendar_rows, calendar_warning, log_bad_calendar, no_school_dates
 from school_dashboard.state import canonical_roster
 from school_dashboard.sync_meta import read_sync_meta
 
@@ -31,6 +31,12 @@ class ReadCtx:
     grace_by_class: Mapping[tuple[str, str], int]
     stale_sources: frozenset[str]
     ingest: IngestHealth
+    bad_calendar: int = 0
+
+    def warnings(self) -> tuple[str, ...]:
+        """Plain-language data warnings for this read (counts only)."""
+        note = calendar_warning(self.bad_calendar)
+        return (note,) if note else ()
 
     def view(self) -> dict[str, Any]:
         """Keyword arguments shared by the read-model builders."""
@@ -99,18 +105,21 @@ def load(conn: sqlite3.Connection, now: datetime) -> ReadCtx:
     roster = roster_names()
     kids = frozenset(roster) if roster else frozenset(repo.assignment_kids(conn))
     events = tuple(repo.calendar_rows(conn))
+    bad_calendar = bad_calendar_rows(events)
+    log_bad_calendar(bad_calendar)
     everyone = {*roster, *repo.assignment_kids(conn)}
     tz, meta, seen = watchdog.get_tz(), _sync_meta(), _first_seen()
     return ReadCtx(
         now=now, roster=roster, kids=kids, events=events,
         no_school_by_kid={k: no_school_dates(events, k) for k in everyone}, grace_by_class=repo.class_grace(conn),
         stale_sources=health.stale_sources(meta, now=now, tz=tz, first_seen=seen),
-        ingest=health.ingest_health(meta, now=now, tz=tz, first_seen=seen.get("recon_ingest")))
+        ingest=health.ingest_health(meta, now=now, tz=tz, first_seen=seen.get("recon_ingest")),
+        bad_calendar=bad_calendar)
 
 
 def alias_list(raw: str | None) -> list[str]:
     try:
         data = json.loads(raw) if raw else []
-    except ValueError:
+    except (ValueError, TypeError):
         return []
     return [a for a in data if isinstance(a, str)] if isinstance(data, list) else []

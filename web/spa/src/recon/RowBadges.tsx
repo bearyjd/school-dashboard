@@ -6,6 +6,7 @@ const INFO_LABELS: Record<string, string> = {
   late: 'Late in portal',
   cleared_unconfirmed: 'Cleared, unconfirmed',
   conflict: 'Portals disagree',
+  data_problem: 'Data problem',
 }
 
 function badgeText(ln: ReconLink): string {

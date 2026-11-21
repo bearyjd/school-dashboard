@@ -162,6 +162,10 @@ def _ingest(args: Any, now: datetime) -> IngestReport:
     rows = ingest_io.read_events(db_path)
     report = run(db_path, results, file_hashes=hashes, now=now, no_school_rows=rows, roster=roster)
     extra = [*warnings]
+    bad_calendar = schooldays.bad_calendar_rows(rows)
+    schooldays.log_bad_calendar(bad_calendar)
+    if note := schooldays.calendar_warning(bad_calendar):
+        extra.append(note)
     if not schooldays.calendar_covers(rows, schooldays.school_today(now)):
         extra.append("school calendar does not cover today")
     if report.ok and report.kids:

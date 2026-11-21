@@ -37,7 +37,7 @@ export interface ReconItem {
   stage_label: string
   flag: ReconFlag | null
   bucket: ReconBucket | null
-  /** late | cleared_unconfirmed | unconfirmed_paper | conflict | no_due_date */
+  /** late | cleared_unconfirmed | unconfirmed_paper | conflict | no_due_date | data_problem */
   info: string[]
   unverified: boolean
   unverified_sources: string[]

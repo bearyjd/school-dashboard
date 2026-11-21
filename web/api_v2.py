@@ -190,7 +190,7 @@ def summary() -> Response:
     with ctxmod.connection(readonly=True) as conn:
         ctx = ctxmod.load(conn, now)
         rows = repo.assignment_records(conn, None, True)
-        return _ok(readmodel.build_summary(rows, _links(conn, rows), kids=ctx.roster, warnings=(), **ctx.view()))
+        return _ok(readmodel.build_summary(rows, _links(conn, rows), kids=ctx.roster, warnings=ctx.warnings(), **ctx.view()))
 
 
 @bp.get("/assignments")
@@ -201,7 +201,8 @@ def assignments() -> Response:
         flt = V.parse_list_query(request.args, ctx.kids)
         rows = repo.assignment_records(conn, flt.kid, True)
         page = readmodel.build_page(rows, _links(conn, rows), filters=flt, **ctx.view())
-        return _ok(page.items, count=len(page.items), total=page.total, limit=flt.limit, offset=flt.offset)
+        return _ok(page.items, count=len(page.items), total=page.total, limit=flt.limit, offset=flt.offset,
+                   **({"warnings": list(page.warnings)} if page.warnings else {}))
 
 
 @bp.get("/assignments/<int:aid>")
@@ -227,7 +228,7 @@ def _class_events(conn: sqlite3.Connection, kid: str) -> list[dict[str, Any]]:
     for e in repo_history.class_events(conn, kid):
         try:
             changes = json.loads(e["changes"])
-        except ValueError:
+        except (ValueError, TypeError):
             changes = {}
         out.append({**e, "changes": changes})
     return out

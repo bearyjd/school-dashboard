@@ -18,6 +18,10 @@ Run commands on the Docker host from the compose directory. Replace `<name>` wit
    - Pending legacy items with a past due date show under Needs action (Missing) on day one until they are dealt with or marked done.
 6. `school-state transition maintenance off`.
 7. **Turn the ingest on**: `RECON_INGEST_ENABLED=1` in `config/env`, `docker compose up -d`.
+   **Mandatory smoke step, before anything else** (the flag is only live after the container restarts):
+   - `curl -fsS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5000/api/v2/summary` must print `200`, and so must the same command on `http://127.0.0.1:5000/api/v2/assignments?limit=1`.
+   - `docker exec <name> school-state assignments digest --mode night` must exit 0.
+   - If any of these fail, do not continue: roll back now (set `RECON_INGEST_ENABLED=0` or remove the line in `config/env`, `docker compose up -d`, confirm `GET /api/v2/config` shows `enabled: false` and `/app/` shows Today). The traceback is in the container log (`docker logs <name> 2>&1 | grep -B2 -A15 'api v2: unexpected'`; the CLI prints it on stderr); the log line carries the exception type only, never row text.
 8. **Run a sync**: `docker exec <name> /app/sync/school-sync.sh` (or wait for the next cron). The merge runs at the end of `school-state update`.
 9. **Check**: `docker exec <name> school-state assignments report` and `docker exec <name> school-state assignments digest --mode morning` (preview only, sends nothing).
 10. **Open `/app/`**: Reconcile shows by itself (`GET /api/v2/config` answers `enabled` and `migrated`). Close and reopen an installed PWA once so it takes the new service worker (cache `school-v4`).
@@ -47,5 +51,14 @@ No image rollback is needed.
 2. `/app/` shows Today again on the next load (with the flag off `/api/v2/config` answers 200 with `enabled: false`; the other `/api/v2/*` routes answer 404; no error is shown). `/today` and `/classic/*` are always available, and `/recon` then says it is not switched on.
 3. v1 data and digests were never changed. The v2 tables and their data stay in `school.db`; keep them for a later retry or dump them with `docker exec <name> school-state assignments export > recon-export.json` (contains titles; keep it private).
 4. To go live again, set the flag back to `1` and run a sync; no new migration is needed.
+
+## Data problems (warnings you may see)
+
+One malformed stored row never fails a request; it is skipped or treated as "no value" and counted in a warning (counts only, never titles) in `/api/v2/summary` `warnings`, the digest `Notes:` line, `assignments report` (text and `--json`) and the shadow-ingest report. One WARNING is also logged per process run.
+
+- **"N calendar rows had an unreadable date; ignored"**: some `events` row has a `date` that is not a real date (for example `2025-09-31`). Such a row cannot mark a no-school day, so check the row and fix or delete it. Find it read-only, ids and dates only (any sqlite client works; SQLite `date()` rolls `2025-09-31` over to `2025-10-01`, so compare with the text):
+  `docker exec <name> sqlite3 -readonly /app/state/school.db "SELECT id, date FROM events WHERE date(date) IS NULL OR date(date) <> substr(date, 1, 10);"`
+- **"N assignment rows had unreadable dates"**: a stored `due_date`, `stage_since` or `closed_at` could not be read. The row is still shown (with a "Data problem" chip, `info: data_problem`), the bad due date counts as no due date and an unreadable `stage_since` is replaced by the row's `created_at`. Find them: `SELECT id, kid, due_date, stage_since FROM assignments WHERE (due_date IS NOT NULL AND date(due_date) IS NULL) OR stage_since IS NULL OR datetime(stage_since) IS NULL;`
+- **"N child(ren) could not be loaded"**: building one kid's section raised unexpectedly; that kid shows `error: unavailable` and the others are unaffected. The log line names the exception type; report it.
 
 See also `docs/ops/spa-redesign-rollout.md` (SPA deploy, sync token), `docs/ops/recon-digest.md`, `docs/ops/host-allowlist-and-port-binding.md`.

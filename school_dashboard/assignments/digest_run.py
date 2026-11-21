@@ -35,7 +35,7 @@ def assemble(conn: sqlite3.Connection, ctx: readctx.ReadCtx) -> tuple[Mapping[st
     """(summary, open items for all kids) as the API computes them, items carrying `stage_since`."""
     rows = repo.assignment_records(conn, None, True)
     links = repo.link_records(conn, [r.state.id or 0 for r in rows])
-    summary = readmodel.build_summary(rows, links, kids=ctx.roster, warnings=(), **ctx.view())
+    summary = readmodel.build_summary(rows, links, kids=ctx.roster, warnings=ctx.warnings(), **ctx.view())
     flt = readmodel.ListFilters(include_closed=False, limit=10 ** 6)
     since = {r.state.id: r.state.stage_since.isoformat() for r in rows}
     held = Counter(r.state.kid for r in rows)
@@ -43,6 +43,13 @@ def assemble(conn: sqlite3.Connection, ctx: readctx.ReadCtx) -> tuple[Mapping[st
     items = [{**i, "stage_since": since.get(i["id"], "")}
              for i in readmodel.build_list(rows, links, filters=flt, **ctx.view())]
     return summary, items
+
+
+def notes_line(skipped: int, summary: Mapping[str, Any]) -> str:
+    """The `Notes:` line: counts only. The stale-merge warning is not repeated (the NOT VERIFIED banner says it)."""
+    parts = [f"{skipped} kid(s) could not be refreshed; showing stored data"] if skipped else []
+    parts += [str(w) for w in summary.get("warnings") or () if w != readmodel.OUT_OF_DATE_NOTE]
+    return "Notes: " + " ".join(f"{p}." for p in parts) if parts else ""
 
 
 def _recompute_all(conn: sqlite3.Connection, ctx: readctx.ReadCtx, now: datetime) -> int:
@@ -139,7 +146,7 @@ def build_for_cron(mode: str, *, now: datetime | None = None) -> tuple[str, list
         summary, items = assemble(conn, ctx)
         digest = digest_v2.build(summary, items, mode=mode, now=now)
         ai = _ai_paragraph(digest)
-        notes = f"Notes: {skipped} kid(s) could not be refreshed; showing stored data." if skipped else ""
+        notes = notes_line(skipped, summary)
         text = digest_v2.final_text(digest.text, ai, notes)
         if ai and ai not in text:
             logger.warning("recon digest: AI summary omitted (size)")

@@ -397,9 +397,12 @@ def test_waiting_tap_commits_rather_than_failing_within_default_timeout(db_path,
     assert [e["kind"] for e in repo.events_for(conn, aid)] == ["portal_status", "stage"]
 
 
-def test_null_stage_since_row_is_refused_not_silently_accepted():
-    with pytest.raises(repo.RepoError, match="stage_since"):
-        repo._required_dt(None, "stage_since")
+def test_null_stage_since_row_is_flagged_and_falls_back_not_raised(conn):
+    aid = add_assignment(conn)
+    conn.execute("DROP TRIGGER IF EXISTS trg_assignments_stage_since_upd")
+    conn.execute("UPDATE assignments SET stage_since = 'garbage' WHERE id = ?", (aid,))
+    state = repo.get_assignment(conn, aid)
+    assert state is not None and state.data_problem and state.stage_since.utcoffset() is not None
 
 
 def test_append_event_without_a_rowid_is_refused():
