@@ -193,6 +193,9 @@ class TestSchoolSyncPowerschoolBlock:
             'write_sync_meta() { echo "META: $1 $2"; }\n'
             'pause_source() { echo "PAUSED: $1"; }\n'
             'source_enabled() { [[ "${SOURCE_POWERSCHOOL_ENABLED:-1}" != "0" ]]; }\n'
+            'scrape_timeout() { echo 900; }\n'
+            'run_with_timeout() { shift; "$@"; }\n'
+            'is_timeout_rc() { [[ "$1" -eq 124 || "$1" -eq 137 ]]; }\n'
             f"PS_FILE={tmp_path}/ps.json\nSTATE_DIR={tmp_path}\n"
         )
         env = {"PATH": f"{bindir}:/usr/bin:/bin", "HOME": str(home),
