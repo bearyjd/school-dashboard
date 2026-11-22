@@ -64,7 +64,7 @@ export function MoreSheet({ item, role, opener, requireWrite, onClose, onConfirm
   const [busy, setBusy] = useState(false)
   const trimmed = note.trim()
   const valid = trimmed.length >= NOTE_MIN && trimmed.length <= NOTE_MAX
-  const canConfirm = role === 'parent' && item.kind === 'assignment' && (item.stage === 2 || item.stage === 3)
+  const canConfirm = role === 'parent' && item.kind === 'assignment' && !item.dismissed_at && (item.stage === 2 || item.stage === 3)
 
   const confirm = async () => {
     const actor = requireWrite()

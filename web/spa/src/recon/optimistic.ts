@@ -5,7 +5,7 @@ const BUCKET_OF: Partial<Record<ReconFlag, ReconBucket>> = {
   do_tonight: 'do_tonight', waiting_on_teacher: 'waiting_on_teacher',
 }
 const STAGE_LABEL: Record<number, string> = { 1: 'Assigned', 2: 'Done at home', 3: 'Turned in' }
-const TARGET: Record<StageAction, number> = { done: 2, turned_in: 3, undo: 1 }
+const TARGET = { done: 2, turned_in: 3, undo: 1 }
 const DAY_MS = 86_400_000
 
 const nextDay = (iso: string): string => new Date(Date.parse(`${iso}T12:00:00Z`) + DAY_MS).toISOString().slice(0, 10)
@@ -27,6 +27,7 @@ function flagAt(item: ReconItem, stage: number, today: string): ReconFlag {
  * replaces it either way. A task that is marked done leaves the buckets (flag and bucket become null).
  */
 export function optimisticItem(item: ReconItem, action: StageAction, today: string): ReconItem {
+  if (action === 'dismiss') return { ...item, dismissed_at: new Date().toISOString(), flag: null, bucket: null }
   const stage = TARGET[action]
   if (item.kind === 'task') {
     return stage === 1

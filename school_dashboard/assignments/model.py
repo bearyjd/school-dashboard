@@ -73,6 +73,11 @@ class AssignmentState:
     closed_at: datetime | None = None
     paper_only: bool = False
     data_problem: bool = False  # a stored date was unreadable and replaced (see repo._to_state)
+    dismissed_at: datetime | None = None
+
+    @property
+    def inactive(self) -> bool:
+        return self.dismissed_at is not None or self.stage == 4 or (self.kind == "task" and self.closed_at is not None)
 
 
 @dataclass(frozen=True)

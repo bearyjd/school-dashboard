@@ -32,16 +32,25 @@ def _stage_event(conn: sqlite3.Connection, old: Any, new: Any, who: Who, now: da
 
 
 def tap(conn: sqlite3.Connection, assignment_id: int, action: str, actor: Actor, *, now: datetime,
-        no_school_rows: Rows) -> int:
+        no_school_rows: Rows, expected_dismissed_at: str | None = None) -> int:
     who = who_from(actor)
     with write_txn(conn):
         state = load_open(conn, assignment_id)
+        if action == "undo" and expected_dismissed_at != (state.dismissed_at.isoformat() if state.dismissed_at else None):
+            raise Conflict("invalid_transition")
         try:
             new = stages.apply_tap(state, action, who.setter, now)
         except stages.StageError as exc:
             raise Conflict("invalid_transition") from exc
         repo.update_assignment(conn, new, now=now)
-        _stage_event(conn, state, new, who, now, action)
+        if new.dismissed_at != state.dismissed_at:
+            repo.append_event(conn, assignment_id, at=now, setter=who.setter, actor=who.actor, kind="edit",
+                              detail="dismiss" if new.dismissed_at else "undo_dismiss")
+            if new.dismissed_at:
+                conn.execute("UPDATE push_outbox SET status = 'suppressed', last_error = 'dismissed'"
+                             " WHERE assignment_id = ? AND status IN ('pending', 'failed')", (assignment_id,))
+        else:
+            _stage_event(conn, state, new, who, now, action)
         recompute(conn, state.kid, now, no_school_rows)
     return assignment_id
 

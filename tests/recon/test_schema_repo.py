@@ -31,8 +31,8 @@ def _cols(c, table):
 
 
 # ---- connect / ensure_schema ----
-def test_schema_version_is_two():
-    assert schema.SCHEMA_VERSION == 2
+def test_schema_version_is_three():
+    assert schema.SCHEMA_VERSION == 3
 
 
 def test_connect_enables_foreign_keys(db_path):

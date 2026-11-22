@@ -48,6 +48,7 @@ class AssignmentRow:
     stage: int
     flag: str | None
     links: tuple[LinkRow, ...]
+    dismissed: bool = False
 
     @property
     def sources(self) -> frozenset[str]:
@@ -80,7 +81,8 @@ def read_input(conn: sqlite3.Connection, now: datetime | None = None) -> ReportI
     rows = tuple(
         AssignmentRow(id=r["id"], kid=r["kid"], class_name=r["class_name"], class_key=r["class_key"] or "",
                       title=r["title"], title_key=r["title_key"], due_date=parse_date(r["due_date"]),
-                      stage=r["stage"], flag=r["flag"], links=tuple(links.get(r["id"], ())))
+                      stage=r["stage"], flag=r["flag"], links=tuple(links.get(r["id"], ())),
+                      dismissed=version >= 3 and r["dismissed_at"] is not None)
         for r in stored)
     bad_due = sum(bool(r["due_date"]) and parse_date(r["due_date"]) is None for r in stored)
     calendar = repo.calendar_rows(conn)
@@ -116,7 +118,7 @@ def _kid_stats(rows: Sequence[AssignmentRow], duplicates: int) -> dict[str, Any]
             stat["links"] += 1
             stat["live"] += int(ln.live)
     multi = sum(1 for r in rows if len(r.sources) >= 2)
-    open_rows = [r for r in rows if r.stage < 4]
+    open_rows = [r for r in rows if r.stage < 4 and not r.dismissed]
     return {
         "sources": per_source, "assignments": len(rows), "multi_source": multi,
         "merge_rate": round(multi / len(rows), 3) if rows else 0.0, "possible_duplicates": duplicates,

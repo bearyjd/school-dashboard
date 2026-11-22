@@ -51,8 +51,7 @@ def compute_flag(state: AssignmentState, links: Sequence[LinkState], *, now: dat
         stale.add("recon_ingest")
     info = _info(state, links)
     unverified, unverified_sources = bool(stale), tuple(sorted(stale))
-    closed = state.stage == 4 or (state.kind == "task" and state.closed_at is not None)
-    if closed:
+    if state.inactive:
         return FlagResult(flag=None, bucket=None, info=info, unverified=unverified,
                       unverified_sources=unverified_sources)
     flag = _flag(state, now, no_school, grace_days)

@@ -60,6 +60,8 @@ def _to_state(row: sqlite3.Row) -> AssignmentState:
     falls back to created_at, then updated_at, then now; any such row is flagged `data_problem`."""
     tz = watchdog.get_tz()
     due, closed = parse_date(row["due_date"]), parse_dt(row["closed_at"], tz)
+    dismissed_raw = row["dismissed_at"] if "dismissed_at" in row.keys() else None  # read-only v2 databases
+    dismissed = parse_dt(dismissed_raw, tz)
     since = parse_dt(row["stage_since"], tz)
     bad = _unreadable(row["due_date"], due) or _unreadable(row["closed_at"], closed) or since is None
     if since is None:
@@ -69,7 +71,8 @@ def _to_state(row: sqlite3.Row) -> AssignmentState:
         title=row["title"], title_key=row["title_key"], due_date=due, kind=row["kind"],
         stage=row["stage"], stage_since=since, received_evidence=row["received_evidence"],
         portal_status=row["portal_status"], portal_conflict=bool(row["portal_conflict"]),
-        closed_at=closed, paper_only=bool(row["paper_only_flag"]), data_problem=bad,
+        closed_at=closed, paper_only=bool(row["paper_only_flag"]), dismissed_at=dismissed,
+        data_problem=bad or _unreadable(dismissed_raw, dismissed),
     )
 
 
@@ -81,12 +84,12 @@ def insert_assignment(conn: sqlite3.Connection, state: AssignmentState, *, now: 
     cur = conn.execute(
         "INSERT INTO assignments (kid, class_name, class_key, title, title_key, due_date, kind, stage,"
         " stage_since, received_evidence, portal_status, portal_conflict, notes, legacy_item_id,"
-        " legacy_action_id, created_at, updated_at, closed_at)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " legacy_action_id, created_at, updated_at, closed_at, dismissed_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (state.kid, state.class_name, state.class_key, state.title, state.title_key, _iso(state.due_date),
          state.kind, state.stage, _iso(state.stage_since), state.received_evidence, state.portal_status,
          int(state.portal_conflict), notes, legacy_item_id, legacy_action_id, now.isoformat(),
-         now.isoformat(), _iso(state.closed_at)))
+         now.isoformat(), _iso(state.closed_at), _iso(state.dismissed_at)))
     if cur.rowcount != 1 or not cur.lastrowid:
         raise RepoError("assignment insert had no effect")
     return int(cur.lastrowid)
@@ -98,10 +101,10 @@ def update_assignment(conn: sqlite3.Connection, state: AssignmentState, *, now: 
     conn.execute(
         "UPDATE assignments SET class_name = ?, class_key = ?, title = ?, title_key = ?, due_date = ?,"
         " kind = ?, stage = ?, stage_since = ?, received_evidence = ?, portal_status = ?,"
-        " portal_conflict = ?, closed_at = ?, updated_at = ? WHERE id = ?",
+        " portal_conflict = ?, closed_at = ?, dismissed_at = ?, updated_at = ? WHERE id = ?",
         (state.class_name, state.class_key, state.title, state.title_key, _iso(state.due_date), state.kind,
          state.stage, _iso(state.stage_since), state.received_evidence, state.portal_status,
-         int(state.portal_conflict), _iso(state.closed_at), now.isoformat(), state.id))
+         int(state.portal_conflict), _iso(state.closed_at), _iso(state.dismissed_at), now.isoformat(), state.id))
 
 
 def get_assignment(conn: sqlite3.Connection, assignment_id: int) -> AssignmentState | None:
@@ -114,7 +117,8 @@ def list_assignments(conn: sqlite3.Connection, kid: str | None = None,
     rows = conn.execute(
         _ASSIGNMENT_SELECT + " WHERE (? IS NULL OR a.kid = ?) AND (? = 1 OR a.stage < 4) AND a.merged_into IS NULL ORDER BY a.id",
         (kid, kid, int(include_closed))).fetchall()
-    return [_to_state(r) for r in rows]
+    states = [_to_state(r) for r in rows]
+    return states if include_closed else [s for s in states if not s.inactive]
 
 
 # ---- links ----------------------------------------------------------------
@@ -344,10 +348,10 @@ def mark_push(conn: sqlite3.Connection, push_id: int, status: str, *, now: datet
               error: str | None = None) -> None:
     if status == "sent":
         conn.execute("UPDATE push_outbox SET status = 'sent', sent_at = ?, attempts = attempts + 1"
-                     " WHERE id = ?", (now.isoformat(), push_id))
+                     " WHERE id = ? AND status IN ('pending', 'failed')", (now.isoformat(), push_id))
     elif status == "failed":
         conn.execute("UPDATE push_outbox SET status = 'failed', attempts = attempts + 1, last_error = ?"
-                     " WHERE id = ?", (error, push_id))
+                     " WHERE id = ? AND status IN ('pending', 'failed')", (error, push_id))
     else:
         raise ValueError(f"unsupported push status: {status}")
 

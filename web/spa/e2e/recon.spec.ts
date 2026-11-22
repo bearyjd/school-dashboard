@@ -48,6 +48,38 @@ test('tapping Done moves the row to Waiting on teacher, survives a reload, and U
   expect(await count(page, 'waiting_on_teacher', 'Waiting on teacher')).toBe(wait)
 })
 
+test('an undated row stays dismissed after reload and stays visible after restore', async ({ page }) => {
+  const title = 'Sketchbook prompts'
+  const assignment = row(page, title)
+  const dismissed = page.getByText('Dismissed', { exact: true })
+  const stageWrite = () => page.waitForResponse(response =>
+    response.request().method() === 'POST' && new URL(response.url()).pathname.endsWith('/stage'))
+
+  await openHome(page)
+  await expect(bucketOf(page, title)).toHaveAttribute('data-bucket', 'no_due_date')
+  await expect(assignment.getByText('No due date', { exact: true })).toBeVisible()
+
+  const dismissWrite = stageWrite()
+  await action(page, 'Dismiss', title).click()
+  expect((await dismissWrite).ok()).toBe(true)
+  await expect(assignment).toBeHidden()
+
+  await page.reload()
+  await expect(dismissed).toBeVisible()
+  await expect(assignment).toBeHidden()
+  await dismissed.click()
+  await expect(assignment).toBeVisible()
+
+  const restoreWrite = stageWrite()
+  await action(page, 'Restore', title).click()
+  expect((await restoreWrite).ok()).toBe(true)
+  await expect(bucketOf(page, title)).toHaveAttribute('data-bucket', 'no_due_date')
+
+  await page.reload()
+  await expect(bucketOf(page, title)).toHaveAttribute('data-bucket', 'no_due_date')
+  await expect(assignment).toBeVisible()
+})
+
 test('when /api/v2 answers 404 the app shows the old Today with no error UI and no console errors', async ({ page }) => {
   const problems: string[] = []
   page.on('console', m => { if (m.type() === 'error' && !m.text().startsWith('Failed to load resource')) problems.push(m.text()) })

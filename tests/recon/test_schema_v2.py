@@ -50,9 +50,9 @@ def dump(c):
     return {t: [tuple(r) for r in c.execute(f"SELECT * FROM {t} ORDER BY 1")] for t in TABLES}
 
 
-def test_schema_version_is_two():
+def test_schema_version_is_three():
     from school_dashboard.assignments import schema
-    assert schema.SCHEMA_VERSION == 2
+    assert schema.SCHEMA_VERSION == 3
 
 
 BAD = [("assignments", "kind", "bogus"), ("assignments", "stage", 5), ("assignments", "stage", 0),
@@ -147,13 +147,13 @@ def test_upgrade_keeps_every_row_identical_and_is_idempotent(tmp_path):
     c = populated_v1(tmp_path)
     before = dump(c)
     assert schema.user_version(c) == 1
-    assert schema.ensure_schema(c) == 2
+    assert schema.ensure_schema(c) == schema.SCHEMA_VERSION
     after = dump(c)
     assert {t: [r[:len(b)] for r, b in zip(after[t], before[t])] for t in TABLES} == before
     assert all(len(after[t]) == len(before[t]) for t in TABLES)
     assert [r[-1] for r in after["assignments"]] == [None, None]
-    assert schema.user_version(c) == 2
-    assert schema.ensure_schema(c) == 2
+    assert schema.user_version(c) == schema.SCHEMA_VERSION
+    assert schema.ensure_schema(c) == schema.SCHEMA_VERSION
     assert dump(c) == after
 
 
@@ -205,7 +205,7 @@ def test_ingest_upgrades_a_v1_database_and_runs(tmp_path):
     report = ingest.run(str(tmp_path / "v1.db"), [], file_hashes={}, now=NOW, no_school_rows=[])
     assert report.ok
     c = schema.connect(str(tmp_path / "v1.db"))
-    assert schema.user_version(c) == 2
+    assert schema.user_version(c) == schema.SCHEMA_VERSION
 
 
 def test_event_kinds_cover_everything_written():

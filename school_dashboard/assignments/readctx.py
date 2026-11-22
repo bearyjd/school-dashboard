@@ -68,7 +68,7 @@ def open_db(*, readonly: bool) -> sqlite3.Connection:
     conn = schema.connect(path, readonly=readonly)
     try:
         repo.require_migrated(conn)
-        if schema.user_version(conn) < schema.SCHEMA_VERSION:
+        if schema.user_version(conn) < schema.MIN_READ_VERSION:
             raise repo.NotMigratedError("schema is not upgraded")
     except sqlite3.OperationalError as exc:
         conn.close()

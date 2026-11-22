@@ -97,6 +97,99 @@ test('a success toast offers Undo, which sends the undo action', async () => {
   expect(server.writes()[1].body).toMatchObject({ action: 'undo' })
 })
 
+const undated = ritem({ id: 11, title: 'Old worksheet', due: null, flag: 'upcoming', bucket: null })
+const dismissedAt = '2026-11-18T15:00:01+00:00'
+
+test('undated assignments have their own group and can be dismissed and undone after refetch', async () => {
+  const items = [undated, ...sampleItems().filter(i => i.kid === 'Beta')]
+  const server = fakeServer({ items })
+  let release: (r: Reply) => void = () => undefined
+  server.on(stage(undated.id), () => new Promise<Reply>(res => { release = res }))
+  const { client } = await show(server)
+  const group = screen.getByRole('region', { name: 'No due date (1)' })
+  expect(within(group).getByRole('group', { name: undated.title })).toBeTruthy()
+  expect(within(group).queryByRole('group', { name: 'Fractions' })).toBeNull()
+  expect(screen.getAllByRole('group', { name: 'Fractions' })).toHaveLength(1)
+  expect(within(screen.getByRole('region', { name: 'Alpha' })).queryByText('All clear')).toBeNull()
+  expect(tileText(/do tonight/i)).toBe('2Do tonight')
+
+  fireEvent.click(btn('Dismiss Old worksheet (English, Alpha)'))
+  await waitFor(() => expect(server.writes()).toHaveLength(1))
+  expect(screen.queryByRole('group', { name: undated.title })).toBeNull()
+  expect(server.writes()[0].body).toMatchObject({ action: 'dismiss' })
+  release(ok({ item: { ...undated, dismissed_at: dismissedAt, flag: null }, dismissed_at: dismissedAt }))
+  await screen.findByText('Dismissed Old worksheet')
+  await waitFor(() => expect(client.getQueryData<{ items: ReconItem[] }>(LIST_KEY)?.items.some(i => i.id === undated.id)).toBe(false))
+
+  server.on(stage(undated.id), () => written(undated))
+  fireEvent.click(btn('Undo'))
+  expect(await screen.findByText('Restored Old worksheet')).toBeTruthy()
+  expect(within(screen.getByRole('region', { name: 'No due date (1)' })).getByRole('group', { name: undated.title })).toBeTruthy()
+  expect(server.writes()[1].body).toMatchObject({ action: 'undo', expected_dismissed_at: dismissedAt })
+  expect(tileText(/do tonight/i)).toBe('2Do tonight')
+})
+
+test('dismissed assignments stay restorable after a fresh load and retain their history', async () => {
+  const hidden = { ...undated, stage: 2, stage_label: 'Done at home', dismissed_at: dismissedAt, flag: null }
+  const restored = { ...hidden, dismissed_at: null, flag: 'waiting_on_teacher' as const, bucket: 'waiting_on_teacher' as const }
+  const server = fakeServer({ items: [hidden] })
+  server.on(stage(hidden.id), () => written(restored))
+  server.on('GET /api/v2/assignments', req => req.url.includes('dismissed_only') && server.writes().length > 0
+    ? new Promise(() => undefined) : undefined)
+  server.on(`GET /api/v2/assignments/${hidden.id}`, () => ok({ ...hidden, notes: [], events: [
+    { at: dismissedAt, actor: 'Dana', setter: 'manual', kind: 'edit', from: null, to: null, detail: 'dismiss' },
+  ] }))
+  await show(server)
+  expect(screen.queryByRole('group', { name: hidden.title })).toBeNull()
+  expect(server.requests.some(r => r.url.includes('dismissed_only'))).toBe(false)
+
+  const toggle = screen.getByText('Dismissed', { exact: true })
+  fireEvent.click(toggle)
+  const list = within(toggle.closest('details')!)
+  const dismissed = within(await list.findByRole('group', { name: hidden.title }))
+  expect(dismissed.getByText('Done at home')).toBeTruthy()
+  fireEvent.click(dismissed.getByRole('button', { name: /^More for Old worksheet/ }))
+  const detail = await screen.findByRole('dialog')
+  expect(await within(detail).findByText('dismiss')).toBeTruthy()
+  fireEvent.keyDown(detail, { key: 'Escape' })
+
+  fireEvent.click(dismissed.getByRole('button', { name: /^Restore Old worksheet/ }))
+  expect(await screen.findByText('Restored Old worksheet')).toBeTruthy()
+  expect(await list.findByText('No dismissed assignments.')).toBeTruthy()
+  const waiting = within(screen.getByRole('region', { name: 'Waiting on teacher (1)' }))
+  expect(within(waiting.getByRole('group', { name: hidden.title })).getByText('Done at home')).toBeTruthy()
+  expect(server.writes()[0].body).toMatchObject({ action: 'undo', expected_dismissed_at: dismissedAt })
+})
+
+test('the dismissed list loads more entries by offset', async () => {
+  const older = { ...undated, dismissed_at: dismissedAt, flag: null }
+  const newer = { ...older, id: 12, title: 'Another worksheet' }
+  const server = fakeServer({ items: [older, newer] })
+  server.on('GET /api/v2/assignments', req => {
+    const params = new URLSearchParams(req.url.split('?')[1])
+    if (!params.has('dismissed_only')) return undefined
+    const item = params.get('offset') === '1' ? newer : older
+    return { status: 200, body: { ok: true, data: [item], error: null, meta: { total: 2 } } }
+  })
+  await show(server)
+  fireEvent.click(screen.getByText('Dismissed', { exact: true }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Load more' }))
+  expect(await screen.findByRole('button', { name: /^Restore Another worksheet/ })).toBeTruthy()
+  expect(screen.getByRole('button', { name: /^Restore Old worksheet/ })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+})
+
+test('a newer dismissal in the write response does not offer Undo for it', async () => {
+  const server = fakeServer({ items: [undated] })
+  server.on(stage(undated.id), () => ok({
+    item: { ...undated, dismissed_at: '2026-11-18T15:00:04+00:00', flag: null }, dismissed_at: dismissedAt,
+  }))
+  const { client } = await show(server)
+  fireEvent.click(btn('Dismiss Old worksheet (English, Alpha)'))
+  await waitFor(() => expect(client.getQueryData<{ items: ReconItem[] }>(LIST_KEY)?.items).toHaveLength(0))
+  expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+})
+
 test('a task Done leaves the buckets; the server item (no bucket) is honoured', async () => {
   const server = fakeServer()
   server.on(stage(7), () => written({ ...sampleItems()[6], stage: 2, flag: null, bucket: null }))

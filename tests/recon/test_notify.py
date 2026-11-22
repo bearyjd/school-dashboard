@@ -197,3 +197,20 @@ def test_run_shadow_default_after_ingest_is_the_sender_and_a_noop_when_off(env, 
         assert ingest.run_shadow(args, now=WED + timedelta(minutes=1)) is not None
     assert post.call_count == 2
     assert [s[0] for s in _status(conn)] == ["sent"] * 3
+
+def test_dismiss_during_push_preserves_suppression_and_skips_later_recipient(env):
+    from school_dashboard.assignments import notify, service
+
+    conn, ids = _setup(env)
+    conn.execute("UPDATE assignments SET due_date = NULL")
+    attempts = []
+
+    def send(topic, message, title):
+        attempts.append(message)
+        for aid in ids:
+            service.tap(conn, aid, "dismiss", service.Actor("parent", "Pat"), now=WED, no_school_rows=[])
+        raise OSError("send failed")
+
+    notify.send_pending(conn, now=WED, send=send)
+    assert len(attempts) == 1
+    assert _status(conn) == [("suppressed", 0, "dismissed")] * 3

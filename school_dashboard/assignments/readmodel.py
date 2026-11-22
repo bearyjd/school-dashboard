@@ -46,6 +46,7 @@ class ListFilters:
     include_closed: bool = False
     limit: int = 200
     offset: int = 0
+    dismissed_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -113,11 +114,6 @@ def _practice_result(result: FlagResult, links: Sequence[LinkRecord]) -> FlagRes
                       unverified=result.unverified, unverified_sources=result.unverified_sources, info=())
 
 
-def _closed(rec: AssignmentRecord) -> bool:
-    s = rec.state
-    return s.stage == 4 or (s.kind == "task" and s.closed_at is not None)
-
-
 def _result(rec: AssignmentRecord, links: Sequence[LinkRecord], ctx: _Ctx) -> FlagResult:
     s = rec.state
     result = compute_flag(
@@ -144,6 +140,7 @@ def _item(rec: AssignmentRecord, links: Sequence[LinkRecord], ctx: _Ctx) -> dict
     return {
         "id": s.id, "kid": s.kid, "title": clean_text(s.title, 300), "class": clean_text(s.class_name, 120) or None,
         "due": s.due_date.isoformat() if s.due_date else None, "kind": s.kind, "stage": s.stage,
+        "dismissed_at": s.dismissed_at.isoformat() if s.dismissed_at else None,
         "stage_label": _label(s.stage, result.info), "flag": result.flag, "bucket": result.bucket,
         "info": [*result.info, *(("data_problem",) if s.data_problem else ())], "unverified": result.unverified,
         "unverified_sources": list(result.unverified_sources), "portal_status": s.portal_status,
@@ -181,7 +178,8 @@ def _children_warning(count: int) -> str:
 
 
 def _wanted(rec: AssignmentRecord, item: Mapping[str, Any], f: ListFilters) -> bool:
-    return ((f.include_closed or not _closed(rec)) and (f.kid is None or item["kid"] == f.kid)
+    visible = rec.state.dismissed_at is not None if f.dismissed_only else (f.include_closed or not rec.state.inactive)
+    return (visible and (f.kid is None or item["kid"] == f.kid)
             and (f.bucket is None or item["bucket"] == f.bucket) and (f.flag is None or item["flag"] == f.flag)
             and (f.stage is None or item["stage"] == f.stage) and (f.kind is None or item["kind"] == f.kind))
 
@@ -235,7 +233,7 @@ def _counts(items: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
 
 def _kid_summary(name: str, pairs: Sequence[tuple[AssignmentRecord, dict[str, Any]]],
                  ingest: IngestHealth) -> dict[str, Any]:
-    mine = [(r, i) for r, i in pairs if i["kid"] == name and not _closed(r)]
+    mine = [(r, i) for r, i in pairs if i["kid"] == name and not r.state.inactive]
     practice = [i for _, i in mine if i["kind"] == "practice"]
     counts = _counts([i for _, i in mine if i["kind"] != "practice"])
     clear = (counts["needs_action"] == 0 and counts["do_tonight"] == 0

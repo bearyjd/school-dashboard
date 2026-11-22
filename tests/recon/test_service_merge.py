@@ -6,7 +6,7 @@ import pytest
 
 from recon.report_support import ps, sgy
 from recon.s4_support import NOW, essay_pair, event_rows, kid_actor, kw, link_set, open_conn, parent, stored
-from school_dashboard.assignments import aliases, repo, report, service
+from school_dashboard.assignments import aliases, repo, report, schema, service
 
 
 def pair(tmp_path, a=None, b=None):
@@ -269,6 +269,6 @@ def test_report_shows_schema_and_excludes_merged(tmp_path):
     service.merge(c, 2, 1, parent(), **kw())
     path = c.execute("PRAGMA database_list").fetchone()["file"]
     rep = report.run(path, now=NOW, meta={})
-    assert rep["schema"] == {"version": 2, "legacy_rows_outside_limits": 0}
+    assert rep["schema"] == {"version": schema.SCHEMA_VERSION, "legacy_rows_outside_limits": 0}
     assert rep["kids"]["Alex"]["assignments"] == 1
-    assert "schema: v2, 0 legacy rows outside the new limits" in report.render_text(rep)
+    assert f"schema: v{schema.SCHEMA_VERSION}, 0 legacy rows outside the new limits" in report.render_text(rep)

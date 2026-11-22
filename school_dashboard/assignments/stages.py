@@ -33,6 +33,14 @@ def _tap_task(state: AssignmentState, action: str, now: datetime) -> AssignmentS
 def apply_tap(state: AssignmentState, action: str, setter: str, now: datetime) -> AssignmentState:
     if setter not in ("parent", "kid"):
         raise StageError(f"setter {setter!r} may not tap")
+    if state.dismissed_at is not None:
+        if action == "undo":
+            return replace(state, dismissed_at=None)
+        raise StageError("restore this assignment before changing it")
+    if action == "dismiss":
+        if state.kind != "assignment" or state.due_date is not None or state.inactive:
+            raise StageError("only an open undated assignment can be dismissed")
+        return replace(state, dismissed_at=now)
     if state.kind == "practice":
         raise StageError("practice records follow the portal and cannot be tapped")
     if state.kind == "task":
@@ -56,7 +64,7 @@ def confirm_by_teacher(state: AssignmentState, setter: str, now: datetime) -> As
     """A parent records that the teacher confirmed receipt: the only manual way to stage 4."""
     if setter != "parent":
         raise StageError("only a parent may record a teacher confirmation")
-    if state.kind != "assignment" or state.stage not in (2, 3):
+    if state.kind != "assignment" or state.inactive or state.stage not in (2, 3):
         raise StageError("only a done or turned-in assignment can be confirmed")
     return replace(state, stage=4, stage_since=now, received_evidence="teacher_confirmed", closed_at=now)
 
