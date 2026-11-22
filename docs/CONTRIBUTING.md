@@ -2,46 +2,44 @@
 
 ## Prerequisites
 
-- Python 3.12+
-- Docker + Docker Compose (for container testing)
-- `playwright install chromium` (for IXL login tests)
+- Python 3.15 and Node.js 26 to match CI
+- Docker and Docker Compose for container testing
+- Chromium for the Playwright browser suite
 
 ## Setup
 
 ```bash
-git clone --recurse-submodules <repo>
+git clone --recurse-submodules https://github.com/bearyjd/school-dashboard.git
 cd school-dashboard
-pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/powerschool-scrape
-playwright install chromium
-cp .env.example config/env   # fill in secrets
+git submodule update --init --recursive
 ```
 
 ## Running Tests
 
-```bash
-pytest                        # all 26 tests
-pytest tests/test_db.py -v    # single file
-pytest -k "test_name"         # single test
-ruff check .                  # lint
-```
+Follow the [Development and CI commands](../README.md#development-and-ci) to
+reproduce each job. Ordinary tests use synthetic input and local fixtures. Live
+scraper tests require explicit opt-in and separate credentials.
 
-All tests use mocks — no live credentials or network needed.
+Use the **CI gate** summary in the PR’s Actions run to find the first failed step,
+job logs, and any Playwright report. The [operator runbook](RUNBOOK.md#pipeline-failure-map)
+covers image publishing and deployment failures.
 
 ## Project Structure
 
 | Path | Purpose |
 |------|---------|
 | `school_dashboard/` | Core Python package |
-| `web/` | Flask app + Jinja2 templates |
-| `sync/school-sync.sh` | Cron sync script (IXL → SGY → GC → state → email-sync → HTML → digest; the intel step is skipped, `intel.py` no longer exists) |
-| `docker/` | Dockerfile, entrypoint.sh, crontab |
-| `vendor/` | git submodules: ixl-scrape, schoology-scrape |
+| `web/` | Flask app, Jinja2 templates, and React SPA |
+| `sync/school-sync.sh` | Scraper orchestration and state refresh |
+| `Dockerfile`, `docker/` | Image build, entrypoint, and cron schedule |
+| `vendor/` | Pinned IXL, Schoology, GameChanger, and PowerSchool submodules |
 | `state/` | Runtime data (gitignored) |
 | `config/env` | Secrets (gitignored) |
 
 ## Environment Variables
 
-Copy `.env.example` to `config/env`. Required: `LITELLM_URL`, `LITELLM_API_KEY`, `LITELLM_MODEL`, `IXL_EMAIL`, `IXL_PASSWORD`, `SGY_EMAIL`, `SGY_PASSWORD`, `SGY_BASE_URL`, `SGY_SCHOOL_NID`, `GOG_ACCOUNT`, `NTFY_TOPIC`, `SCHOOL_EMAIL_ACCOUNT`.
+For a configured local deployment, copy `.env.example` to `config/env` and fill
+the variables for the features you use. CI fixtures require no account secrets.
 
 ## Docker Build
 
@@ -51,15 +49,20 @@ docker compose up -d
 docker compose logs -f
 ```
 
-Template changes in `web/` take effect immediately (volume-mounted). Python package changes require `docker compose build`.
+The container image includes the templates, SPA, and Python source. Rebuild and
+recreate the container to pick up changes. The production deploy script pulls the
+published image.
 
 ## Submodule Updates
 
 ```bash
 git submodule update --remote vendor/ixl-scrape
-git submodule update --remote vendor/schoology-scrape
-git add vendor/ && git commit -m "chore: update scrapers"
+git add vendor/ixl-scrape
+git commit -m "chore: update IXL scraper"
 ```
+
+Update the dependency lock if the new revision changes dependencies. CI and the
+Docker build use the gitlinks committed in the PR.
 
 ## Commit Style
 
