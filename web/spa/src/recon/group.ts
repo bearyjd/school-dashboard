@@ -9,14 +9,14 @@ const NEEDS_ACTION_ORDER: [ReconFlag, string][] = [
 ]
 
 export interface ItemGroup { key: string; label: string | null; items: ReconItem[] }
-export interface BucketView { id: ReconBucket; label: string; count: number; groups: ItemGroup[] }
+export interface BucketView { id: ReconBucket | 'no_due_date'; label: string; count: number; groups: ItemGroup[] }
 export interface KidView {
   name: string
   color: string
   counts: Counts
   buckets: BucketView[]
   ixl: string | null
-  /** The server's verdict for this kid: items: something to do; clear: nothing to do and verified; unverified_clear: nothing to do but data may be stale. */
+  /** The server's verdict for this kid, with visible undated work taking precedence over clear states. */
   state: 'items' | 'clear' | 'unverified_clear' | 'error'
 }
 
@@ -62,18 +62,23 @@ function groupsFor(id: ReconBucket, rows: ReconItem[]): ItemGroup[] {
 
 function kidView(name: string, color: string, summary: ReconSummary, items: ReconItem[]): KidView {
   const mine = items.filter(i => i.kid === name)
-  const rows = mine.filter(i => i.kind !== 'practice' && i.bucket !== null)
+  const rows = mine.filter(i => i.kind !== 'practice' && !i.dismissed_at)
+  const undated = rows.filter(i => i.due === null && i.bucket === null && i.flag === 'upcoming')
   const practice = summary.kids.find(k => k.name === name)?.practice ?? mine.filter(i => i.kind === 'practice')
   const ixl = ixlLine(practice)
-  const buckets = BUCKET_ORDER.flatMap(id => {
+  const buckets: BucketView[] = BUCKET_ORDER.flatMap(id => {
     const inBucket = rows.filter(r => r.bucket === id)
     return inBucket.length === 0 ? [] : [{ id, label: BUCKET_LABEL[id], count: inBucket.length, groups: groupsFor(id, inBucket) }]
   })
+  if (undated.length > 0) {
+    buckets.push({ id: 'no_due_date', label: 'No due date', count: undated.length,
+      groups: [{ key: 'no_due_date', label: null, items: undated }] })
+  }
   const server = summary.kids.find(k => k.name === name)
   if (server?.error) return { name, color, counts: countRows([]), buckets: [], ixl: null, state: 'error' }
   const counts = server?.counts ?? countRows(rows)
-  // The empty state is the server's verdict for this kid, never derived here.
-  const state = server === undefined ? (rows.length > 0 ? 'items' : 'clear')
+  const state = undated.length > 0 ? 'items'
+    : server === undefined ? (buckets.length > 0 ? 'items' : 'clear')
     : server.all_clear ? 'clear' : server.all_clear_reason === 'unverified' ? 'unverified_clear' : 'items'
   return { name, color, counts, buckets, ixl, state }
 }

@@ -14,7 +14,7 @@ from school_dashboard.assignments.service_types import MAX_ACTOR_CHARS, Actor, C
 MAX_BODY = 8 * 1024
 MAX_ID = 2 ** 63 - 1
 MAX_ALIASES = 20
-ACTIONS = ("done", "turned_in", "undo")
+ACTIONS = ("done", "turned_in", "undo", "dismiss")
 NOTE_STATUSES = ("sent_marked", "discarded")
 BUCKETS = ("needs_action", "do_tonight", "waiting_on_teacher")
 MAX_ALIASES_JSON = 2000
@@ -36,6 +36,7 @@ class RequestError(Exception):
 class StageRequest:
     action: str
     actor: Actor
+    expected_dismissed_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -139,11 +140,14 @@ def _fields(body: Mapping[str, Any], fields: tuple[str, ...]) -> Actor:
 
 
 def parse_stage(body: Mapping[str, Any]) -> StageRequest:
-    actor = _fields(body, ("action",))
+    actor = _fields(body, ("action", "expected_dismissed_at"))
     action = body.get("action")
     if not isinstance(action, str) or action not in ACTIONS:
         raise RequestError(400, "invalid_field")
-    return StageRequest(action, actor)
+    stamp = body.get("expected_dismissed_at")
+    if "expected_dismissed_at" in body and (action != "undo" or not isinstance(stamp, str) or not 1 <= len(stamp) <= 64):
+        raise RequestError(400, "invalid_field")
+    return StageRequest(action, actor, stamp)
 
 
 def parse_teacher_confirmed(body: Mapping[str, Any]) -> ConfirmRequest:
@@ -257,6 +261,7 @@ def parse_list_query(args: Mapping[str, str], kids: Collection[str]) -> ListFilt
     return ListFilters(
         kid=kid, bucket=_choice(args, "bucket", BUCKETS), flag=_choice(args, "flag", FLAGS), stage=stage,
         kind=_choice(args, "kind", KINDS), include_closed=closed == "1",
+        dismissed_only=_choice(args, "dismissed_only", ("0", "1")) == "1",
         limit=_number(args, "limit", 200, 1, 500), offset=_number(args, "offset", 0, 0, 10 ** 9))
 
 

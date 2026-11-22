@@ -4,23 +4,30 @@ import { SourceBadges, StatusChips } from './RowBadges'
 import type { RowStatus } from './useRowStatus'
 import type { ReconItem, Role } from './types'
 
-const TEXT: Record<RowAction, string> = { done: 'Done', turned_in: 'Turned in', undo: 'Undo', draft_note: 'Draft note', more: 'More' }
+const TEXT: Record<RowAction, string> = {
+  done: 'Done', turned_in: 'Turned in', undo: 'Undo', dismiss: 'Dismiss', restore: 'Restore', draft_note: 'Draft note', more: 'More',
+}
 const NAME: Record<RowAction, (title: string) => string> = {
   done: t => `Mark ${t} done`,
   turned_in: t => `Mark ${t} turned in`,
   undo: t => `Undo ${t}`,
+  dismiss: t => `Dismiss ${t}`,
+  restore: t => `Restore ${t}`,
   draft_note: t => `Draft note for ${t}`,
   more: t => `More for ${t}`,
 }
 
-interface Props {
-  item: ReconItem
+export interface ReconRowControls {
   role: Role
-  status: RowStatus
   /** Writes are switched off on the server. */
   disabled: boolean
   showKid: boolean
   onAction: (item: ReconItem, action: RowAction, opener: HTMLElement) => void
+}
+
+interface Props extends ReconRowControls {
+  item: ReconItem
+  status: RowStatus
 }
 
 /** One assignment: text first, actions as big buttons at the bottom right. All server text is rendered as plain text. */
@@ -44,6 +51,7 @@ export function ReconRow({ item, role, status, disabled, showKid, onAction }: Pr
           <StatusChips item={item} />
         </div>
         <p className="recon-row__meta">
+          {item.dismissed_at && showKid && <span>{item.kid}</span>}
           {item.class && <span>{item.class}</span>}
           <span>{formatDue(item.due)}</span>
         </p>

@@ -273,7 +273,10 @@ def stage(aid: int) -> Response:
     with ctxmod.connection(readonly=False) as conn:
         ctx = ctxmod.load(conn, now)
         req = V.parse_stage(body)
-        service.tap(conn, aid, req.action, req.actor, now=now, no_school_rows=ctx.events)
+        service.tap(conn, aid, req.action, req.actor, now=now, no_school_rows=ctx.events,
+                    expected_dismissed_at=req.expected_dismissed_at)
+        if req.action == "dismiss":
+            return _written(conn, now, aid, dismissed_at=now.isoformat())
         return _written(conn, now, aid)
 
 

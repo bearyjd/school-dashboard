@@ -109,7 +109,14 @@ def _batch(rows: Sequence[Mapping[str, object]]) -> tuple[list[Mapping[str, obje
 def _push_kid(conn: sqlite3.Connection, rows: Sequence[Mapping[str, object]], topic: str, send: Send,
               now: datetime) -> tuple[bool, int]:
     """One push for the first rows of a kid; (delivered, rows attempted). The rest stay pending."""
-    chosen, message = _batch(rows)
+    # Another writer may have dismissed an assignment since the initial per-kid grouping.
+    live_ids = {r["id"] for r in conn.execute(
+        "SELECT o.id FROM push_outbox o JOIN assignments a ON a.id = o.assignment_id"
+        " WHERE a.kid = ? AND o.status IN ('pending', 'failed')", (rows[0]["kid"],))}
+    remaining = [row for row in rows if row["id"] in live_ids]
+    if not remaining:
+        return True, 0
+    chosen, message = _batch(remaining)
     error: str | None = None
     try:
         send(topic, message, PUSH_TITLE)

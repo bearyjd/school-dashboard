@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Banner } from '../design/Banner'
 import { useUrlState } from '../lib/urlState'
+import { DismissedList } from './DismissedList'
 import { formatInstant } from './format'
 import { buildKidViews } from './group'
 import { MoreSheet } from './MoreSheet'
@@ -72,6 +73,7 @@ export function Reconcile() {
           <div className="recon__kids-list">
             {views.map(v => <KidSection key={v.name} view={v} rows={rows} />)}
           </div>
+          <DismissedList kid={kid} rows={rows} />
         </>
       )}
       {act.toast && <Toast key={act.toast.id} text={act.toast.text} onUndo={act.toast.undo} onDismiss={act.dismissToast} />}

@@ -10,7 +10,8 @@ from .schema_v2 import ensure_audit, legacy_violations, migrate_v2
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 2
+MIN_READ_VERSION = 2
+SCHEMA_VERSION = 3
 BUSY_TIMEOUT_MS = 5000
 
 _V1_DDL: tuple[str, ...] = (
@@ -73,7 +74,11 @@ def _migrate_v1(conn: sqlite3.Connection) -> None:
         conn.execute(statement)
 
 
-_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {1: _migrate_v1, 2: migrate_v2}
+def _migrate_v3(conn: sqlite3.Connection) -> None:
+    conn.execute("ALTER TABLE assignments ADD COLUMN dismissed_at TEXT")
+
+
+_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {1: _migrate_v1, 2: migrate_v2, 3: _migrate_v3}
 __all__ = ["BUSY_TIMEOUT_MS", "SCHEMA_VERSION", "connect", "ensure_schema", "legacy_violations", "user_version"]
 
 

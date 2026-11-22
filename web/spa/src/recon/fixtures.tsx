@@ -20,7 +20,7 @@ export function link(over: Partial<ReconLink> = {}): ReconLink {
 export function ritem(over: Partial<ReconItem> & Pick<ReconItem, 'id'>): ReconItem {
   return {
     kid: 'Alpha', title: 'Essay draft', class: 'English', due: '2026-11-20', kind: 'assignment', stage: 1,
-    stage_label: 'Assigned', flag: 'do_tonight', bucket: 'do_tonight', info: [], unverified: false,
+    stage_label: 'Assigned', dismissed_at: null, flag: 'do_tonight', bucket: 'do_tonight', info: [], unverified: false,
     unverified_sources: [], portal_status: null, conflict: false, received_evidence: null,
     possible_duplicate: false, links: [link()], ...over,
   }
@@ -42,7 +42,7 @@ export function countsOf(items: ReconItem[]): Counts {
 export function summaryOf(items: ReconItem[], over: Partial<ReconSummary> = {}): ReconSummary {
   const base: ReconSummary = {
     kids: CONFIG.kids.map(k => {
-      const mine = items.filter(i => i.kid === k.name)
+      const mine = items.filter(i => i.kid === k.name && !i.dismissed_at)
       const rest = mine.filter(i => i.kind !== 'practice')
       const practice = mine.filter(i => i.kind === 'practice')
       const counts = countsOf(rest)
@@ -109,8 +109,11 @@ export function fakeServer(opts: ServerOpts = {}) {
     if (req.method === 'GET' && req.path === '/api/v2/config') return opts.config && 'enabled' in opts.config ? ok(opts.config) : (opts.config as Reply | undefined) ?? ok(CONFIG)
     if (req.method === 'GET' && req.path === '/api/v2/summary') return ok(summaryOf(items, opts.summary))
     if (req.method === 'GET' && req.path === '/api/v2/assignments') {
-      const open = items.filter(i => i.stage !== 4)
-      return { status: 200, body: { ok: true, data: open, error: null, meta: { count: open.length, total: open.length, limit: 500, offset: 0 } } }
+      const params = new URLSearchParams(req.url.split('?')[1])
+      const kid = params.get('kid')
+      const dismissed = params.get('dismissed_only') === '1'
+      const visible = items.filter(i => (!kid || i.kid === kid) && i.stage !== 4 && Boolean(i.dismissed_at) === dismissed)
+      return { status: 200, body: { ok: true, data: visible, error: null, meta: { count: visible.length, total: visible.length, limit: 500, offset: 0 } } }
     }
     const detail = /^\/api\/v2\/assignments\/(\d+)$/.exec(req.path)
     if (req.method === 'GET' && detail) {

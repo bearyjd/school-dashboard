@@ -63,7 +63,7 @@ def merge_refusal(conn: sqlite3.Connection, src: AssignmentState, into: Assignme
         return "different_kid"
     if src.kind != "assignment" or into.kind != "assignment":
         return "kind_mismatch"
-    if persistently_closed(src) or persistently_closed(into):
+    if src.dismissed_at or into.dismissed_at or persistently_closed(src) or persistently_closed(into):
         return "closed_record"
     if not force and (not src.class_key or src.class_key != into.class_key):
         return "class_mismatch"

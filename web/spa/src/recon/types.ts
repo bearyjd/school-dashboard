@@ -3,7 +3,7 @@
 export type ReconKind = 'assignment' | 'task' | 'practice'
 export type ReconFlag = 'disputed' | 'missing' | 'done_not_received' | 'waiting_on_teacher' | 'do_tonight' | 'upcoming'
 export type ReconBucket = 'needs_action' | 'do_tonight' | 'waiting_on_teacher'
-export type StageAction = 'done' | 'turned_in' | 'undo'
+export type StageAction = 'done' | 'turned_in' | 'dismiss' | 'undo'
 export type Role = 'parent' | 'kid'
 export type WriteAuth = 'open' | 'token' | 'unconfigured'
 
@@ -32,6 +32,7 @@ export interface ReconItem {
   title: string
   class: string | null
   due: string | null
+  dismissed_at: string | null
   kind: ReconKind
   stage: number
   stage_label: string
@@ -132,6 +133,8 @@ export interface Actor {
 export interface WriteResult {
   /** null when the write was saved but the server could not rebuild the row: refetch the list. */
   item: ReconItem | null
+  /** The timestamp set by this dismissal, independent of a later read of the item. */
+  dismissed_at?: string
   counts?: Counts
   refetch?: boolean
 }

@@ -89,6 +89,79 @@ def test_task_done_closes_and_undo_reopens(api_factory):
     err(stage(api, action="turned_in"), 409, "invalid_transition")
 
 
+def test_dismiss_survives_ingest_and_guarded_undo_preserves_stage(api_factory):
+    from school_dashboard.assignments import digest_run, ingest, readctx
+    from recon.ingest_support import build_results
+
+    api = api_factory()
+    now = api.clock["now"]
+    scrape = {"sgy": {"Alex": [{"title": "Essay", "course": "Math 6", "status": "open",
+                                "link": "https://sgy.example.invalid/a/1"}]}, "hash": {"schoology": "s1"}}
+    results, hashes = build_results(scrape)
+    assert ingest.run(api.db, results, file_hashes=hashes, now=now, no_school_rows=[]).ok
+    assert stage(api, action="turned_in").status_code == 200
+    before = api.q("SELECT stage_since FROM assignments")[0][0]
+    dismissed = data(stage(api, action="dismiss", actor=KID_ACTOR))["data"]
+    stamp = dismissed["item"]["dismissed_at"]
+    assert stamp == dismissed["dismissed_at"] == now.isoformat()
+    assert dismissed["item"]["stage"] == 3 and dismissed["item"]["flag"] is None
+    assert dismissed["counts"]["waiting_on_teacher"] == 0
+    err(stage(api, action="dismiss"), 409, "invalid_transition")
+    err(stage(api, action="done"), 409, "invalid_transition")
+    err(stage(api, action="undo"), 409, "invalid_transition")
+
+    scrape["sgy"]["Alex"][0]["title"] = "Revised Essay"
+    results, hashes = build_results(scrape)
+    assert ingest.run(api.db, results, file_hashes=hashes, now=now, no_school_rows=[]).ok
+    assert data(api.get(BASE))["data"] == []
+    assert [i["id"] for i in data(api.get(f"{BASE}?dismissed_only=1"))["data"]] == [1]
+    item = data(api.get(f"{BASE}?include_closed=1"))["data"][0]
+    assert (item["stage"], item["dismissed_at"], item["title"]) == (3, stamp, "Revised Essay")
+    with readctx.connection(readonly=True) as conn:
+        summary, digest_items = digest_run.assemble(conn, readctx.load(conn, now))
+    assert digest_items == [] and summary["kids"][0]["counts"]["waiting_on_teacher"] == 0
+    undo = {"action": "undo", "actor": ACTOR, "expected_dismissed_at": stamp}
+    item = data(api.post(f"{BASE}/1/stage", undo))["data"]["item"]
+    assert item["dismissed_at"] is None and item["stage"] == 3
+    err(api.post(f"{BASE}/1/stage", undo), 409, "invalid_transition")
+    assert data(api.get(BASE))["data"][0]["stage"] == 3
+    assert data(api.get(f"{BASE}?include_closed=1&dismissed_only=1"))["data"] == []
+    events = data(api.get(f"{BASE}/1"))["data"]["events"]
+    edits = [(e["detail"], e["setter"]) for e in events if e["kind"] == "edit"]
+    assert ("dismiss", "kid") in edits and ("undo_dismiss", "parent") in edits
+    assert api.q("SELECT stage_since FROM assignments")[0][0] == before
+
+
+@pytest.mark.parametrize("changes", [{"due_date": "2026-11-20"}, {"kind": "task"}, {"kind": "practice"}, {"stage": 4}])
+def test_dismiss_requires_an_undated_open_assignment(api_factory, changes):
+    api = api_factory([{**one()[0], "due_date": None, **changes}])
+    err(stage(api, action="dismiss"), 409, "invalid_transition")
+
+
+def test_dismiss_suppresses_pending_alerts_and_removes_missing_count(api_factory):
+    api = api_factory([{**one()[0], "due_date": None, "portal_status": "missing"}])
+    api.exec("INSERT INTO push_outbox(assignment_id, flag, occurrence_at, reason, status, created_at)"
+             " VALUES (1, 'missing', ?, 'transition', 'pending', ?)", [api.clock["now"].isoformat()] * 2)
+    result = data(stage(api, action="dismiss"))["data"]
+    assert result["counts"]["needs_action"] == 0
+    assert api.q("SELECT status FROM push_outbox")[0][0] == "suppressed"
+    restored = data(api.post(f"{BASE}/1/stage", {"action": "undo", "actor": ACTOR,
+                                               "expected_dismissed_at": result["item"]["dismissed_at"]}))["data"]
+    assert restored["counts"]["needs_action_detail"]["missing"] == 1
+
+
+def test_v2_remains_readable_and_first_dismiss_upgrades_it(api_factory):
+    from school_dashboard.assignments import schema
+
+    api = api_factory([{**one()[0], "due_date": None}])
+    api.exec("ALTER TABLE assignments DROP COLUMN dismissed_at")
+    api.exec("PRAGMA user_version=2")
+    assert data(api.get(BASE))["data"][0]["dismissed_at"] is None
+    assert api.q("PRAGMA user_version")[0][0] == 2
+    assert stage(api, action="dismiss").status_code == 200
+    assert api.q("PRAGMA user_version")[0][0] == schema.SCHEMA_VERSION
+
+
 def test_practice_tap_is_conflict(api_factory):
     seed = [{"kid": "Alex", "title": "IXL Math", "title_key": "ixl math", "class_name": "Math", "class_key": "math",
              "due_date": None, "kind": "practice",

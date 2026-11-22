@@ -61,19 +61,25 @@ async function write<T>(path: string, method: string, body: unknown): Promise<T>
 export const getConfig = (): Promise<unknown> => data<unknown>('/api/v2/config')
 export const getSummary = (): Promise<ReconSummary> => data<ReconSummary>('/api/v2/summary')
 
-/** The open items (closed ones are left out by the server). */
-export async function getList(): Promise<ListData> {
-  const out = await envelope<ReconItem[]>('/api/v2/assignments?limit=500')
+export const LIST_LIMIT = 500
+
+async function getAssignmentList(filters?: Record<string, string>): Promise<ListData> {
+  const params = new URLSearchParams({ limit: String(LIST_LIMIT), ...filters })
+  const out = await envelope<ReconItem[]>(`/api/v2/assignments?${params}`)
   const total = Number(out.meta.total)
   return { items: out.data as ReconItem[], total: Number.isFinite(total) ? total : (out.data as ReconItem[]).length }
 }
+
+export const getList = (): Promise<ListData> => getAssignmentList()
+export const getDismissedList = (kid: string, offset: number): Promise<ListData> =>
+  getAssignmentList({ dismissed_only: '1', offset: String(offset), ...(kid ? { kid } : {}) })
 
 export const getDetail = (id: number): Promise<ReconDetail> => data<ReconDetail>(`/api/v2/assignments/${id}`)
 
 const base = (id: number) => `/api/v2/assignments/${id}`
 
-export const postStage = (id: number, action: StageAction, actor: Actor): Promise<WriteResult> =>
-  write<WriteResult>(`${base(id)}/stage`, 'POST', { action, actor })
+export const postStage = (id: number, action: StageAction, actor: Actor, expectedDismissedAt?: string): Promise<WriteResult> =>
+  write<WriteResult>(`${base(id)}/stage`, 'POST', { action, actor, expected_dismissed_at: expectedDismissedAt })
 
 export const postTeacherConfirmed = (id: number, note: string, actor: Actor): Promise<WriteResult> =>
   write<WriteResult>(`${base(id)}/teacher-confirmed`, 'POST', { note, actor })

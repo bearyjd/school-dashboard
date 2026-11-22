@@ -56,6 +56,8 @@ def _settle(conn: sqlite3.Connection, target: int, other: int, link_id: int, flo
 
 def split_in_txn(conn: sqlite3.Connection, aid: int, link_id: int, who: Who, now: datetime) -> int:
     state = load_open(conn, aid)
+    if state.dismissed_at:
+        raise Conflict("closed_record")
     links = repo.link_records(conn, [aid])[aid]
     if all(ln.id != link_id for ln in links):
         raise NotFound("link")

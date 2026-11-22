@@ -29,6 +29,9 @@
 .recon__kids .pill { min-height: 44px; }
 
 .recon__kids-list { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.recon-dismissed { border-top: 1px solid var(--border); }
+.recon-dismissed > summary { min-height: 44px; padding: 12px 4px; cursor: pointer; font-weight: 700; }
+.recon-dismissed > p { color: var(--muted); padding: 4px; }
 
 /* A kid: coloured rule + chip, name as text. */
 .recon-kid { border-left: 4px solid var(--kid); padding-left: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }

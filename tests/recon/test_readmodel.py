@@ -37,7 +37,7 @@ def test_item_shape_and_label():
                                                          url="https://sgy.example.invalid/a")]})
     assert set(it) == {"id", "kid", "title", "class", "due", "kind", "stage", "stage_label", "flag", "bucket", "info",
                        "unverified", "unverified_sources", "portal_status", "conflict", "received_evidence",
-                       "possible_duplicate", "links"}
+                       "possible_duplicate", "links", "dismissed_at"}
     assert (it["stage_label"], it["due"], it["class"]) == ("Done at home", "2026-11-20", "Math 6")
     assert set(it["links"][0]) == {"id", "source", "status", "raw_status", "score", "live", "url"}
     text = json.dumps(it)

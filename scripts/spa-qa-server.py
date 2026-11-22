@@ -127,6 +127,7 @@ def _second_scrape(inputs: Path, args: Any, now: datetime, ingest: Any) -> None:
     nxt = _school_dates(now)[1].isoformat()
     sgy = json.loads((inputs / "sgy.json").read_text())
     alex = next(e for e in sgy["per_child"] if e["child"]["name"].startswith("Alex"))
+    alex["assignments"].append({"title": "Sketchbook prompts", "course": "Art", "due_date": None, "status": "open"})
     alex["assignments"].append({"title": "Poster board", "course": "Science", "status": "missing",
                                 "due_date": (_school_dates(now)[0] - timedelta(days=2)).isoformat(),
                                 "link": "https://portal.example.test/assignment/4412"})

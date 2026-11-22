@@ -1,19 +1,12 @@
 import { useId } from 'react'
 import { KidChip } from '../design/KidChip'
 import { kidSlot } from '../lib/kidSlot'
-import type { RowAction } from './actions'
 import type { BucketView, KidView } from './group'
-import { ReconRow } from './ReconRow'
-import type { ReconItem, Role } from './types'
+import { ReconRow, type ReconRowControls } from './ReconRow'
 import type { RowStatus } from './useRowStatus'
 
-interface RowProps {
-  role: Role
-  disabled: boolean
-  /** The all-kids view: action names then say which kid the row is for. */
-  showKid: boolean
+export interface RowProps extends ReconRowControls {
   statusOf: (id: number) => RowStatus
-  onAction: (item: ReconItem, action: RowAction, opener: HTMLElement) => void
 }
 
 function Bucket({ bucket, rows }: { bucket: BucketView; rows: RowProps }) {
