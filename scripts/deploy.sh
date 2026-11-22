@@ -80,6 +80,7 @@ TMP=""
 PHASE="pre"       # pre = nothing changed yet; post = pull/up started (an interrupt must roll back)
 ROLLING=0
 REPO=""; IMAGE_ID=""; ROLLBACK_REF=""
+DEPLOY_STEP="pull"; PULL_OK=0; FAILED_STEPS=()
 CURL=(curl -s --noproxy '*')
 
 if [[ "$DRY" -eq 0 ]]; then
@@ -98,6 +99,31 @@ note() { printf '%s\n' "$*" || true; }
 dc() { run docker compose -f "$COMPOSE_FILE" --project-directory "$DEPLOY_DIR" "$@"; }
 now_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
+write_failure_report() {
+    local report="$BACKUP_DIR/deploy-failure.txt" candidate_ref="$REPO:latest" candidate_id="" tmp step
+    if [[ "$PULL_OK" -eq 1 ]]; then
+        candidate_id="$(timeout -k 1s 5s docker image inspect --format '{{.Id}}' "$candidate_ref" 2>/dev/null 9>&-)" || candidate_id=""
+    fi
+    [[ "$candidate_id" =~ ^sha256:[0-9a-f]{64}$ ]] || candidate_id="unavailable"
+    [[ ${#REPO} -le 255 ]] || candidate_ref="unavailable"
+    local lines=("candidate_image_ref=$candidate_ref" "candidate_image_id=$candidate_id")
+    for step in "${FAILED_STEPS[@]}"; do lines+=("failed_step=$step"); done
+    if [[ -n "${1:-}" ]]; then lines+=("interrupted_step=$1"); fi
+    tmp="$(mktemp -- "$BACKUP_DIR/.deploy-failure.XXXXXX" 9>&-)" || return 1
+    if printf '%s\n' "${lines[@]}" > "$tmp" && mv -Tf -- "$tmp" "$report" 9>&-; then
+        note "DEPLOY: failure report at $report"
+        return 0
+    fi
+    rm -f -- "$tmp" 9>&-
+    return 1
+}
+
+rollback_deploy() {
+    trap '' INT TERM HUP  # protect the failure report and rollback as one sequence
+    write_failure_report "${1:-}" || note "WARN: could not save deployment failure report"
+    restore_and_verify "$ROLLBACK_REF" "$IMAGE_ID"
+}
+
 # shellcheck disable=SC2329  # invoked via trap
 on_exit() { if [[ -n "$TMP" ]]; then rm -rf -- "$TMP"; fi; }
 trap on_exit EXIT
@@ -114,7 +140,10 @@ on_signal() {
     fi
     if [[ "$PHASE" == "post" ]]; then
         note "INTERRUPTED after the pull started: rolling back"
-        if restore_and_verify "$ROLLBACK_REF" "$IMAGE_ID"; then exit 1; fi
+        if [[ "$ROLLBACK_SET" -eq 0 ]]; then
+            if rollback_deploy "$DEPLOY_STEP"; then exit 1; fi
+        elif restore_and_verify "$ROLLBACK_REF" "$IMAGE_ID"; then exit 1
+        fi
         exit 3
     fi
     note "deploy.sh: interrupted before anything was changed"
@@ -188,15 +217,19 @@ wait_ready() {
     local waited=0 code
     while :; do
         code="$("${CURL[@]}" -o /dev/null -w '%{http_code}' --max-time 20 "$BASE_URL/api/sync/status" 2>/dev/null || true)"
-        [[ "$code" == "200" || "$waited" -ge "$READY_TIMEOUT" ]] && return 0
+        [[ "$code" == "200" ]] && return 0
+        [[ "$waited" -ge "$READY_TIMEOUT" ]] && return 1
         sleep 2; waited=$((waited + 2))
     done
 }
 
 FAILS=0
-gate() {  # name, PASS|FAIL|SKIP
+gate() {  # label, PASS|FAIL|SKIP, stable step name (failures only)
     printf '  %-4s %s\n' "$2" "$1" || true
-    [[ "$2" != FAIL ]] || FAILS=$((FAILS + 1))
+    if [[ "$2" == FAIL ]]; then
+        FAILS=$((FAILS + 1))
+        FAILED_STEPS+=("$3")
+    fi
 }
 
 http_code() { "${CURL[@]}" -o /dev/null -w '%{http_code}' --max-time 20 "$BASE_URL$1" 2>/dev/null || true; }
@@ -243,30 +276,30 @@ run_gates() {  # sets FAILS; $1 = ISO time the (re)start began; $2 = smoke (0|1)
     fi
     for p in /api/dashboard /api/overview /api/readiness /api/sync/status /api/sync/meta /app/ /legacy; do
         code="$(http_code "$p")"
-        if [[ "$code" == "200" ]]; then gate "GET $p" PASS; else gate "GET $p (HTTP ${code:-000})" FAIL; fi
+        if [[ "$code" == "200" ]]; then gate "GET $p" PASS; else gate "GET $p (HTTP ${code:-000})" FAIL "http:$p"; fi
     done
     out="$("${CURL[@]}" -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 20 "$BASE_URL/" 2>/dev/null || true)"
-    if [[ "${out%% *}" == "302" && "${out#* }" == */app/ ]]; then gate "GET / -> 302 /app/" PASS; else gate "GET / -> 302 /app/ (got ${out%% *})" FAIL; fi
+    if [[ "${out%% *}" == "302" && "${out#* }" == */app/ ]]; then gate "GET / -> 302 /app/" PASS; else gate "GET / -> 302 /app/ (got ${out%% *})" FAIL "http:/"; fi
 
     "${CURL[@]}" -o "$TMP/sw.served" --max-time 20 "$BASE_URL/app/sw.js" 2>/dev/null || true
     docker exec -- "$CONTAINER" cat /app/web/spa/dist/sw.js > "$TMP/sw.built" 2>/dev/null || true
     served="$(cache_name "$TMP/sw.served")"; built="$(cache_name "$TMP/sw.built")"
-    if [[ -n "$served" && "$served" == "$built" ]]; then gate "service worker cache name matches build" PASS; else gate "service worker cache name matches build" FAIL; fi
+    if [[ -n "$served" && "$served" == "$built" ]]; then gate "service worker cache name matches build" PASS; else gate "service worker cache name matches build" FAIL "service-worker"; fi
 
     rc=0; docker exec -- "$CONTAINER" school-state transition maintenance check >/dev/null 2>&1 || rc=$?
-    if [[ "$rc" -eq 10 ]]; then gate "maintenance gate exit 10" PASS; else gate "maintenance gate (exit $rc, expected 10)" FAIL; fi
+    if [[ "$rc" -eq 10 ]]; then gate "maintenance gate exit 10" PASS; else gate "maintenance gate (exit $rc, expected 10)" FAIL "maintenance"; fi
 
     if out="$(docker logs --since "$since" "$CONTAINER" 2>&1)"; then
         n="$(grep -c 'Traceback' <<< "$out" || true)"
-        if [[ "$n" == "0" ]]; then gate "no tracebacks in container log" PASS; else gate "tracebacks in container log: $n" FAIL; fi
+        if [[ "$n" == "0" ]]; then gate "no tracebacks in container log" PASS; else gate "tracebacks in container log: $n" FAIL "tracebacks"; fi
     else
-        gate "container log unreadable" FAIL
+        gate "container log unreadable" FAIL "container-logs"
     fi
 
     if [[ "$with_wd" -eq 1 ]]; then
         watchdog_snapshot "$TMP/wd.now"
         n="$(count_new_problems "$TMP/wd.base" "$TMP/wd.now")"
-        if [[ "$n" == "0" ]]; then gate "watchdog: no new problems" PASS; else gate "watchdog: new problems or unreadable result ($n)" FAIL; fi
+        if [[ "$n" == "0" ]]; then gate "watchdog: no new problems" PASS; else gate "watchdog: new problems or unreadable result ($n)" FAIL "watchdog"; fi
     else
         gate "watchdog (skipped during rollback verification)" SKIP
     fi
@@ -275,7 +308,7 @@ run_gates() {  # sets FAILS; $1 = ISO time the (re)start began; $2 = smoke (0|1)
         if BASE_URL="$BASE_URL" "$SMOKE_SCRIPT" --container "$CONTAINER" > "$TMP/smoke.out" 2>&1 9>&-; then
             gate "smoke-live" PASS
         else
-            gate "smoke-live" FAIL
+            gate "smoke-live" FAIL "smoke"
             tail -n 5 -- "$TMP/smoke.out" | sed 's/^/        smoke: /' || true
         fi
     fi
@@ -317,7 +350,7 @@ restore_and_verify() {  # $1 = image ref to restore as :latest; $2 = image id th
         return 1
     fi
     local since cur; since="$(now_iso)"
-    wait_ready
+    wait_ready || true
     if ! run_gates "$since" 0 0; then
         note "ROLLBACK: verification FAILED; manual intervention needed"
         return 1
@@ -414,14 +447,22 @@ fi
 
 PHASE="post"
 deploy_ok=1
-dc pull || deploy_ok=0
-START="$(now_iso)"
-if [[ "$deploy_ok" -eq 1 ]]; then dc up -d || deploy_ok=0; fi
-if [[ "$deploy_ok" -eq 1 ]]; then
-    wait_ready
-    run_gates "$START" "$SMOKE" 1 || deploy_ok=0
+if dc pull; then
+    PULL_OK=1
+    DEPLOY_STEP="startup"
+    START="$(now_iso)"
+    if dc up -d; then
+        DEPLOY_STEP="readiness"
+        wait_ready || FAILED_STEPS+=("readiness")
+        DEPLOY_STEP="gates"
+        run_gates "$START" "$SMOKE" 1 || deploy_ok=0
+    else
+        gate "docker compose up -d" FAIL "startup"
+        deploy_ok=0
+    fi
 else
-    note "  FAIL docker compose pull/up"
+    gate "docker compose pull" FAIL "pull"
+    deploy_ok=0
 fi
 
 if [[ "$DRY" -eq 1 ]]; then
@@ -437,7 +478,7 @@ if [[ "$deploy_ok" -eq 1 ]]; then
 fi
 
 note "DEPLOY: a step or gate failed"
-if restore_and_verify "$ROLLBACK_REF" "$IMAGE_ID"; then
+if rollback_deploy; then
     note "DEPLOY: FAILED, rolled back to $ROLLBACK_REF"
     exit 1
 fi

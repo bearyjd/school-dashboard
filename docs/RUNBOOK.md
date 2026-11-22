@@ -21,18 +21,61 @@ populate the `events` table from approved calendar JSON with
 
 ### Update
 
-The server is pull-only: CI builds the image from `main` and pushes it to GHCR, and the server never builds.
+CI builds and publishes the image to GHCR. The host pulls it and recreates the
+container with [`scripts/deploy.sh`](../scripts/deploy.sh). Check the [Docker workflow
+run](https://github.com/bearyjd/school-dashboard/actions/workflows/docker.yml) for
+the intended commit and confirm the publish succeeded before running the host
+deploy. App code, templates, and the built SPA ship inside the image. State,
+configuration, and credential directories are mounted from the host.
+
+On the Docker host, preview the deploy, then run it with a slug identifying the
+release window.
 
 ```bash
-cd /opt/school
-docker compose pull
-docker compose up -d
+scripts/deploy.sh --dry-run --slug release
+scripts/deploy.sh --slug release
 ```
 
-Everything the app serves (`app.py`, templates, the built SPA) is baked into the image, so a code or template change
-needs a new image (merge to `main`, wait for the "Build and push Docker image" run, then pull). Only `state/`, `config/`
-and the credential directories are mounted from the host. See `docs/ops/spa-redesign-rollout.md` for the full checklist,
-backups and rollback. Host allowlist, port binding and the recon write token: `docs/ops/host-allowlist-and-port-binding.md`. Reconcile (recon v2) go-live, day-one checks and rollback: `docs/ops/reconcile-rollout.md`.
+Use the [rollout checklist](ops/spa-redesign-rollout.md#scripted-deploy-scriptsdeploysh)
+for preflight, backups, and rollback. See [host allowlist and port binding](ops/host-allowlist-and-port-binding.md)
+for the host network settings and recon write token, and the [reconcile rollout](ops/reconcile-rollout.md)
+for recon v2 go-live checks and rollback.
+
+### Pipeline failure map
+
+| Stage or symptom | Where to look |
+|------------------|---------------|
+| **CI gate** failed on a PR | Open the [Tests workflow run](https://github.com/bearyjd/school-dashboard/actions/workflows/tests.yml) and follow the gate summary to the failing job. For browser failures, download **e2e-results** under **Artifacts** when available. |
+| PR Docker build failed | Open **docker / build** in the PR’s Tests run. Check **Verify and record source revisions** and **Build image**. The gate reports a skip when the PR leaves image inputs untouched. |
+| Image publish failed on `main` | Open the [Docker workflow run](https://github.com/bearyjd/school-dashboard/actions/workflows/docker.yml) for the commit. Check **Verify and record source revisions**, **Build image**, and **Verify published image digest**. |
+| Image published, host deploy refused (exit 2) | Read the host deploy output. Check the lock, sync markers, maintenance state, disk space, compose configuration, and backup or rollback-tag errors. These checks stop deployment before the image pull. |
+| Host deploy rolled back and verified (exit 1) | Read the failure record and deploy output. Use the failed step or gate to choose the checks below. The previous image has been restored and verified. |
+| Host rollback failed or could not be verified (exit 3) | Use the deploy output and inspect the running container's image ID, the rollback tag, and container logs before changing tags or retrying. Follow the manual rollback procedure in the rollout checklist. |
+| Host deploy or manual rollback succeeded (exit 0) | Look for `DEPLOY: OK` or `ROLLBACK: OK`. The script's dry run also exits 0. |
+
+For an automatic rollback, check the mode-0600 `deploy-failure.txt` in the
+`pre-<slug>-<stamp>` backup directory. It records the candidate image reference,
+its local image ID if available, the failed steps or gates, and any interrupted
+step. The terminal reports the rollback outcome. If the deploy was interrupted
+by a signal after the pull started, check `deploy-<stamp>.log` in the backup root.
+
+- For **pull** failures, check registry access and that the release digest is available.
+  For **startup** failures, check the Compose error in the deploy output.
+  **Readiness** indicates the candidate failed to answer the readiness poll before the gates ran.
+- For failed **HTTP routes or root redirect**, check the container logs and host routing.
+  Expect HTTP 200 from `/api/dashboard`, `/api/overview`, `/api/readiness`,
+  `/api/sync/status`, `/api/sync/meta`, `/app/`, and `/legacy`, and a 302 from
+  `/` to `/app/`.
+- For a **service worker** mismatch, compare the cache name in the served `/app/sw.js` with the
+  built file in the candidate image. Check for a stale proxy response.
+- The **maintenance gate** expects `school-state transition maintenance check`
+  to exit 10 (inactive). For a **container log** failure, look for startup
+  tracebacks or errors reading container logs.
+- For a **watchdog or optional smoke** failure, compare the watchdog findings with its
+  predeploy baseline, then check `/api/sync/meta` for new failures. PowerSchool
+  can be intentionally paused with `SOURCE_POWERSCHOOL_ENABLED=0`. A
+  `paused` result is accepted by `smoke-live.sh` and the watchdog skips the
+  disabled source. An enabled source can fail the optional smoke gate.
 
 ## Health Checks
 

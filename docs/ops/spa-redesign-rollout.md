@@ -85,9 +85,10 @@ Real run: `scripts/deploy.sh --slug <name> [--smoke]`.
   problems not in that baseline fail the gate (the known IXL failure does not); `KNOWN_WATCHDOG_PROBLEMS=source:issue,...` allows more.
 - Gates: the seven routes = 200, `/` -> 302 `/app/`, the cache name in the served `sw.js` equals the one in the image's built `sw.js`
   (derived from the build, currently `school-v3`; do not hard-code it), maintenance gate exit 10, a readable container log without
-  tracebacks, the watchdog rule above, and with `--smoke` also `smoke-live.sh` (use it only when every source is healthy).
+  tracebacks, the watchdog rule above, and with `--smoke` also `smoke-live.sh` (recorded `paused` sources pass).
 - Any failed step or gate (and an INT/TERM/HUP after the pull started) retags the rollback image to `:latest`, recreates the container and
-  re-verifies: the gates (without the watchdog) must pass and the container must run exactly the previous image id.
+  re-verifies the gates (without the watchdog) and confirms the container runs the previous image ID. See the
+  [pipeline failure map](../RUNBOOK.md#pipeline-failure-map) for the failure record and diagnostics.
 - Manual rollback: `scripts/deploy.sh --rollback rollback-<stamp>`. It takes the same lock, refuses during a sync or maintenance, first tags the
   current `:latest` as `rollback-pre-<stamp>` (so the rollback can be undone), and works when the container is gone (the repo comes from the compose file).
 

@@ -1,2 +1,17 @@
 web/spa/node_modules
 web/spa/dist
+
+# Local state and credentials must stay outside the build context.
+**/.git
+.claude/
+.omc/
+.env
+.env.*
+state/
+secrets/
+config/**
+!config/.gitkeep
+!config/env.example
+!config/school-dashboard.example.json
+!config/calendars/
+!config/calendars/*.json

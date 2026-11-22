@@ -92,12 +92,11 @@ jobs:
       - name: Bundle budget
         run: npm run check-bundle
 
-  # Screens + axe against scripts/spa-qa-server.py (synthetic data). Non-blocking until it has a track record.
-  # To make it blocking: delete the `continue-on-error` line below, then mark the `e2e` check as
-  # required in the branch protection rules for main.
+  # Screens and axe against scripts/spa-qa-server.py (synthetic data).
   e2e:
     runs-on: ubuntu-latest
-    continue-on-error: true
+    outputs:
+      artifact-url: ${{ steps.results.outputs.artifact-url }}
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -139,6 +138,7 @@ jobs:
         run: npm run e2e
 
       - name: Upload test results
+        id: results
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -148,3 +148,122 @@ jobs:
             web/spa/playwright-report
           if-no-files-found: ignore
           retention-days: 7
+
+  docker-paths:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      required: ${{ steps.paths.outputs.required }}
+    steps:
+      - name: Checkout PR merge commit
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Check for image changes
+        id: paths
+        shell: bash
+        run: |
+          if git diff --quiet "$GITHUB_SHA^1" "$GITHUB_SHA" -- \
+            Dockerfile .dockerignore docker-compose.yml pyproject.toml requirements.lock .gitmodules \
+            vendor school_dashboard web docker sync config school-sync.sh \
+            .github/workflows/docker.yml .github/workflows/docker-build.yml .github/workflows/tests.yml
+          then
+            echo 'required=false' >> "$GITHUB_OUTPUT"
+          else
+            status=$?
+            if [[ "$status" != 1 ]]; then
+              exit "$status"
+            fi
+            echo 'required=true' >> "$GITHUB_OUTPUT"
+          fi
+
+  docker:
+    needs: docker-paths
+    if: needs.docker-paths.outputs.required == 'true'
+    uses: ./.github/workflows/docker-build.yml
+
+  ci-gate:
+    name: CI gate
+    if: always()
+    needs: [lock-check, pytest, spa, e2e, docker-paths, docker]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Summarize checks
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LOCK_CHECK: ${{ needs.lock-check.result }}
+          PYTEST: ${{ needs.pytest.result }}
+          SPA: ${{ needs.spa.result }}
+          E2E: ${{ needs.e2e.result }}
+          DOCKER_PATHS: ${{ needs.docker-paths.result }}
+          DOCKER: ${{ needs.docker.result }}
+          E2E_ARTIFACT: ${{ needs.e2e.outputs.artifact-url }}
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          # Job metadata provides direct log links. Fall back to the run if it is unavailable.
+          if ! jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100"); then
+            jobs='{"jobs":[]}'
+          fi
+          {
+            printf '### CI checks\n\n| Job | Result | First failed step |\n| --- | --- | --- |\n'
+            while read -r result name; do
+              details=$(jq -c --arg name "$name" '[.jobs[] | select(.name == $name)] | first // {}' <<< "$jobs")
+              url=$(jq -r --arg fallback "$run_url" '.html_url // $fallback' <<< "$details")
+              failed_step=$(jq -r '[.steps[]? | select(.conclusion == "failure") | .name] | first // "—"' <<< "$details")
+              printf '| [%s](%s) | %s | %s |\n' "$name" "$url" "$result" "$failed_step"
+            done <<EOF
+          $LOCK_CHECK lock-check
+          $PYTEST pytest
+          $SPA spa
+          $E2E e2e
+          $DOCKER_PATHS docker-paths
+          $DOCKER docker / build
+          EOF
+            if [[ -n "$E2E_ARTIFACT" ]]; then
+              printf '\n[Download e2e-results](%s)\n' "$E2E_ARTIFACT"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require successful checks
+        if: always()
+        shell: bash
+        env:
+          LOCK_CHECK: ${{ needs.lock-check.result }}
+          PYTEST: ${{ needs.pytest.result }}
+          SPA: ${{ needs.spa.result }}
+          E2E: ${{ needs.e2e.result }}
+          DOCKER_PATHS: ${{ needs.docker-paths.result }}
+          DOCKER_REQUIRED: ${{ needs.docker-paths.outputs.required }}
+          DOCKER: ${{ needs.docker.result }}
+        run: |
+          failed=0
+          for check in LOCK_CHECK PYTEST SPA E2E; do
+            if [[ "${!check}" != success ]]; then
+              echo "::error::${check}: ${!check}"
+              failed=1
+            fi
+          done
+
+          expected_paths=skipped
+          expected_docker=skipped
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            expected_paths=success
+            case "$DOCKER_REQUIRED" in
+              true) expected_docker=success ;;
+              false) ;;
+              *)
+                echo "::error::Docker build applicability could not be determined"
+                failed=1
+                ;;
+            esac
+          fi
+          if [[ "$DOCKER_PATHS" != "$expected_paths" || "$DOCKER" != "$expected_docker" ]]; then
+            echo "::error::docker-paths: $DOCKER_PATHS (expected $expected_paths), docker / build: $DOCKER (expected $expected_docker)"
+            failed=1
+          fi
+          exit "$failed"

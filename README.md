@@ -1,5 +1,7 @@
 # school-dashboard
 
+[Tests](https://github.com/bearyjd/school-dashboard/actions/workflows/tests.yml) · [Docker build and publish](https://github.com/bearyjd/school-dashboard/actions/workflows/docker.yml) · [Contributing](docs/CONTRIBUTING.md) · [Operator runbook](docs/RUNBOOK.md)
+
 All-in-one Docker deployment for family school situational awareness. Scrapes IXL, Schoology, GameChanger and (optionally) PowerSchool, sends a morning digest via ntfy.sh, and serves a Flask web app with a streaming chat interface. (Calendar-PDF parsing and Gmail-based event/fact extraction — `calendar_import.py`/`intel.py` — existed at `v1.0.0` but have since been removed from the codebase; see `CLAUDE.md`'s Architecture section for details, including a known bug this causes in the readiness checklist's tests/quizzes line item.)
 
 **External dependency:** LiteLLM proxy at `LITELLM_URL`. Not included — point to your own instance.
@@ -44,8 +46,9 @@ vendor/
   gc/                   git submodule (pip install -e) — GameChanger CLI
   powerschool-scrape/   git submodule (pip install -e ".[browser]") — PowerSchool CLI (`powerschool`); creds PS_USERNAME/PS_PASSWORD/PS_BASE_URL or ~/.powersched/.env (chmod 600)
 
+Dockerfile              Python 3.15 + Node.js 20 + gog + Playwright/Chromium + scrapers + SPA build
+
 docker/
-  Dockerfile            python:3.12-slim + Node 20 + gog v0.12.0 + Playwright/Chromium + scrapers + SPA build
   entrypoint.sh         loads config/env → starts cron → starts Flask on :5000
   crontab               6:00am + 2:30pm weekday syncs; 7am/3:30pm/8:30pm digest jobs; 3:15am backup; 3:45am log rotation
 ```
@@ -151,35 +154,118 @@ docker compose exec dashboard bash -c \
   'set -a && source /app/config/env && set +a && school-state digest --mode morning'
 ```
 
-## Development (no Docker)
+## Development and CI
+
+Use Python 3.15 and Node.js 26 to match GitHub Actions. From the repository root,
+initialize the four pinned scraper submodules (IXL, Schoology, GameChanger, and
+PowerSchool), including when working from an existing clone.
 
 ```bash
-pip install -e ".[server]" -e vendor/ixl-scrape -e vendor/schoology-scrape -e vendor/gc -e vendor/powerschool-scrape
-playwright install chromium
-pytest                            # run all tests
-pytest tests/test_db.py -v        # single file
-pytest -k "test_name"             # single test
-# Run SPA dev server (proxies API to Flask on :5000)
-npm --prefix web/spa run dev      # → http://localhost:5173/app/
+git submodule update --init --recursive
 ```
 
-## Tests
+Run the commands for each [Tests workflow](.github/workflows/tests.yml) job from
+the repository root. Create and activate a fresh virtual environment before each
+Python job.
 
-1232 tests (`pytest --collect-only -q tests/`, 2026-11-08; the list below is partial). All use mocks — no live credentials needed.
+```bash
+ci_venv="$(mktemp -d)/venv"
+python3.15 -m venv "$ci_venv"
+source "$ci_venv/bin/activate"
+```
 
+### Python dependency lock (`lock-check`)
+
+```bash
+pip install -c requirements.lock ".[server]" \
+  -e "vendor/ixl-scrape[browser]" \
+  -e vendor/schoology-scrape \
+  -e vendor/gc \
+  -e "vendor/powerschool-scrape[browser]"
+pip check
 ```
-tests/test_api_items.py        6 tests  — items API auth + filter combinations
-tests/test_digest.py          40 tests  — digest build, ntfy send, GC events, card rendering
-tests/test_html.py             6 tests  — dashboard HTML rendering
-tests/test_inline_agent.py     6 tests  — inline agent endpoint, context types
-tests/test_items.py            9 tests  — items table CRUD
-tests/test_llm.py             12 tests  — LiteLLM client, SSE handling, retry
-tests/test_readiness.py        8 tests  — readiness checklist generation
-tests/test_sync.py            18 tests  — /api/sync auth, concurrency, status, meta, TWA
-tests/test_sync_meta.py        8 tests  — sync_meta module read/write, env var path
-tests/test_wrapper_scripts.py 11 tests  — wrapper LOGDIR logic, bash syntax,
-                                          gc-scrape empty-data detection
+
+### Python tests (`pytest`)
+
+```bash
+pip install -e ".[server]" pytest pyyaml
+pip install --no-deps -e vendor/ixl-scrape -e vendor/schoology-scrape \
+  -e vendor/gc -e vendor/powerschool-scrape
+VENDOR_PINS_STRICT=1 pytest tests/
 ```
+
+This includes the synthetic end-to-end pipeline test and excludes opt-in live
+tests. Run live contract tests with `LIVE_E2E=1 pytest -m live tests/e2e/live -q`
+after configuring live credentials.
+
+### SPA lint, build, unit tests, and bundle budget (`spa`)
+
+```bash
+(
+  cd web/spa
+  npm ci
+  npm run lint
+  npm run build
+  npm test
+  npm run check-bundle
+)
+```
+
+For local UI development, run `npm --prefix web/spa run dev` after installing
+dependencies. Vite serves `http://localhost:5173/app/` and proxies API calls to
+Flask on port 5000.
+
+### SPA browser tests (`e2e`)
+
+```bash
+pip install -e ".[server]"
+(
+  cd web/spa
+  npm ci
+  npm run build
+  npx playwright install --with-deps chromium
+  npm run e2e
+)
+```
+
+Playwright starts the synthetic QA server and runs screen and accessibility
+checks. Open the relevant [Tests run](https://github.com/bearyjd/school-dashboard/actions/workflows/tests.yml)
+and download **e2e-results** under **Artifacts** for test output, screenshots,
+and the Playwright report when produced. CI retains the artifact for seven days.
+
+### Docker build and release
+
+Use a clean recursive checkout of the commit you want to reproduce.
+
+```bash
+git submodule status --recursive
+docker build -t school-dashboard:local .
+```
+
+Every submodule status line should start with a space, which means the checked-out
+commit matches the parent repository's pin. Image-affecting pull requests run a
+build-only check. The **CI gate** in the Tests workflow reports the results of
+the required jobs, including browser tests and the Docker build where applicable.
+Run the individual commands above to reproduce a failure locally.
+
+To reproduce the `docker-paths` job, run this in a checkout of the PR merge
+commit, with its first parent fetched. Output means the Docker build applies.
+
+```bash
+git diff --name-only HEAD^1 HEAD -- \
+  Dockerfile .dockerignore docker-compose.yml pyproject.toml requirements.lock .gitmodules \
+  vendor school_dashboard web docker sync config school-sync.sh \
+  .github/workflows/docker.yml .github/workflows/docker-build.yml .github/workflows/tests.yml
+```
+
+On `main`, the Docker workflow publishes image-affecting changes to GHCR under
+`latest`, a version tag, and `sha-<full-commit-sha>`. Open
+the [Docker workflow run](https://github.com/bearyjd/school-dashboard/actions/workflows/docker.yml)
+for the commit and check **Build image** and **Verify published image digest**.
+The run summary records the verified image digest. Host
+rollout happens separately. Use the [operator failure map](docs/RUNBOOK.md#pipeline-failure-map)
+to find the next check, and the [rollout checklist](docs/ops/spa-redesign-rollout.md#scripted-deploy-scriptsdeploysh)
+for backup, deploy, and rollback commands.
 
 ## Submodule Updates
 
@@ -194,7 +280,3 @@ git add vendor/ && git commit -m "chore: update scrapers"
 ## License
 
 Private family tool. Not licensed for redistribution.
-
-## Testing
-
-`pytest tests/` runs everything CI-safe, including a synthetic end-to-end pipeline test. Opt-in live contract tests: `LIVE_E2E=1 pytest -m live tests/e2e/live -q`. Post-deploy smoke check: `scripts/smoke-live.sh` (see `CLAUDE.md`).

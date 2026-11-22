@@ -10,6 +10,7 @@ import pytest
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "deploy.sh"
 SECRET = "SENTINEL_SECRET_VALUE_123"
 IMG_REPO = "ghcr.io/example/school-dashboard"
+CANDIDATE_ID = "sha256:" + "fedcba9876543210" * 4
 
 # The shims model "new image is up" with a marker file: `compose up -d` creates it, a
 # `--force-recreate` (the rollback) removes it. FAKE_FAIL only misbehaves while the marker exists,
@@ -28,10 +29,17 @@ case "$1" in
     esac ;;
   image)
     [[ -z "${FAKE_NO_IMAGE:-}" ]] || exit 1
-    case "$*" in *"{{.Id}}"*) echo "sha256:0123456789abcdef" ;; esac ;;
+    case "$*" in
+      *"{{.Id}}"*":latest")
+        printf '%s\n' "${FAKE_CANDIDATE_ID:-sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210}" ;;
+      *"{{.Id}}"*) echo "sha256:0123456789abcdef" ;;
+    esac ;;
   info) echo "${FAKE_DOCKER_ROOT:-/var/lib/docker}" ;;
   tag)
     [[ "${FAKE_FAIL:-}" != tag || "$3" != *:rollback-* ]] || exit 1
+    if [[ "$3" == *:latest ]] && compgen -G "$BACKUP_ROOT/pre-*/deploy-failure.txt" >/dev/null; then
+      echo SAW_FAILURE_REPORT >> "$SHIM_LOG"
+    fi
     [[ -z "${FAKE_TAG_RESTORE_FAIL:-}" || "$3" != *:latest ]] || exit 1
     [[ "${FAKE_SYNC_AFTER_TAG:-}" != 1 ]] || touch "$DEPLOY_DIR/state/sync.running.77"
     [[ "${FAKE_HANG:-}" != tag || "$3" != *:rollback-* ]] || sleep 2 ;;
@@ -40,7 +48,12 @@ case "$1" in
       *" pull"*) compgen -G "$BACKUP_ROOT/pre-*/env" >/dev/null && echo SAW_BACKUP >> "$SHIM_LOG"
         [[ "${FAKE_FAIL:-}" != pull ]] || exit 1; [[ "${FAKE_HANG:-}" != pull ]] || sleep 2 ;;
       *"--force-recreate"*) [[ "${FAKE_HANG:-}" != recreate ]] || sleep 2; touch "$SHIM_STATE/recreated"; [[ -n "${STICKY:-}" ]] || rm -f "$NEW"; [[ -n "${IMG_STUCK:-}" ]] || rm -f "$SHIM_STATE/img_new" ;;
-      *" up -d"*) [[ "${FAKE_FAIL:-}" != up ]] || exit 1; touch "$NEW" "$SHIM_STATE/img_new" ;;
+      *" up -d"*)
+        if [[ "${FAKE_FAIL:-}" == report ]]; then
+          for backup in "$BACKUP_ROOT"/pre-*; do mkdir "$backup/deploy-failure.txt"; done
+          exit 1
+        fi
+        [[ "${FAKE_FAIL:-}" != up ]] || exit 1; touch "$NEW" "$SHIM_STATE/img_new" ;;
     esac ;;
   exec)
     case "$*" in
@@ -81,6 +94,11 @@ if [[ "$path" == "/app/sw.js" ]]; then body="const CACHE = 'school-v3';"; fi
 if [[ -e "$SHIM_STATE/new" ]]; then
   case "${FAKE_FAIL:-}" in
     route:*) [[ "$path" != "${FAKE_FAIL#route:}" ]] || code=500 ;;
+    warming)
+      if [[ "$path" == "/api/sync/status" && ! -e "$SHIM_STATE/warmed" ]]; then
+        touch "$SHIM_STATE/warmed"
+        code=503
+      fi ;;
     root) [[ "$path" != "/" ]] || { code=200; redir=""; } ;;
     sw) [[ "$path" != "/app/sw.js" ]] || body="const CACHE = 'school-v2';" ;;
   esac
@@ -171,6 +189,16 @@ def assert_no_secret(p):
     assert SECRET not in p.stdout and SECRET not in p.stderr
 
 
+def failure_report(env):
+    (backup,) = backups(env)
+    report = backup / "deploy-failure.txt"
+    assert stat.S_IMODE(report.stat().st_mode) == 0o600
+    assert report.stat().st_size < 1024
+    contents = report.read_text()
+    assert SECRET not in contents
+    return contents.splitlines()
+
+
 # --- dry run -----------------------------------------------------------------
 
 def test_dry_run_touches_nothing_and_prints_commands(env):
@@ -245,15 +273,26 @@ def test_baseline_taken_before_pull(env):
 # --- gate failures -> rollback ------------------------------------------------
 
 GATE_FAILS = [
-    "pull", "up",
-    "route:/api/dashboard", "route:/api/overview", "route:/api/readiness",
-    "route:/api/sync/status", "route:/api/sync/meta", "route:/app/", "route:/legacy",
-    "root", "sw", "maint", "traceback", "watchdog",
+    ("pull", ["pull"]),
+    ("up", ["startup"]),
+    ("route:/api/dashboard", ["http:/api/dashboard"]),
+    ("route:/api/overview", ["http:/api/overview"]),
+    ("route:/api/readiness", ["http:/api/readiness"]),
+    ("route:/api/sync/status", ["readiness", "http:/api/sync/status"]),
+    ("route:/api/sync/meta", ["http:/api/sync/meta"]),
+    ("route:/app/", ["http:/app/"]),
+    ("route:/legacy", ["http:/legacy"]),
+    ("root", ["http:/"]),
+    ("sw", ["service-worker"]),
+    ("maint", ["maintenance"]),
+    ("traceback", ["tracebacks"]),
+    ("watchdog", ["watchdog"]),
+    ("logs", ["container-logs"]),
 ]
 
 
-@pytest.mark.parametrize("fail", GATE_FAILS)
-def test_gate_failure_rolls_back(env, fail):
+@pytest.mark.parametrize(("fail", "steps"), GATE_FAILS)
+def test_gate_failure_rolls_back(env, fail, steps):
     p = run(env, "--slug", "spa", FAKE_FAIL=fail)
     assert p.returncode == 1, p.stdout + p.stderr
     calls = log(env)
@@ -261,29 +300,62 @@ def test_gate_failure_rolls_back(env, fail):
     retag = f"docker tag {tag} {IMG_REPO}:latest"
     assert retag in calls
     recreate = next(i for i, c in enumerate(calls) if "up -d --force-recreate" in c)
-    assert calls.index(retag) < recreate
+    assert calls.index(retag) < calls.index("SAW_FAILURE_REPORT") < recreate
     after = calls[recreate:]
     assert any("maintenance check" in c for c in after) and any("/api/dashboard" in c for c in after), \
         "gates must run after the rollback recreate"
     assert "ROLLBACK" in p.stdout
     assert_no_secret(p)
+    candidate = "unavailable" if fail == "pull" else CANDIDATE_ID
+    assert failure_report(env) == [
+        f"candidate_image_ref={IMG_REPO}:latest",
+        f"candidate_image_id={candidate}",
+        *(f"failed_step={step}" for step in steps),
+    ]
 
 
 def test_smoke_failure_rolls_back(env):
-    _write(Path(env["SMOKE_SCRIPT"]), SMOKE_BAD)
-    p = run(env, "--smoke")
+    _write(Path(env["SMOKE_SCRIPT"]), SMOKE_BAD.replace(
+        "exit 1", f'echo "{SECRET}"\nprintf "%s\\n" a b c d e\nexit 1',
+    ))
+    p = run(env, "--smoke", FAKE_CANDIDATE_ID=f"{CANDIDATE_ID}\n{SECRET}")
     assert p.returncode == 1
     assert any("up -d --force-recreate" in c for c in log(env))
+    assert_no_secret(p)
+    assert failure_report(env) == [
+        f"candidate_image_ref={IMG_REPO}:latest",
+        "candidate_image_id=unavailable",
+        "failed_step=smoke",
+    ]
 
 
 def test_no_smoke_unless_requested(env):
     _write(Path(env["SMOKE_SCRIPT"]), SMOKE_BAD)
     assert run(env).returncode == 0
+    (backup,) = backups(env)
+    assert not (backup / "deploy-failure.txt").exists()
+
+
+def test_readiness_probe_expiry_does_not_override_passing_gates(env):
+    p = run(env, FAKE_FAIL="warming")
+    assert p.returncode == 0, p.stdout + p.stderr
+    (backup,) = backups(env)
+    assert not (backup / "deploy-failure.txt").exists()
+
+
+def test_failure_report_write_error_does_not_prevent_rollback(env):
+    p = run(env, FAKE_FAIL="report")
+    assert p.returncode == 1, p.stdout + p.stderr
+    assert "could not save deployment failure report" in p.stdout
+    assert "ROLLBACK: verified" in p.stdout
+    (backup,) = backups(env)
+    assert not list(backup.glob(".deploy-failure.*"))
 
 
 def test_failed_rollback_verification_exits_3(env):
     p = run(env, FAKE_FAIL="route:/app/", STICKY="1")
     assert p.returncode == 3, p.stdout + p.stderr
+    assert failure_report(env)[-1] == "failed_step=http:/app/"
 
 
 # --- refusals -----------------------------------------------------------------
@@ -538,6 +610,11 @@ def test_interrupt_after_pull_started_rolls_back(env):
     assert proc.returncode == 1, out + err
     calls = log(env)
     assert any("up -d --force-recreate" in c for c in calls)
+    assert failure_report(env) == [
+        f"candidate_image_ref={IMG_REPO}:latest",
+        "candidate_image_id=unavailable",
+        "interrupted_step=pull",
+    ]
 
 
 def test_interrupt_before_pull_exits_2_without_compose(env):
