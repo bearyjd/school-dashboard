@@ -795,7 +795,7 @@ def _run_sync_background(sources: str, digest: str) -> None:
     state_path = str(paths.state_path())
     db_path = str(paths.db_path())
     gc_path = str(paths.gc_path())
-    ntfy_topic = os.environ.get("NTFY_TOPIC", "")
+    ntfy_topic = os.environ.get("NTFY_TOPIC", "").strip()
 
     source_list = [s.strip() for s in sources.split(",")]
     if "all" in source_list:

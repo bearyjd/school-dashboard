@@ -7,6 +7,10 @@ from ipaddress import IPv6Address
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from school_dashboard.assignments.readmodel import safe_url
+
+_HOST_LABEL = re.compile(r"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?")
+
 
 def _http_url(value: object) -> str:
     if (not isinstance(value, str) or not value or "\\" in value
@@ -20,12 +24,13 @@ def _http_url(value: object) -> str:
             IPv6Address(host)
     except ValueError:
         return ""
-    if (parts.scheme not in ("http", "https") or not host or parts.username is not None
-            or host.rstrip(".").lower() == "api.schoology.com" or port == 0 or parts.netloc.endswith(":")
-            or (":" not in host and not all(re.fullmatch(r"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?", label)
-                       for label in host.rstrip(".").split(".")))):
+    if not host or port == 0 or parts.netloc.endswith(":"):
         return ""
-    return value
+    host = host.removesuffix(".")
+    if host == "api.schoology.com" or (":" not in host and not all(_HOST_LABEL.fullmatch(label)
+                                                                 for label in host.split("."))):
+        return ""
+    return safe_url(value) or ""
 
 
 def _origin(value: object) -> str:

@@ -31,9 +31,9 @@ def test_no_alias_without_config_file(tmp_path, monkeypatch):
 
 
 def test_config_alias_is_honored(tmp_path, monkeypatch):
-    _config(tmp_path, monkeypatch, {"children": {}, "name_aliases": {"jonny": "Blair"}})
-    assert _normalize_child("Jonny") == "Blair"
-    assert _normalize_child("jonny") == "Blair"
+    _config(tmp_path, monkeypatch, {"children": {}, "name_aliases": {"blairton": "Blair"}})
+    assert _normalize_child("Blairton") == "Blair"
+    assert _normalize_child("blairton") == "Blair"
 
 
 def test_config_alias_is_case_insensitive(tmp_path, monkeypatch):

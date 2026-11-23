@@ -379,6 +379,9 @@ def _state_mtime() -> Optional[datetime]:
 def _default_send(topic: str, message: str, title: str) -> None:
     """POST to ntfy; raises on any HTTP error or timeout so state is never advanced."""
     from school_dashboard.digest import DASHBOARD_BASE
+    topic = topic.strip()
+    if not topic:
+        raise ValueError("An ntfy topic is required")
     headers = {"Title": title, "Priority": "default", "Tags": "school"}
     if DASHBOARD_BASE:
         headers["Click"] = DASHBOARD_BASE
