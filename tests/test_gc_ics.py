@@ -18,7 +18,7 @@ TEAM = "abcdef1234567890"
 GOOD_URL = f"https://api.team-manager.gc.com/ics-calendar-documents/user/UUID.ics?teamId={TEAM}&token={FAKE_TOKEN}"
 
 
-def ics(*events: str, name: str = "Lions - 6G Basketball") -> str:
+def ics(*events: str, name: str = "Eastside Foxes Basketball") -> str:
     body = "\r\n".join(events)
     return f"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nX-WR-CALNAME:{name}\r\n{body}\r\nEND:VCALENDAR\r\n"
 
@@ -88,7 +88,7 @@ def test_duplicate_uid_later_wins_and_sorted():
 
 
 @pytest.mark.parametrize("summary,expect", [
-    ("St. Mark Lions - 6G Basketball Practice", ("practice", "St. Mark Lions - 6G Basketball Practice", "")),
+    ("Example School Foxes - Basketball Practice", ("practice", "Example School Foxes - Basketball Practice", "")),
     ("Lions vs Hawks", ("game", "Hawks", "home")),
     ("Lions @ Hawks", ("game", "Hawks", "away")),
     ("Spring Tournament", ("game", "Spring Tournament", "")),
@@ -204,7 +204,7 @@ def test_feeds_path_env_override(monkeypatch, tmp_path):
 # --- CLI + end to end against a local server ---------------------------
 
 SERVED = ics(
-    vevent(":20261113T001500Z", "Lions - 6G Basketball Practice", "LOCATION:Gym\\, Rm 1\r\n", uid="p"),
+    vevent(":20261113T001500Z", "Eastside Foxes Basketball Practice", "LOCATION:Gym\\, Rm 1\r\n", uid="p"),
     vevent(":20261120T230000Z", "Lions vs Hawks", uid="g"),
 )
 
@@ -246,9 +246,9 @@ def test_cli_ok(tmp_path, feed_server):
     assert r.returncode == 0, r.stderr
     out = json.loads(r.stdout)
     assert out["team_id"] == TEAM and out["source"] == "ics" and out["warnings"] == []
-    assert out["team_name"] == "Lions - 6G Basketball"
+    assert out["team_name"] == "Eastside Foxes Basketball"
     assert out["schedule"][0] == {"date": "2026-11-12", "time": "19:15", "type": "practice",
-                                  "opponent": "Lions - 6G Basketball Practice",
+                                  "opponent": "Eastside Foxes Basketball Practice",
                                   "location": "Gym, Rm 1", "home_away": ""}
     assert out["schedule"][1]["home_away"] == "home"
     assert FAKE_TOKEN not in r.stderr

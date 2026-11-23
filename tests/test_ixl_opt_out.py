@@ -15,11 +15,11 @@ GOOD = {"status": "ok", "errors": [], "totals": MATH, "remaining": []}
 NOW = ny(2026, 11, 6, 8, 30)
 
 
-def _config(tmp_path, monkeypatch, ford):
+def _config(tmp_path, monkeypatch, avery):
     cfg = tmp_path / "roster.json"
     cfg.write_text(json.dumps({"children": {
-        "Ford": {"grade": "5th", "school": "S", **ford},
-        "Jack": {"grade": "5th", "school": "S"}}}))
+        "Avery": {"grade": "5th", "school": "S", **avery},
+        "Casey": {"grade": "5th", "school": "S"}}}))
     monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(cfg))
     monkeypatch.delenv("SOURCE_IXL_ENABLED", raising=False)
     monkeypatch.setattr(state_mod, "_config_cache", None)
@@ -29,12 +29,12 @@ def _config(tmp_path, monkeypatch, ford):
 def ixl_dir(tmp_path):
     d = tmp_path / "ixl"
     d.mkdir()
-    (d / "jack-assigned.json").write_text(json.dumps(GOOD))
+    (d / "casey-assigned.json").write_text(json.dumps(GOOD))
     return d
 
 
 def _state():
-    return {"ixl": {"Ford": dict(OLD), "Jack": dict(OLD)}, "schoology": {}}
+    return {"ixl": {"Avery": dict(OLD), "Casey": dict(OLD)}, "schoology": {}}
 
 
 def test_opted_out_child_without_file_is_not_flagged(tmp_path, monkeypatch, ixl_dir):
@@ -42,14 +42,14 @@ def test_opted_out_child_without_file_is_not_flagged(tmp_path, monkeypatch, ixl_
     state = _state()
     update_from_ixl_files(state, str(ixl_dir))
     assert state["scrape_meta"]["ixl"]["unavailable"] == {}
-    assert "Ford" in state["ixl"]  # the old entry may stay
+    assert "Avery" in state["ixl"]  # the old entry may stay
 
 
 def test_default_and_explicit_true_are_still_flagged(tmp_path, monkeypatch, ixl_dir):
     _config(tmp_path, monkeypatch, {"ixl": True})
     state = _state()
     update_from_ixl_files(state, str(ixl_dir))
-    assert "Ford" in state["scrape_meta"]["ixl"]["unavailable"]
+    assert "Avery" in state["scrape_meta"]["ixl"]["unavailable"]
 
 
 @pytest.mark.parametrize("bad", ["false", 0, None, "no"])
@@ -58,19 +58,19 @@ def test_non_bool_flag_is_ignored_with_a_warning(tmp_path, monkeypatch, ixl_dir,
     state = _state()
     with caplog.at_level(logging.WARNING, logger="school_dashboard.state"):
         update_from_ixl_files(state, str(ixl_dir))
-    assert "Ford" in state["scrape_meta"]["ixl"]["unavailable"]
+    assert "Avery" in state["scrape_meta"]["ixl"]["unavailable"]
     assert "'ixl' must be true or false" in caplog.text
-    assert [r["name"] for r in state_mod.get_roster()] == ["Ford", "Jack"]
+    assert [r["name"] for r in state_mod.get_roster()] == ["Avery", "Casey"]
 
 
 def test_roster_shape_is_unchanged_by_the_flag(tmp_path, monkeypatch):
     _config(tmp_path, monkeypatch, {"ixl": False})
-    assert state_mod.get_roster()[0] == {"id": "ford", "name": "Ford", "grade": "5th", "school": "S"}
+    assert state_mod.get_roster()[0] == {"id": "avery", "name": "Avery", "grade": "5th", "school": "S"}
 
 
-def _stale_entry(child="Ford", reason="failed"):
+def _stale_entry(child="Avery", reason="failed"):
     since = utc_iso(NOW - timedelta(hours=48))
-    return {"ixl": {"Ford": dict(OLD)}, "schoology": {},
+    return {"ixl": {"Avery": dict(OLD)}, "schoology": {},
             "scrape_meta": {"ixl": {"unavailable": {child: {"reason": reason, "since": since}}}}}
 
 
@@ -94,7 +94,7 @@ def test_whole_source_marker_is_not_suppressed_by_an_opt_out(tmp_path, monkeypat
 def test_quick_check_and_warnings_ignore_the_opted_out_child(tmp_path, monkeypatch):
     _config(tmp_path, monkeypatch, {"ixl": False})
     state = _stale_entry()
-    assert not scrape_meta.unavailable_for(state, "ixl", "Ford")
+    assert not scrape_meta.unavailable_for(state, "ixl", "Avery")
     assert scrape_meta.scrape_warnings(state) == []
     assert scrape_meta.data_warnings_block(state, NOW) == ""
     p = tmp_path / "s.json"
@@ -105,9 +105,9 @@ def test_quick_check_and_warnings_ignore_the_opted_out_child(tmp_path, monkeypat
 
 def test_opt_out_matches_through_an_alias(tmp_path, monkeypatch):
     cfg = tmp_path / "roster.json"
-    cfg.write_text(json.dumps({"children": {"Jack": {"grade": "5th", "school": "S", "ixl": False}}}))
+    cfg.write_text(json.dumps({"children": {"Casey": {"grade": "5th", "school": "S", "ixl": False}}}))
     monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(cfg))
     monkeypatch.setattr(state_mod, "_config_cache", None)
-    state = _stale_entry("Jack")
-    state["ixl"] = {"Jack": dict(OLD)}
+    state = _stale_entry("Casey")
+    state["ixl"] = {"Casey": dict(OLD)}
     assert scrape_meta.scrape_warnings(state) == []

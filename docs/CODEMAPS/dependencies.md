@@ -6,7 +6,7 @@
 
 | Service | Env vars | Used by | Purpose |
 |---|---|---|---|
-| LiteLLM proxy | `LITELLM_URL`, `LITELLM_API_KEY`, `LITELLM_MODEL` | `digest.py`, `web/app.py` (`/api/chat`, `/api/agent/inline`) | AI synthesis + chat |
+| OpenAI-compatible chat completions endpoint | `LITELLM_URL`, `LITELLM_API_KEY`, `LITELLM_MODEL` | `digest.py`, `web/app.py` (`/api/chat`, `/api/agent/inline`) | AI synthesis + chat |
 | Gmail (via gog) | `GOG_ACCOUNT`, `GOG_KEYRING_PASSWORD` | `email.py`, `vendor/gc` `_fetch_gc_otp`, `gcal.py` | Email digest + GC OTP recovery + Google Calendar |
 | ntfy.sh | `NTFY_TOPIC` | `digest.py`, wrapper scripts | Push notifications |
 | IXL | `IXL_EMAIL`, `IXL_PASSWORD` | `vendor/ixl-scrape` | Skills + diagnostics |

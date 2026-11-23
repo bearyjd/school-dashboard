@@ -18,7 +18,7 @@ GET  /api/digest/<id>               → carousel cards
 PATCH /api/digest/<id>/cards/<idx>  → toggle card done
 
 GET  /api/dashboard                 → schoology + ixl + email_items aggregate
-POST /api/chat                      → LiteLLM chat (SSE-tolerant)
+POST /api/chat                      → OpenAI-compatible chat (SSE-tolerant)
 POST /api/agent/inline              → contextual mini-agent for items / sync sources
 GET  /api/readiness                 → readiness checklist
 GET  /api/calendar                  → Google Calendar (gog)
@@ -51,13 +51,13 @@ school-state show / action   → introspection helpers
 - Buckets: SCHOOL | CHILD_ACTIVITY | FINANCIAL | SKIP
 
 ### `digest.py`
-- `build_digest_text(events, state, facts, gc_schedule, ...)` — LiteLLM synthesis with plain-text fallback
+- `build_digest_text(events, state, facts, gc_schedule, ...)` — AI synthesis with plain-text fallback
 - `build_quick_check(state_path)` — no-LLM IXL-remaining + open-SGY summary
 - `send_ntfy(topic, text)` — ASCII-only Title header
 - `build_digest_cards()` — interactive carousel cards stored in `digests` table
 
 ### `llm.py`
-- `chat_completion(messages, ...)` — wraps LiteLLM. **Always use this**: Omniroute returns SSE for non-streaming requests, plain `resp.json()` breaks.
+- `chat_completion(messages, ...)` — shared OpenAI-compatible chat client. It handles routers that return SSE even for non-streaming requests, including OmniRoute.
 
 ### `sync_meta.py`
 - `read_sync_meta()` / `write_sync_source(source, result)` — atomic per-source freshness

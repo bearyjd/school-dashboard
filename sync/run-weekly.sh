@@ -52,7 +52,7 @@ deliver_digest(
         os.environ['LITELLM_MODEL'],
         gc_path=os.environ['SCHOOL_GC_PATH'],
     ),
-    topic=os.environ['NTFY_TOPIC'],
+    topic=os.environ.get('NTFY_TOPIC', ''),
     title=title,
     state_path=os.environ['SCHOOL_STATE_PATH'],
     db_path=os.environ['SCHOOL_DB_PATH'],
@@ -62,11 +62,13 @@ deliver_digest(
 else
     EXIT=$?
     echo "[$TS] weekly $MODE FAILED (exit $EXIT)" >> "$LOGFILE"
-    curl -sf \
-        -H "Title: Weekly Digest FAILED ($MODE)" \
-        -H "Priority: high" \
-        -H "Tags: warning" \
-        -d "Weekly digest ($MODE) failed. Check $LOGFILE on the container." \
-        "https://ntfy.sh/${NTFY_TOPIC}" 2>/dev/null || true
+    if [[ ${NTFY_TOPIC:-} =~ [^[:space:]] ]]; then
+        curl -sf \
+            -H "Title: Weekly Digest FAILED ($MODE)" \
+            -H "Priority: high" \
+            -H "Tags: warning" \
+            -d "Weekly digest ($MODE) failed. Check $LOGFILE on the container." \
+            "https://ntfy.sh/${NTFY_TOPIC}" 2>/dev/null || true
+    fi
     exit $EXIT
 fi

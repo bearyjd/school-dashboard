@@ -50,7 +50,7 @@ def tmp_state(tmp_path):
     far = (today + timedelta(days=10)).isoformat()
     state = {
         "schoology": {
-            "Jack": {
+            "Casey": {
                 "assignments": [
                     {"title": "Math HW", "due_date": tomorrow, "course": "Math", "status": "not submitted"},
                     {"title": "Old Essay", "due_date": overdue, "course": "English", "status": "not submitted"},
@@ -60,7 +60,7 @@ def tmp_state(tmp_path):
             }
         },
         "ixl": {
-            "Jack": {
+            "Casey": {
                 "totals": {
                     "math": {"remaining": 3, "assigned": 5, "done": 2},
                     "ela": {"remaining": 0, "assigned": 2, "done": 2},
@@ -82,7 +82,7 @@ def tmp_db(tmp_path):
     )
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
     conn.execute("INSERT INTO events VALUES (1, ?, 'Science Test', 'TEST', '')", (tomorrow,))
-    conn.execute("INSERT INTO events VALUES (2, ?, 'Reading Quiz', 'QUIZ', 'Jack')", (tomorrow,))
+    conn.execute("INSERT INTO events VALUES (2, ?, 'Reading Quiz', 'QUIZ', 'Casey')", (tomorrow,))
     conn.commit()
     conn.close()
     return str(db)
@@ -90,8 +90,8 @@ def tmp_db(tmp_path):
 
 def test_overdue_assignment_urgency(tmp_state, tmp_db):
     result = get_checklist(tmp_state, tmp_db)
-    jack = result["Jack"]
-    overdue_items = [i for i in jack if i["label"] == "Old Essay"]
+    casey = result["Casey"]
+    overdue_items = [i for i in casey if i["label"] == "Old Essay"]
     assert len(overdue_items) == 1
     assert overdue_items[0]["urgency"] == "overdue"
     assert overdue_items[0]["type"] == "assignment"
@@ -99,28 +99,28 @@ def test_overdue_assignment_urgency(tmp_state, tmp_db):
 
 def test_tomorrow_assignment_urgency(tmp_state, tmp_db):
     result = get_checklist(tmp_state, tmp_db)
-    jack = result["Jack"]
-    tomorrow_items = [i for i in jack if i["label"] == "Math HW"]
+    casey = result["Casey"]
+    tomorrow_items = [i for i in casey if i["label"] == "Math HW"]
     assert len(tomorrow_items) == 1
     assert tomorrow_items[0]["urgency"] == "tomorrow"
 
 
 def test_submitted_assignment_excluded(tmp_state, tmp_db):
     result = get_checklist(tmp_state, tmp_db)
-    labels = [i["label"] for i in result.get("Jack", [])]
+    labels = [i["label"] for i in result.get("Casey", [])]
     assert "Done HW" not in labels
 
 
 def test_beyond_cutoff_excluded(tmp_state, tmp_db):
     result = get_checklist(tmp_state, tmp_db, days_ahead=3)
-    labels = [i["label"] for i in result.get("Jack", [])]
+    labels = [i["label"] for i in result.get("Casey", [])]
     assert "Far HW" not in labels
 
 
 def test_ixl_remaining_included(tmp_state, tmp_db):
     result = get_checklist(tmp_state, tmp_db)
-    jack = result["Jack"]
-    ixl_items = [i for i in jack if i["type"] == "ixl"]
+    casey = result["Casey"]
+    ixl_items = [i for i in casey if i["type"] == "ixl"]
     assert len(ixl_items) == 1  # ela has 0 remaining — excluded
     assert "3" in ixl_items[0]["label"]
     assert ixl_items[0]["urgency"] == "pending"
@@ -128,9 +128,9 @@ def test_ixl_remaining_included(tmp_state, tmp_db):
 
 def test_test_event_included(tmp_state, tmp_db):
     result = get_checklist(tmp_state, tmp_db)
-    jack = result["Jack"]
-    test_items = [i for i in jack if i["type"] == "test"]
-    # Science Test (no child) + Reading Quiz (child=Jack) both show
+    casey = result["Casey"]
+    test_items = [i for i in casey if i["type"] == "test"]
+    # Science Test (no child) + Reading Quiz (child=Casey) both show
     titles = [i["label"] for i in test_items]
     assert "Science Test" in titles
     assert "Reading Quiz" in titles
@@ -139,7 +139,7 @@ def test_test_event_included(tmp_state, tmp_db):
 def test_format_checklist_text(tmp_state, tmp_db):
     checklist = get_checklist(tmp_state, tmp_db)
     text = format_checklist_text(checklist)
-    assert "Jack" in text
+    assert "Casey" in text
     assert "Old Essay" in text
     assert "[overdue]" in text.lower()
 
@@ -154,7 +154,7 @@ def test_empty_state_returns_empty(tmp_path, tmp_db):
 - [ ] **Step 2: Run tests to confirm they fail**
 
 ```bash
-cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard
+cd ~/src/school-dashboard
 pytest tests/test_readiness.py -v
 ```
 
@@ -335,8 +335,8 @@ from web.app import app
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     state = {
-        "schoology": {"Jack": {"assignments": []}},
-        "ixl": {"Jack": {"totals": {"math": {"remaining": 2, "assigned": 3, "done": 1}}}},
+        "schoology": {"Casey": {"assignments": []}},
+        "ixl": {"Casey": {"totals": {"math": {"remaining": 2, "assigned": 3, "done": 1}}}},
     }
     sp = tmp_path / "state.json"
     sp.write_text(json.dumps(state))
@@ -356,8 +356,8 @@ def test_api_readiness_returns_checklist(client):
     assert r.status_code == 200
     data = json.loads(r.data)
     assert "checklist" in data
-    assert "Jack" in data["checklist"]
-    jack_items = data["checklist"]["Jack"]
+    assert "Casey" in data["checklist"]
+    jack_items = data["checklist"]["Casey"]
     ixl_items = [i for i in jack_items if i["type"] == "ixl"]
     assert len(ixl_items) == 1
 ```
@@ -505,7 +505,7 @@ Replace with:
 
 ```bash
 # On the server or locally with:
-cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard
+cd ~/src/school-dashboard
 set -a && source config/env && set +a
 FLASK_APP=web.app flask run --port 5000
 # Open http://localhost:5000 — click Readiness tab — verify items appear

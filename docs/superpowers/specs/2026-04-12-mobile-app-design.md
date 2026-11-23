@@ -61,7 +61,7 @@ Added before the pip install step so the bundle is baked into the Docker image.
 
 Location: `android/` at repo root — a minimal Bubblewrap/Gradle project.
 
-- Points at `https://school.grepon.cc/app`
+- Points at `https://school.example.invalid/app`
 - Requires `/.well-known/assetlinks.json` on the server (Flask route, static file)
 - GitHub Actions workflow `build-apk.yml` triggered via `workflow_dispatch`
 - Produces a signed `.apk` as a downloadable Actions artifact
@@ -145,13 +145,13 @@ The LLM communicates tool calls via a structured JSON block embedded in its resp
 ### Live Source Pull Flow (`sync_source`)
 
 ```
-User: "What did Ford actually finish on IXL today?"
+User: "What did Avery actually finish on IXL today?"
 LLM:  [tool_call: sync_source, {source: "ixl"}]
 App:  → POST /api/sync {sources: "ixl", digest: "none"}
 App:  → polls /api/sync/status every 3s until running=false
 App:  → GET /api/dashboard (fresh data)
 App:  → appends system message to conversation: "Fresh IXL data: <json>"
-LLM:  "Ford completed 3 skills today — reading comprehension, fractions…"
+LLM:  "Avery completed 3 skills today — reading comprehension, fractions…"
 ```
 
 ### Confirmation Card Pattern
@@ -159,7 +159,7 @@ LLM:  "Ford completed 3 skills today — reading comprehension, fractions…"
 ```
 ┌─────────────────────────────────┐
 │  Mark done                      │
-│  Ford · IXL · Math fractions    │
+│  Avery · IXL · Math fractions    │
 │                                 │
 │  [Cancel]          [Confirm]    │
 └─────────────────────────────────┘

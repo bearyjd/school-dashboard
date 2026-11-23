@@ -151,16 +151,14 @@ def ixl_opted_out() -> set:
     return out
 
 
-# Built-in default alias (lowercase key). Config `name_aliases` entries override it.
-_DEFAULT_NAME_ALIASES: dict = {"john": "Jack"}
-
-
 def get_name_aliases() -> dict:
-    return {**_DEFAULT_NAME_ALIASES, **_load_config().get("name_aliases", {})}
+    aliases = _load_config().get("name_aliases", {})
+    return {alias.strip().lower(): name.strip() for alias, name in aliases.items()
+            if isinstance(name, str) and name.strip()}
 
 
 def canonical_name(name: str | None) -> str:
-    """Canonical child name: alias lookup (config over built-in), else title-cased."""
+    """Canonical child name: configured alias lookup, else title-cased."""
     if not name or not name.strip():
         return ""
     return get_name_aliases().get(name.strip().lower(), name.strip().title())

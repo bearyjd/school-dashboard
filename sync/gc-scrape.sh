@@ -44,12 +44,14 @@ maintenance_skip "gc scrape" && exit 0
 
 fail() {
     log "ERROR: $*"
-    curl -sf \
-        -H "Title: GC Scrape FAILED" \
-        -H "Priority: high" \
-        -H "Tags: warning" \
-        -d "gc-scrape.sh failed: $*. Check $LOGFILE on the container." \
-        "https://ntfy.sh/${NTFY_TOPIC:-}" 2>/dev/null || true
+    if [[ ${NTFY_TOPIC:-} =~ [^[:space:]] ]]; then
+        curl -sf \
+            -H "Title: GC Scrape FAILED" \
+            -H "Priority: high" \
+            -H "Tags: warning" \
+            -d "gc-scrape.sh failed: $*. Check $LOGFILE on the container." \
+            "https://ntfy.sh/${NTFY_TOPIC:-}" 2>/dev/null || true
+    fi
     exit 1
 }
 

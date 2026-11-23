@@ -127,18 +127,19 @@ def test_exactly_eight_warnings_have_no_more_line():
 def test_alias_file_name_shows_the_roster_name(tmp_path, monkeypatch):
     from school_dashboard import state as state_mod
     cfg = tmp_path / "roster.json"
-    cfg.write_text(json.dumps({"children": {"Jack": {"grade": "5th", "school": "S"}}}))
+    cfg.write_text(json.dumps({"children": {"Casey": {"grade": "5th", "school": "S"}},
+                               "name_aliases": {"caseyson": "Casey"}}))
     monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(cfg))
     monkeypatch.delenv("SOURCE_IXL_ENABLED", raising=False)
     monkeypatch.setattr(state_mod, "_config_cache", None)
     d = tmp_path / "ixl"
     d.mkdir()
-    state = {"ixl": {"Jack": {"updated": "2026-04-09T06:00:00", "totals": {}}}, "schoology": {}}
-    (d / "john-assigned.json").write_text("not json")  # alias of Jack, unusable
+    state = {"ixl": {"Casey": {"updated": "2026-04-09T06:00:00", "totals": {}}}, "schoology": {}}
+    (d / "caseyson-assigned.json").write_text("not json")  # alias of Casey, unusable
     state_mod.update_from_ixl_files(state, str(d))
     block = scrape_meta.data_warnings_block(state, NOW)
-    assert "- IXL Jack: the last scrape returned unexpected data" in block
-    assert "john" not in block.lower()
+    assert "- IXL Casey: the last scrape returned unexpected data" in block
+    assert "caseyson" not in block.lower()
 
 
 def _ps_state(*warnings: str) -> dict:

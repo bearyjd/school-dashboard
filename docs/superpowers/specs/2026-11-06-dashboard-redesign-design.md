@@ -118,7 +118,7 @@ query string so a view can be bookmarked or shared between the parents.
   under a kid filter. Teams with no upcoming events are hidden by default (past seasons), with a "show past
   seasons" toggle (my call).
 - **An event can have several kids** (my call): the overview payload uses `kids: [name, ...]`; a kid filter
-  matches if any listed kid matches; chips show every kid. The GC team map label `Penn+Jack` means both kids.
+  matches if any listed kid matches; chips show every kid. The GC team map label `Blair+Casey` means both kids.
 - **Freshness**: each source has `last_ok`; a source is **stale** per the watchdog's rule and **failing** when
   its last result is `error`. Stale/failing sources show a banner on any screen that uses them, with the age in
   hours, and the affected rows get a muted "as of <date>" tag.
@@ -146,7 +146,7 @@ Add one read-only endpoint, `GET /api/overview?days=14`, built by a pure, tested
   as a lazy-loaded route group **in the same bundle** (one build, one service worker, nothing to deploy
   separately), then are deleted (my call). If anything goes badly wrong, the rollback is the previous image tag,
   as for every deploy.
-- The existing `PennJack` team label is read as two kids (`Penn+Jack`), pending the parents' confirmation.
+- The existing `PennJack` team label is read as two kids (`Blair+Casey`), pending the parents' confirmation.
 
 ## Visual design
 
@@ -199,7 +199,7 @@ and error (plain message, retry).
 1. **Grades tab.** The scraper does not collect class grades yet, so a Grades tab means extending the
    PowerSchool scraper. Default if unanswered: **ship v1 without Grades** and add it in a follow-up.
 2. **The older "St. Mark CYO Track & Field" team** is currently labelled `PennJack`. Default if unanswered:
-   it is a team **both Penn and Jack** are on, so events show both kids.
+   it is a team **both Blair and Casey** are on, so events show both kids.
 
 ## What is left to the builder
 

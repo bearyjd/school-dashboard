@@ -13,8 +13,8 @@ from school_dashboard import cli, maintenance
 from school_dashboard.digest import FALLBACK_NOTE, DigestFallbackSent, deliver_digest, send_ntfy
 
 STATE = {
-    "ixl": {"Jack": {"totals": {"Math": {"remaining": 3, "assigned": 5, "done": 2}}}},
-    "schoology": {"Jack": {"assignments": []}},
+    "ixl": {"Casey": {"totals": {"Math": {"remaining": 3, "assigned": 5, "done": 2}}}},
+    "schoology": {"Casey": {"assignments": []}},
 }
 
 
@@ -80,7 +80,7 @@ def test_deliver_digest_llm_failure_sends_quick_check_and_raises(mock_post, stat
     assert kw["headers"]["Title"] == "Morning Briefing (fallback)"
     body = kw["data"].decode()
     assert FALLBACK_NOTE in body
-    assert "Jack" in body
+    assert "Casey" in body
 
 
 @patch("school_dashboard.digest.requests.post")

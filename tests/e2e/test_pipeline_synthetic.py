@@ -39,9 +39,9 @@ def pipeline(state_env, tmp_path, monkeypatch, today):
     cfg = tmp_path / "roster.json"
     cfg.write_text(json.dumps({"children": {
         "Alex": {"grade": "7th", "school": "Test Middle"},
-        "Jack": {"grade": "5th", "school": "Test Elementary"},
+        "Casey": {"grade": "5th", "school": "Test Elementary"},
         "Jo": {"grade": "3rd", "school": "Test Elementary"},
-    }}))
+    }, "name_aliases": {"caseyson": "Casey"}}))
     monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(cfg))
     state._config_cache = None
     inputs = tmp_path / "inputs"
@@ -70,7 +70,7 @@ def _run_update(p) -> Path:
 def test_pipeline_end_to_end(pipeline, today):
     state_file = _run_update(pipeline)
     s = json.loads(state_file.read_text())
-    assert {k: len(v["missing"]) for k, v in s["powerschool"].items()} == {"Alex": 1, "Jack": 0, "Jo": 0}
+    assert {k: len(v["missing"]) for k, v in s["powerschool"].items()} == {"Alex": 1, "Casey": 0, "Jo": 0}
     assert s["powerschool_meta"]["warnings"] == []
 
     text, _ = digest.build_quick_check(str(state_file), today=today.isoformat())
@@ -83,9 +83,9 @@ def test_pipeline_end_to_end(pipeline, today):
     assert dash.status_code == 200
     body = dash.get_json()
     counts = {k: (len(v["missing"]), len(v["late"]), len(v["upcoming"])) for k, v in body["powerschool"].items()}
-    assert counts == {"Alex": (1, 1, 1), "Jack": (0, 0, 1), "Jo": (0, 0, 0)}
+    assert counts == {"Alex": (1, 1, 1), "Casey": (0, 0, 1), "Jo": (0, 0, 0)}
     assert body["has_data"]["Alex"] == {"ixl": True, "sgy": True, "ps": True}
-    assert [c["name"] for c in body["children"]] == ["Alex", "Jack", "Jo"]
+    assert [c["name"] for c in body["children"]] == ["Alex", "Casey", "Jo"]
 
     overview = client.get("/api/overview")
     assert overview.status_code == 200
@@ -95,7 +95,7 @@ def test_pipeline_end_to_end(pipeline, today):
         if item["source"] == "powerschool" and item["status"] == "missing":
             missing[item["kid"]] = missing.get(item["kid"], 0) + 1
     assert missing == {"Alex": 1}
-    assert [k["name"] for k in ov["kids"]] == ["Alex", "Jack", "Jo"]
+    assert [k["name"] for k in ov["kids"]] == ["Alex", "Casey", "Jo"]
 
     assert client.get("/api/readiness").status_code == 200
     meta = client.get("/api/sync/meta")

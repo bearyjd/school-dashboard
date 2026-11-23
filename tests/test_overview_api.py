@@ -54,3 +54,43 @@ def test_freshness_follows_watchdog_active_sources_and_first_seen(client, state_
     fr = client.get("/api/overview").get_json()["freshness"]
     assert fr["ixl"]["paused"] is True and fr["gc"]["paused"] is True
     assert fr["sgy"]["paused"] is False and fr["sgy"]["issue"] == "never_ok"
+
+
+@pytest.mark.parametrize(
+    "portal,base,scraper_env,legacy,origin",
+    [
+        ("https://explicit.example.invalid", "https://instance.example.invalid",
+         "https://dotenv.example.invalid", "https://legacy.example.invalid", "https://explicit.example.invalid"),
+        (None, "https://instance.example.invalid",
+         "https://dotenv.example.invalid", "https://legacy.example.invalid", "https://instance.example.invalid"),
+        (None, "https://api.schoology.com",
+         "https://dotenv.example.invalid", "https://legacy.example.invalid", "https://dotenv.example.invalid"),
+        (None, None, None, "https://legacy.example.invalid", "https://legacy.example.invalid"),
+        (None, "https://api.schoology.com", None, None, ""),
+    ],
+)
+def test_schoology_relative_link_uses_configured_portal(
+    client, state_env, tmp_path, monkeypatch, portal, base, scraper_env, legacy, origin,
+):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    for name, value in (("SGY_PORTAL_URL", portal), ("SGY_BASE_URL", base)):
+        if value is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, value)
+    scraper = tmp_path / ".sgy"
+    scraper.mkdir()
+    if scraper_env:
+        (scraper / ".env").write_text(f"SGY_BASE_URL={scraper_env}\n")
+    if legacy:
+        (scraper / "config.json").write_text(json.dumps({"base_url": legacy}))
+
+    link = "/assignment/1001"
+    (state_env / "school-state.json").write_text(json.dumps({"schoology": {"Alpha": {
+        "assignments": [{"title": "Sample worksheet", "due_date": date.today().isoformat(), "link": link}]
+    }}}))
+    expected = origin + link if origin else ""
+    dashboard = client.get("/api/dashboard").get_json()
+    overview = client.get("/api/overview").get_json()
+    assert dashboard["schoology"]["Alpha"][0]["url"] == expected
+    assert overview["items"][0]["url"] == expected

@@ -11,7 +11,7 @@
 
 Compose reads the `.env` file next to `docker-compose.yml` for `${...}` interpolation. `config/env` only feeds the container, so the two bind variables have no effect there.
 
-Always allowed: `localhost`, `127.0.0.1`, `[::1]` and the host of the public dashboard URL (`digest.DASHBOARD_BASE`). The container healthcheck calls `127.0.0.1:5000` and `scripts/smoke-live.sh` defaults to `localhost:5000`, so both pass without any entry.
+Always allowed: `localhost`, `127.0.0.1`, `[::1]` and, when configured, the host of the public dashboard URL (`DASHBOARD_BASE` in `config/env`). The container healthcheck calls `127.0.0.1:5000` and `scripts/smoke-live.sh` defaults to `localhost:5000`, so both pass without any entry.
 
 ## Modes
 

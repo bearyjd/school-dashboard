@@ -80,7 +80,7 @@ def test_flag_off_fallback_keeps_the_ai_note(api, monkeypatch):
 # ---- flag on ---------------------------------------------------------------
 
 @pytest.mark.parametrize("mode,title", [("morning", "Morning Briefing"), ("night", "Night Prep")])
-def test_flag_on_sends_the_deterministic_text_without_litellm(api, monkeypatch, mode, title):
+def test_flag_on_sends_the_deterministic_text_without_litellm(api, monkeypatch, mode, title, dashboard_url):
     monkeypatch.setenv(FLAG, "1")
     _fixed_now(monkeypatch, ds.SAT)
     with patch("school_dashboard.digest.build_morning_digest") as m, patch("school_dashboard.digest.build_night_digest") as n:

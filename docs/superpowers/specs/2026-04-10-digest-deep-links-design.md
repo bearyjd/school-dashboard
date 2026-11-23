@@ -15,17 +15,17 @@
    ```python
    {
        "source": "schoology" | "ixl" | "calendar" | "email" | "readiness",
-       "child": "Ford",
+       "child": "Avery",
        "title": "Math Chapter 5 Review",
        "detail": "Pre-Algebra",        # course name, subject, or event type
        "due_date": "2026-04-11",        # ISO date or null
-       "url": "https://arlingtondiocese.schoology.com/...",  # direct link if available, else empty
+       "url": "https://portal.example.invalid/...",  # direct link if available, else empty
        "done": false
    }
    ```
 3. The caller (cron sync script) passes both text + cards to `send_ntfy`.
 4. `send_ntfy` writes cards to a `digests` table in SQLite, gets back an 8-char hex ID.
-5. Deep link URL: `https://school.grepon.cc/?digest=<id>`
+5. Deep link URL: `https://school.example.invalid/?digest=<id>`
 6. ntfy `Click` header and `Actions` header both use this URL.
 7. No cards provided (e.g. custom manual notifications) → falls back to static `_DEEP_LINKS` mapping.
 
@@ -120,7 +120,7 @@ Returns:
     "title": "Homework Check",
     "created_at": "2026-04-10T15:30:00",
     "cards": [
-        {"source": "schoology", "child": "Ford", "title": "Math Ch5 Review",
+        {"source": "schoology", "child": "Avery", "title": "Math Ch5 Review",
          "detail": "Pre-Algebra", "due_date": "2026-04-11", "url": "...", "done": false},
         ...
     ]
@@ -169,7 +169,7 @@ On page load, check for `?digest=` URL param. If present:
 ### Exit
 - "View Full Dashboard" link at bottom of carousel (always visible)
 - X button top-right corner
-- Both navigate to `https://school.grepon.cc/` (no params)
+- Both navigate to `https://school.example.invalid/` (no params)
 
 ## Cleanup
 

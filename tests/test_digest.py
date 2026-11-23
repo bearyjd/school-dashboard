@@ -35,7 +35,7 @@ from school_dashboard.digest import (
 def tmp_state(tmp_path):
     state = {
         "schoology": {
-            "Jack": {
+            "Casey": {
                 "assignments": [
                     {"title": "Math HW", "due_date": "2026-04-10", "course": "Math", "status": ""},
                     {"title": "Future HW", "due_date": "2026-04-11", "course": "ELA", "status": ""},
@@ -43,10 +43,10 @@ def tmp_state(tmp_path):
             }
         },
         "ixl": {
-            "Jack": {"totals": {"Math": {"remaining": 3, "assigned": 5, "done": 2}}}
+            "Casey": {"totals": {"Math": {"remaining": 3, "assigned": 5, "done": 2}}}
         },
         "action_items": [
-            {"child": "Jack", "source": "email", "summary": "Return field trip form", "due": "2026-04-10"},
+            {"child": "Casey", "source": "email", "summary": "Return field trip form", "due": "2026-04-10"},
         ],
     }
     p = tmp_path / "state.json"
@@ -56,7 +56,7 @@ def tmp_state(tmp_path):
 
 @pytest.fixture
 def tmp_facts(tmp_path):
-    facts = [{"subject": "Jack", "fact": "Soccer practice on Tuesdays"}]
+    facts = [{"subject": "Casey", "fact": "Soccer practice on Tuesdays"}]
     p = tmp_path / "facts.json"
     p.write_text(json.dumps(facts))
     return str(p)
@@ -86,7 +86,7 @@ def tmp_db(tmp_path):
 def test_load_state(tmp_state):
     state = _load_state(tmp_state)
     assert "schoology" in state
-    assert "Jack" in state["schoology"]
+    assert "Casey" in state["schoology"]
 
 
 def test_load_facts(tmp_facts):
@@ -165,7 +165,7 @@ def tmp_state_with_items(tmp_path):
     due_soon = (today + timedelta(days=2)).isoformat()
     state = {
         "schoology": {
-            "Jack": {
+            "Casey": {
                 "assignments": [
                     {"title": "Math HW", "due_date": due_tomorrow, "course": "Math", "status": ""},
                     {"title": "Science HW", "due_date": due_soon, "course": "Science", "status": ""},
@@ -173,7 +173,7 @@ def tmp_state_with_items(tmp_path):
             }
         },
         "ixl": {
-            "Jack": {"totals": {"Math": {"remaining": 3, "assigned": 5, "done": 2}}}
+            "Casey": {"totals": {"Math": {"remaining": 3, "assigned": 5, "done": 2}}}
         },
         "action_items": [],
     }
@@ -292,14 +292,14 @@ def test_morning_digest_returns_cards(mock_post, tmp_state, tmp_facts, tmp_db):
 
 
 @patch("school_dashboard.digest.requests.post")
-def test_send_ntfy_with_cards_creates_digest(mock_post, tmp_path):
+def test_send_ntfy_with_cards_creates_digest(mock_post, tmp_path, dashboard_url):
     mock_post.return_value = MagicMock(ok=True, status_code=200)
     db = tmp_path / "school.db"
     from school_dashboard.db import init_digests_table, get_digest
     init_digests_table(str(db))
 
     cards = [
-        {"source": "schoology", "child": "Ford", "title": "Math HW", "detail": "Pre-Algebra",
+        {"source": "schoology", "child": "Avery", "title": "Math HW", "detail": "Pre-Algebra",
          "due_date": "2026-04-11", "url": "", "done": False},
     ]
     send_ntfy(topic="test-topic", message="Hello", title="Homework Check",
@@ -309,7 +309,7 @@ def test_send_ntfy_with_cards_creates_digest(mock_post, tmp_path):
     call_kwargs = mock_post.call_args
     headers = call_kwargs.kwargs.get("headers", {})
     assert "digest=" in headers.get("Click", "")
-    assert "school.grepon.cc" in headers.get("Click", "")
+    assert headers["Click"].startswith(f"{dashboard_url}/")
     # Verify the digest was actually persisted to DB
     click_url = headers.get("Click", "")
     digest_id = click_url.split("digest=")[1]
@@ -319,7 +319,7 @@ def test_send_ntfy_with_cards_creates_digest(mock_post, tmp_path):
 
 
 @patch("school_dashboard.digest.requests.post")
-def test_send_ntfy_zero_cards_still_records_delivery(mock_post, tmp_path):
+def test_send_ntfy_zero_cards_still_records_delivery(mock_post, tmp_path, dashboard_url):
     """A delivered digest with nothing due (zero cards) must leave a digests row for the watchdog."""
     mock_post.return_value = MagicMock(ok=True, status_code=200)
     db = tmp_path / "school.db"
@@ -331,7 +331,7 @@ def test_send_ntfy_zero_cards_still_records_delivery(mock_post, tmp_path):
 
 
 @patch("school_dashboard.digest.requests.post")
-def test_send_ntfy_nonempty_cards_deep_links_to_digest(mock_post, tmp_path):
+def test_send_ntfy_nonempty_cards_deep_links_to_digest(mock_post, tmp_path, dashboard_url):
     mock_post.return_value = MagicMock(ok=True, status_code=200)
     db = tmp_path / "school.db"
     from school_dashboard.db import get_digest
@@ -358,7 +358,7 @@ def test_zero_card_digest_api_and_card_patch(tmp_path, monkeypatch):
 
 
 @patch("school_dashboard.digest.requests.post")
-def test_send_ntfy_without_cards_uses_static_links(mock_post):
+def test_send_ntfy_without_cards_uses_static_links(mock_post, dashboard_url):
     mock_post.return_value = MagicMock(ok=True, status_code=200)
     send_ntfy(topic="test-topic", message="Hello", title="Homework Check")
     mock_post.assert_called_once()
@@ -366,6 +366,30 @@ def test_send_ntfy_without_cards_uses_static_links(mock_post):
     headers = call_kwargs.kwargs.get("headers", {})
     # Should use static deep link (mode=schoology)
     assert "mode=schoology" in headers.get("Click", "")
+
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_send_ntfy_without_dashboard_url_persists_cards(mock_post, tmp_path, monkeypatch):
+    from school_dashboard import digest
+    from school_dashboard.watchdog import latest_digests
+
+    monkeypatch.setattr(digest, "DASHBOARD_BASE", "")
+    mock_post.return_value = MagicMock(ok=True, status_code=200)
+    db = tmp_path / "school.db"
+    send_ntfy(topic="t", message="m", title="Morning Briefing",
+              cards=[{"child": "Avery", "title": "Practice"}], db_path=str(db))
+
+    headers = mock_post.call_args.kwargs["headers"]
+    assert "Click" not in headers
+    assert "Actions" not in headers
+    assert "Morning Briefing" in latest_digests(db)
+
+
+@patch("school_dashboard.digest.requests.post")
+def test_send_ntfy_with_empty_topic_skips_http(mock_post):
+    send_ntfy(topic="", message="m", title="Morning Briefing")
+    mock_post.assert_not_called()
 
 
 # --- Digest DB tests ---
@@ -389,9 +413,9 @@ def digest_db(tmp_path):
 
 def test_create_and_get_digest(digest_db):
     cards = [
-        {"source": "schoology", "child": "Ford", "title": "Math HW", "detail": "Pre-Algebra",
+        {"source": "schoology", "child": "Avery", "title": "Math HW", "detail": "Pre-Algebra",
          "due_date": "2026-04-11", "url": "", "done": False},
-        {"source": "ixl", "child": "Jack", "title": "Math", "detail": "3 remaining",
+        {"source": "ixl", "child": "Casey", "title": "Math", "detail": "3 remaining",
          "due_date": None, "url": "", "done": False},
     ]
     digest_id = create_digest(digest_db, "Morning Briefing", cards)
@@ -400,7 +424,7 @@ def test_create_and_get_digest(digest_db):
     assert result is not None
     assert result["title"] == "Morning Briefing"
     assert len(result["cards"]) == 2
-    assert result["cards"][0]["child"] == "Ford"
+    assert result["cards"][0]["child"] == "Avery"
     assert result["cards"][1]["source"] == "ixl"
 
 
@@ -410,7 +434,7 @@ def test_get_digest_not_found(digest_db):
 
 def test_mark_digest_card_done(digest_db):
     cards = [
-        {"source": "schoology", "child": "Ford", "title": "Math HW", "detail": "",
+        {"source": "schoology", "child": "Avery", "title": "Math HW", "detail": "",
          "due_date": None, "url": "", "done": False},
     ]
     digest_id = create_digest(digest_db, "Test", cards)
@@ -420,14 +444,14 @@ def test_mark_digest_card_done(digest_db):
 
 
 def test_mark_digest_card_done_invalid_index(digest_db):
-    cards = [{"source": "ixl", "child": "Ford", "title": "X", "detail": "",
+    cards = [{"source": "ixl", "child": "Avery", "title": "X", "detail": "",
               "due_date": None, "url": "", "done": False}]
     digest_id = create_digest(digest_db, "Test", cards)
     assert mark_digest_card_done(digest_db, digest_id, 99, True) is False
 
 
 def test_purge_old_digests(digest_db):
-    cards = [{"source": "ixl", "child": "Ford", "title": "X", "detail": "",
+    cards = [{"source": "ixl", "child": "Avery", "title": "X", "detail": "",
               "due_date": None, "url": "", "done": False}]
     digest_id = create_digest(digest_db, "Old", cards)
     # Manually backdate the row
@@ -449,7 +473,7 @@ GC_FIXTURE = {
         {
             "team_id": "abc123",
             "team_name": "SMCS 5th Baseball",
-            "child": "Ford",
+            "child": "Avery",
             "schedule": [
                 {"date": "2026-04-14", "time": "16:00", "type": "practice",
                  "opponent": "", "location": "Smith Field", "home_away": "home"},
@@ -462,7 +486,7 @@ GC_FIXTURE = {
         {
             "team_id": "def456",
             "team_name": "SMCS 5th Soccer",
-            "child": "Jack",
+            "child": "Casey",
             "schedule": [
                 {"date": "2026-04-15", "time": "17:00", "type": "practice",
                  "opponent": "", "location": "Soccer Field", "home_away": "home"},
@@ -503,9 +527,9 @@ def test_load_gc_events_in_window(tmp_gc):
     # Window: 2026-04-14 to 2026-04-14+3 = 2026-04-17 (exclusive)
     events = _load_gc_events(tmp_gc, days=3, from_date="2026-04-14")
     dates = [e["date"] for e in events]
-    assert "2026-04-14" in dates  # Ford practice (day 0)
-    assert "2026-04-15" in dates  # Jack practice (day 1)
-    assert "2026-04-16" in dates  # Ford game (day 2)
+    assert "2026-04-14" in dates  # Avery practice (day 0)
+    assert "2026-04-15" in dates  # Casey practice (day 1)
+    assert "2026-04-16" in dates  # Avery game (day 2)
     assert "2026-04-30" not in dates  # outside window
 
 
@@ -518,10 +542,10 @@ def test_load_gc_events_out_of_window(tmp_gc):
 
 def test_load_gc_events_child_attribution(tmp_gc):
     events = _load_gc_events(tmp_gc, days=7, from_date="2026-04-14")
-    ford_events = [e for e in events if e["child"] == "Ford"]
-    jack_events = [e for e in events if e["child"] == "Jack"]
-    assert len(ford_events) >= 1
-    assert len(jack_events) >= 1
+    avery_events = [e for e in events if e["child"] == "Avery"]
+    casey_events = [e for e in events if e["child"] == "Casey"]
+    assert len(avery_events) >= 1
+    assert len(casey_events) >= 1
 
 
 def test_load_gc_events_sorted_by_date(tmp_gc):
@@ -554,7 +578,7 @@ def test_morning_digest_gc_card_present(mock_post, tmp_state, tmp_facts, tmp_db,
     )
     gc_cards = [c for c in cards if c["source"] == "gc"]
     assert len(gc_cards) >= 1
-    assert gc_cards[0]["child"] == "Ford"
+    assert gc_cards[0]["child"] == "Avery"
 
 
 @patch("school_dashboard.llm.requests.post")
@@ -579,7 +603,7 @@ def test_morning_digest_no_gc_when_file_missing(mock_post, tmp_state, tmp_facts,
 def test_night_digest_gc_card_tomorrow(mock_post, tmp_state, tmp_facts, tmp_db, tmp_gc):
     """Night digest shows gc events for tomorrow only."""
     mock_post.return_value = _llm_response("Ready for tomorrow!")
-    # tomorrow = 2026-04-15 → Jack soccer practice
+    # tomorrow = 2026-04-15 → Casey soccer practice
     text, cards = build_night_digest(
         state_path=tmp_state,
         db_path=tmp_db,
@@ -593,7 +617,7 @@ def test_night_digest_gc_card_tomorrow(mock_post, tmp_state, tmp_facts, tmp_db, 
     )
     gc_cards = [c for c in cards if c["source"] == "gc"]
     assert len(gc_cards) == 1
-    assert gc_cards[0]["child"] == "Jack"
+    assert gc_cards[0]["child"] == "Casey"
 
 
 @patch("school_dashboard.llm.requests.post")
@@ -637,60 +661,60 @@ def test_quick_check_missing_file():
 
 def test_quick_check_all_done(tmp_path):
     state = {
-        "schoology": {"Ford": {"assignments": []}},
-        "ixl": {"Ford": {"totals": {"Math": {"remaining": 0, "assigned": 3, "done": 3}}}},
+        "schoology": {"Avery": {"assignments": []}},
+        "ixl": {"Avery": {"totals": {"Math": {"remaining": 0, "assigned": 3, "done": 3}}}},
     }
     p = tmp_path / "state.json"
     p.write_text(json.dumps(state))
     text, cards = build_quick_check(str(p))
-    assert "Ford" in text
+    assert "Avery" in text
 
 
 def test_quick_check_shows_ixl_remaining(tmp_path):
     state = {
-        "schoology": {"Ford": {"assignments": []}},
-        "ixl": {"Ford": {"totals": {"Math": {"remaining": 2, "assigned": 5, "done": 3}}}},
+        "schoology": {"Avery": {"assignments": []}},
+        "ixl": {"Avery": {"totals": {"Math": {"remaining": 2, "assigned": 5, "done": 3}}}},
     }
     p = tmp_path / "state.json"
     p.write_text(json.dumps(state))
     text, _ = build_quick_check(str(p))
-    assert "Ford" in text
+    assert "Avery" in text
     assert "2" in text
 
 
 def test_quick_check_shows_open_sgy_assignments(tmp_path):
     state = {
         "schoology": {
-            "Jack": {"assignments": [
+            "Casey": {"assignments": [
                 {"title": "Math HW", "status": "", "due_date": "2026-04-15", "course": "Math"},
                 {"title": "ELA HW", "status": "", "due_date": "2026-04-16", "course": "ELA"},
             ]}
         },
-        "ixl": {"Jack": {"totals": {}}},
+        "ixl": {"Casey": {"totals": {}}},
     }
     p = tmp_path / "state.json"
     p.write_text(json.dumps(state))
     text, _ = build_quick_check(str(p))
-    assert "Jack" in text
+    assert "Casey" in text
     assert "2" in text
 
 
 def test_quick_check_multiple_children(tmp_path):
     state = {
         "schoology": {
-            "Ford": {"assignments": [{"title": "X", "status": "", "due_date": "2026-04-15", "course": "Math"}]},
-            "Jack": {"assignments": []},
+            "Avery": {"assignments": [{"title": "X", "status": "", "due_date": "2026-04-15", "course": "Math"}]},
+            "Casey": {"assignments": []},
         },
         "ixl": {
-            "Ford": {"totals": {"Math": {"remaining": 1, "assigned": 3, "done": 2}}},
-            "Jack": {"totals": {"Math": {"remaining": 0, "assigned": 2, "done": 2}}},
+            "Avery": {"totals": {"Math": {"remaining": 1, "assigned": 3, "done": 2}}},
+            "Casey": {"totals": {"Math": {"remaining": 0, "assigned": 2, "done": 2}}},
         },
     }
     p = tmp_path / "state.json"
     p.write_text(json.dumps(state))
     text, _ = build_quick_check(str(p))
-    assert "Ford" in text
-    assert "Jack" in text
+    assert "Avery" in text
+    assert "Casey" in text
 
 
 # --- send_ntfy with actions ---
@@ -700,7 +724,7 @@ def test_send_ntfy_with_actions_appends_to_header(mock_post):
     mock_post.return_value = MagicMock(ok=True, status_code=200)
     actions = [
         {"action": "http", "label": "Check Homework",
-         "url": "https://school.grepon.cc/api/sync",
+         "url": "https://school.example.invalid/api/sync",
          "method": "POST", "body": '{"sources":"ixl,sgy","digest":"quick"}'},
     ]
     send_ntfy(topic="test-topic", message="Hello", title="Homework Check", actions=actions)

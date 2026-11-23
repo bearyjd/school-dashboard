@@ -53,7 +53,7 @@ The endpoint builds a tight system prompt from the specific item's data (not the
 
 ### Modified Surfaces
 
-**DigestCard** (new): `InlineAgent` chip appears at bottom of each card. Suggested prompts pre-filled based on card type (e.g. for a homework card: "Already handled?" / "Add to Jack's tasks").
+**DigestCard** (new): `InlineAgent` chip appears at bottom of each card. Suggested prompts pre-filled based on card type (e.g. for a homework card: "Already handled?" / "Add to Casey's tasks").
 
 **ItemRow in Child view**: Long-press or swipe-right reveals `InlineAgent` chip. Suggested prompts: "Explain this", "Mark done", "Reschedule".
 

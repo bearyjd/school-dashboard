@@ -1,0 +1,93 @@
+{
+  "calendar_id": "example-school-2026-27",
+  "school": "Example School",
+  "school_year": "2026-27",
+  "source": "Example School Calendar (synthetic)",
+  "roster_grades": {
+    "Avery": "4th",
+    "Blair": "7th",
+    "Casey": "9th"
+  },
+  "events": [
+    {
+      "date": "2026-08-26",
+      "title": "Welcome day",
+      "kind": "event",
+      "relevant_to": [
+        "Avery",
+        "Blair",
+        "Casey"
+      ]
+    },
+    {
+      "date": "2026-09-17",
+      "title": "Classroom open house",
+      "kind": "event",
+      "relevant_to": [
+        "Avery"
+      ]
+    },
+    {
+      "date": "2026-10-06",
+      "title": "Teacher planning day",
+      "kind": "no_school",
+      "relevant_to": [
+        "Avery",
+        "Blair",
+        "Casey"
+      ]
+    },
+    {
+      "date": "2026-11-13",
+      "title": "Fall assembly",
+      "kind": "early_release",
+      "relevant_to": [
+        "Avery",
+        "Blair",
+        "Casey"
+      ]
+    },
+    {
+      "date": "2026-12-03",
+      "title": "Winter art showcase",
+      "kind": "event",
+      "relevant_to": [
+        "Blair",
+        "Casey"
+      ]
+    },
+    {
+      "date": "2027-01-22",
+      "title": "School mass",
+      "kind": "mass",
+      "relevant_to": [
+        "Avery",
+        "Blair",
+        "Casey"
+      ]
+    },
+    {
+      "date": "2027-02-11",
+      "title": "Conference afternoon",
+      "kind": "half_day",
+      "relevant_to": [
+        "Blair",
+        "Casey"
+      ]
+    },
+    {
+      "date": "2027-03-16",
+      "title": "Prospective student tour",
+      "kind": "event",
+      "relevant_to": []
+    },
+    {
+      "date": "2027-05-12",
+      "title": "Science exhibition",
+      "kind": "event",
+      "relevant_to": [
+        "Casey"
+      ]
+    }
+  ]
+}

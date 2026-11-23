@@ -24,7 +24,7 @@ CREATE TABLE events (
     date       TEXT NOT NULL,        -- ISO date: 2025-10-13
     title      TEXT NOT NULL,
     type       TEXT NOT NULL,        -- see Event Types below
-    child      TEXT,                 -- ford / jack / penn / NULL (school-wide)
+    child      TEXT,                 -- avery / casey / blair / NULL (school-wide)
     source     TEXT NOT NULL,        -- calendar_pdf / email / schoology
     notes      TEXT,
     created_at TEXT NOT NULL
@@ -39,14 +39,14 @@ Event types: `NO_SCHOOL`, `EARLY_RELEASE`, `MASS`, `ASSEMBLY`, `PARENT_MTG`, `RE
 ```json
 [
   {
-    "subject": "jack",
+    "subject": "casey",
     "fact": "soccer practice Tuesdays after school",
     "source": "email",
     "learned": "2025-09-03"
   },
   {
     "subject": "general",
-    "fact": "coach Thompson emails from coachT@smcs.org",
+    "fact": "the coach emails from coach@example.invalid",
     "source": "email",
     "learned": "2025-09-03"
   }
@@ -61,14 +61,14 @@ Deduplication: new facts are only appended if no existing entry matches on `subj
 
 ### 1. `calendar-import.py` — One-time PDF parser
 
-- Reads `/opt/school/state/calendar.pdf` (copy of the school planning calendar)
+- Reads `example-school-calendar.pdf` (copy of the school planning calendar)
 - Uses pypdf to extract text page by page
 - Parses month/year headers and day-by-day event text
 - Classifies each event into the appropriate type
 - Bulk-inserts into `school.db`, source = `calendar_pdf`
 - Run once manually; safe to re-run (UNIQUE index prevents duplicates)
 
-**Input:** `/opt/school/state/calendar.pdf`
+**Input:** `example-school-calendar.pdf`
 **Output:** ~60 rows in `events` table
 
 ### 2. `email-intel.py` — Email event + fact extractor
@@ -88,8 +88,8 @@ Extract from this email:
 
 Return JSON only:
 {
-  "events": [{"date": "YYYY-MM-DD", "title": "...", "type": "...", "child": "ford|jack|penn|null", "notes": "..."}],
-  "facts": [{"subject": "ford|jack|penn|general", "fact": "..."}]
+  "events": [{"date": "YYYY-MM-DD", "title": "...", "type": "...", "child": "avery|casey|blair|null", "notes": "..."}],
+  "facts": [{"subject": "avery|casey|blair|general", "fact": "..."}]
 }
 If nothing extractable, return {"events": [], "facts": []}.
 ```
@@ -107,8 +107,8 @@ Runs at 6am only. Pulls:
 Posts to LiteLLM using `cron-prompts/morning-briefing.md` as the system prompt. The prompt is editable without code changes.
 
 Output: 5–10 line natural language summary, sent to:
-- ntfy topic `your-ntfy-topic` (both parents receive)
-- Email: `parent@example.com` + the other parent's address (configurable in `/opt/school/config/env`)
+- ntfy topic `example-school-updates` (both parents receive)
+- Email: `parent@example.invalid` + the other parent's address (configurable in `/opt/school/config/env`)
 
 ### 4. Chat context expansion (`/opt/school/web/app.py`)
 
@@ -144,8 +144,8 @@ New entries in `/opt/school/config/env`:
 SCHOOL_DB_PATH=/opt/school/state/school.db
 SCHOOL_FACTS_PATH=/opt/school/state/facts.json
 SCHOOL_CALENDAR_PDF=/opt/school/state/calendar.pdf
-DIGEST_EMAIL=parent@example.com          # the other parent's email for digest backup
-DIGEST_EMAIL_FROM=parent@example.com    # sender via gog
+DIGEST_EMAIL=parent@example.invalid          # the other parent's email for digest backup
+DIGEST_EMAIL_FROM=parent@example.invalid    # sender via gog
 ```
 
 ---

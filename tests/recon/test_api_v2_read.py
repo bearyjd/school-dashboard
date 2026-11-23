@@ -14,7 +14,7 @@ def test_config_always_answers(api_factory):
     assert body["ok"] is True and body["error"] is None
     cfg = body["data"]
     assert cfg["enabled"] is True and cfg["migrated"] is True and cfg["grace_default"] == 2
-    assert cfg["kids"] == [{"name": "Alex", "color": "blue"}, {"name": "Sam", "color": "rose"}]
+    assert cfg["kids"] == [{"name": "Alex", "color": "amber"}, {"name": "Sam", "color": "lavender"}]
 
 
 def test_config_when_disabled_and_not_migrated(api_factory):

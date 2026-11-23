@@ -68,9 +68,9 @@ After all requested scrapers finish:
 **`quick` (default):** New `build_quick_check(state_path) -> tuple[str, list]` function in `digest.py`. Reads freshly-updated `school-state.json`, formats per-child summary:
 
 ```
-Ford: IXL 2 remaining (Math), SGY 1 open assignment
-Jack: IXL all done, SGY 3 open
-Penn: IXL all done, SGY all done
+Avery: IXL 2 remaining (Math), SGY 1 open assignment
+Casey: IXL all done, SGY 3 open
+Blair: IXL all done, SGY all done
 ```
 
 No LLM call. Returns `(text, [])` matching existing builder signature. Fires ntfy push with title "Homework Check".
@@ -88,11 +88,11 @@ No LLM call. Returns `(text, [])` matching existing builder signature. Fires ntf
 The afternoon digest notification includes two action buttons:
 
 ```
-http, Check Homework, https://school.grepon.cc/api/sync, method=POST,
+http, Check Homework, https://school.example.invalid/api/sync, method=POST,
   body={"sources":"ixl,sgy","digest":"quick"},
   headers.X-Sync-Token=<SYNC_TOKEN>
 
-http, Full Sync, https://school.grepon.cc/api/sync, method=POST,
+http, Full Sync, https://school.example.invalid/api/sync, method=POST,
   body={"sources":"all","digest":"full"},
   headers.X-Sync-Token=<SYNC_TOKEN>
 ```

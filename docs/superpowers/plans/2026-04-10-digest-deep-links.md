@@ -57,9 +57,9 @@ def digest_db(tmp_path):
 
 def test_create_and_get_digest(digest_db):
     cards = [
-        {"source": "schoology", "child": "Ford", "title": "Math HW", "detail": "Pre-Algebra",
+        {"source": "schoology", "child": "Avery", "title": "Math HW", "detail": "Pre-Algebra",
          "due_date": "2026-04-11", "url": "", "done": False},
-        {"source": "ixl", "child": "Jack", "title": "Math", "detail": "3 remaining",
+        {"source": "ixl", "child": "Casey", "title": "Math", "detail": "3 remaining",
          "due_date": None, "url": "", "done": False},
     ]
     digest_id = create_digest(digest_db, "Morning Briefing", cards)
@@ -68,7 +68,7 @@ def test_create_and_get_digest(digest_db):
     assert result is not None
     assert result["title"] == "Morning Briefing"
     assert len(result["cards"]) == 2
-    assert result["cards"][0]["child"] == "Ford"
+    assert result["cards"][0]["child"] == "Avery"
     assert result["cards"][1]["source"] == "ixl"
 
 
@@ -78,7 +78,7 @@ def test_get_digest_not_found(digest_db):
 
 def test_mark_digest_card_done(digest_db):
     cards = [
-        {"source": "schoology", "child": "Ford", "title": "Math HW", "detail": "",
+        {"source": "schoology", "child": "Avery", "title": "Math HW", "detail": "",
          "due_date": None, "url": "", "done": False},
     ]
     digest_id = create_digest(digest_db, "Test", cards)
@@ -88,14 +88,14 @@ def test_mark_digest_card_done(digest_db):
 
 
 def test_mark_digest_card_done_invalid_index(digest_db):
-    cards = [{"source": "ixl", "child": "Ford", "title": "X", "detail": "",
+    cards = [{"source": "ixl", "child": "Avery", "title": "X", "detail": "",
               "due_date": None, "url": "", "done": False}]
     digest_id = create_digest(digest_db, "Test", cards)
     assert mark_digest_card_done(digest_db, digest_id, 99, True) is False
 
 
 def test_purge_old_digests(digest_db):
-    cards = [{"source": "ixl", "child": "Ford", "title": "X", "detail": "",
+    cards = [{"source": "ixl", "child": "Avery", "title": "X", "detail": "",
               "due_date": None, "url": "", "done": False}]
     digest_id = create_digest(digest_db, "Old", cards)
     # Manually backdate the row
@@ -110,7 +110,7 @@ def test_purge_old_digests(digest_db):
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard && python -m pytest tests/test_digest.py::test_create_and_get_digest -v`
+Run: `cd ~/src/school-dashboard && python -m pytest tests/test_digest.py::test_create_and_get_digest -v`
 Expected: FAIL with `ImportError: cannot import name 'create_digest' from 'school_dashboard.db'`
 
 - [ ] **Step 3: Implement digest DB functions**
@@ -203,7 +203,7 @@ Actually, looking at db.py again, it only imports `sqlite3`, `datetime`, `Path`,
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard && python -m pytest tests/test_digest.py -k "digest_db or create_and_get or mark_digest or purge_old" -v`
+Run: `cd ~/src/school-dashboard && python -m pytest tests/test_digest.py -k "digest_db or create_and_get or mark_digest or purge_old" -v`
 Expected: 5 PASSED
 
 - [ ] **Step 5: Commit**
@@ -255,7 +255,7 @@ def test_morning_digest_returns_cards(mock_post, tmp_state, tmp_facts, tmp_db):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard && python -m pytest tests/test_digest.py::test_morning_digest_returns_cards -v`
+Run: `cd ~/src/school-dashboard && python -m pytest tests/test_digest.py::test_morning_digest_returns_cards -v`
 Expected: FAIL with `ValueError: too many values to unpack` (currently returns str, not tuple)
 
 - [ ] **Step 3: Update `build_morning_digest` to return `(text, cards)`**
@@ -291,7 +291,7 @@ Replace the return statement at line 184:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard && python -m pytest tests/test_digest.py::test_morning_digest_returns_cards -v`
+Run: `cd ~/src/school-dashboard && python -m pytest tests/test_digest.py::test_morning_digest_returns_cards -v`
 Expected: PASS
 
 - [ ] **Step 5: Update existing morning digest test to unpack tuple**
@@ -503,7 +503,7 @@ Fix `test_weekly_digest_empty_state` (line 254):
 
 - [ ] **Step 12: Run all tests to verify**
 
-Run: `cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard && python -m pytest tests/test_digest.py -v`
+Run: `cd ~/src/school-dashboard && python -m pytest tests/test_digest.py -v`
 Expected: ALL PASSED
 
 - [ ] **Step 13: Commit**
@@ -534,7 +534,7 @@ def test_send_ntfy_with_cards_creates_digest(mock_post, tmp_path):
     init_digests_table(str(db))
 
     cards = [
-        {"source": "schoology", "child": "Ford", "title": "Math HW", "detail": "Pre-Algebra",
+        {"source": "schoology", "child": "Avery", "title": "Math HW", "detail": "Pre-Algebra",
          "due_date": "2026-04-11", "url": "", "done": False},
     ]
     send_ntfy(topic="test-topic", message="Hello", title="Homework Check",
@@ -545,7 +545,7 @@ def test_send_ntfy_with_cards_creates_digest(mock_post, tmp_path):
     headers = call_kwargs[1]["headers"] if "headers" in call_kwargs[1] else call_kwargs.kwargs["headers"]
     # Click header should contain ?digest= URL
     assert "digest=" in headers["Click"]
-    assert "school.grepon.cc" in headers["Click"]
+    assert "school.example.invalid" in headers["Click"]
 
 
 @patch("school_dashboard.digest.requests.post")
@@ -561,7 +561,7 @@ def test_send_ntfy_without_cards_uses_static_links(mock_post):
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard && python -m pytest tests/test_digest.py::test_send_ntfy_with_cards_creates_digest -v`
+Run: `cd ~/src/school-dashboard && python -m pytest tests/test_digest.py::test_send_ntfy_with_cards_creates_digest -v`
 Expected: FAIL with `TypeError: send_ntfy() got an unexpected keyword argument 'cards'`
 
 - [ ] **Step 3: Update `send_ntfy` to accept cards**
@@ -607,7 +607,7 @@ def send_ntfy(
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard && python -m pytest tests/test_digest.py -k "send_ntfy" -v`
+Run: `cd ~/src/school-dashboard && python -m pytest tests/test_digest.py -k "send_ntfy" -v`
 Expected: ALL PASSED (including the original `test_send_ntfy`)
 
 - [ ] **Step 5: Commit**
@@ -693,7 +693,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
 
 - [ ] **Step 2: Run all tests to verify nothing broke**
 
-Run: `cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard && python -m pytest tests/ -v`
+Run: `cd ~/src/school-dashboard && python -m pytest tests/ -v`
 Expected: ALL PASSED
 
 - [ ] **Step 3: Commit**
@@ -747,7 +747,7 @@ def api_digest_card_update(digest_id, index):
 
 - [ ] **Step 2: Run all tests**
 
-Run: `cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard && python -m pytest tests/ -v`
+Run: `cd ~/src/school-dashboard && python -m pytest tests/ -v`
 Expected: ALL PASSED
 
 - [ ] **Step 3: Commit**
@@ -1015,25 +1015,25 @@ Update the URL param parsing IIFE at the bottom of the `<script>` block. Add dig
 - [ ] **Step 4: Deploy and manual test**
 
 ```bash
-scp web/templates/index.html root@192.168.1.14:/opt/school/dashboard/web/templates/index.html
-ssh root@192.168.1.14 'pkill -f flask; sleep 1; cd /opt/school/dashboard && set -a && source /opt/school/config/env && set +a && nohup python3 -m web.app > /tmp/flask.log 2>&1 &'
+scp web/templates/index.html root@192.0.2.14:/opt/school/dashboard/web/templates/index.html
+ssh root@192.0.2.14 'pkill -f flask; sleep 1; cd /opt/school/dashboard && set -a && source /opt/school/config/env && set +a && nohup python3 -m web.app > /tmp/flask.log 2>&1 &'
 ```
 
 Then send a test notification:
 
 ```bash
-ssh root@192.168.1.14 'cd /opt/school/dashboard && set -a && source /opt/school/config/env && set +a && python3 -c "
+ssh root@192.0.2.14 'cd /opt/school/dashboard && set -a && source /opt/school/config/env && set +a && python3 -c "
 from school_dashboard.digest import send_ntfy
 from school_dashboard.db import init_digests_table
 import os
 db = os.environ.get(\"SCHOOL_DB_PATH\", \"/opt/school/state/school.db\")
 init_digests_table(db)
 cards = [
-    {\"source\": \"schoology\", \"child\": \"Ford\", \"title\": \"Math Chapter 5 Review\", \"detail\": \"Pre-Algebra\", \"due_date\": \"2026-04-11\", \"url\": \"\", \"done\": False},
-    {\"source\": \"schoology\", \"child\": \"Ford\", \"title\": \"ELA Essay Draft\", \"detail\": \"English\", \"due_date\": \"2026-04-11\", \"url\": \"\", \"done\": False},
-    {\"source\": \"ixl\", \"child\": \"Jack\", \"title\": \"Math\", \"detail\": \"3 remaining\", \"due_date\": None, \"url\": \"\", \"done\": False},
+    {\"source\": \"schoology\", \"child\": \"Avery\", \"title\": \"Math Chapter 5 Review\", \"detail\": \"Pre-Algebra\", \"due_date\": \"2026-04-11\", \"url\": \"\", \"done\": False},
+    {\"source\": \"schoology\", \"child\": \"Avery\", \"title\": \"ELA Essay Draft\", \"detail\": \"English\", \"due_date\": \"2026-04-11\", \"url\": \"\", \"done\": False},
+    {\"source\": \"ixl\", \"child\": \"Casey\", \"title\": \"Math\", \"detail\": \"3 remaining\", \"due_date\": None, \"url\": \"\", \"done\": False},
 ]
-send_ntfy(os.environ[\"NTFY_TOPIC\"], \"Ford: 2 assignments due tomorrow. Jack: 3 IXL skills remaining.\", title=\"Homework Check\", cards=cards, db_path=db)
+send_ntfy(os.environ[\"NTFY_TOPIC\"], \"Avery: 2 assignments due tomorrow. Casey: 3 IXL skills remaining.\", title=\"Homework Check\", cards=cards, db_path=db)
 print(\"Sent with cards!\")
 "'
 ```
@@ -1063,36 +1063,36 @@ git commit -m "feat: add card carousel UI for digest deep links"
 - [ ] **Step 1: Deploy updated backend files to server**
 
 ```bash
-scp school_dashboard/db.py root@192.168.1.14:/opt/school/dashboard/school_dashboard/db.py
-scp school_dashboard/digest.py root@192.168.1.14:/opt/school/dashboard/school_dashboard/digest.py
-scp school_dashboard/cli.py root@192.168.1.14:/opt/school/dashboard/school_dashboard/cli.py
-scp web/app.py root@192.168.1.14:/opt/school/dashboard/web/app.py
-scp web/templates/index.html root@192.168.1.14:/opt/school/dashboard/web/templates/index.html
+scp school_dashboard/db.py root@192.0.2.14:/opt/school/dashboard/school_dashboard/db.py
+scp school_dashboard/digest.py root@192.0.2.14:/opt/school/dashboard/school_dashboard/digest.py
+scp school_dashboard/cli.py root@192.0.2.14:/opt/school/dashboard/school_dashboard/cli.py
+scp web/app.py root@192.0.2.14:/opt/school/dashboard/web/app.py
+scp web/templates/index.html root@192.0.2.14:/opt/school/dashboard/web/templates/index.html
 ```
 
 - [ ] **Step 2: Restart Flask**
 
 ```bash
-ssh root@192.168.1.14 'pkill -f flask; sleep 1; cd /opt/school/dashboard && set -a && source /opt/school/config/env && set +a && nohup python3 -m web.app > /tmp/flask.log 2>&1 &'
+ssh root@192.0.2.14 'pkill -f flask; sleep 1; cd /opt/school/dashboard && set -a && source /opt/school/config/env && set +a && nohup python3 -m web.app > /tmp/flask.log 2>&1 &'
 ```
 
 - [ ] **Step 3: Send end-to-end test notification with real data**
 
 ```bash
-ssh root@192.168.1.14 'cd /opt/school/dashboard && set -a && source /opt/school/config/env && set +a && python3 -c "
+ssh root@192.0.2.14 'cd /opt/school/dashboard && set -a && source /opt/school/config/env && set +a && python3 -c "
 from school_dashboard.digest import send_ntfy
 from school_dashboard.db import init_digests_table
 import os
 db = os.environ.get(\"SCHOOL_DB_PATH\", \"/opt/school/state/school.db\")
 init_digests_table(db)
 cards = [
-    {\"source\": \"schoology\", \"child\": \"Ford\", \"title\": \"Math Ch5 Review\", \"detail\": \"Pre-Algebra\", \"due_date\": \"2026-04-11\", \"url\": \"\", \"done\": False},
-    {\"source\": \"schoology\", \"child\": \"Ford\", \"title\": \"ELA Essay Draft\", \"detail\": \"English\", \"due_date\": \"2026-04-11\", \"url\": \"\", \"done\": False},
-    {\"source\": \"schoology\", \"child\": \"Ford\", \"title\": \"Science Lab Report\", \"detail\": \"Science 7\", \"due_date\": \"2026-04-12\", \"url\": \"\", \"done\": False},
-    {\"source\": \"ixl\", \"child\": \"Jack\", \"title\": \"Math\", \"detail\": \"3 remaining\", \"due_date\": None, \"url\": \"\", \"done\": False},
-    {\"source\": \"ixl\", \"child\": \"Jack\", \"title\": \"ELA\", \"detail\": \"2 remaining\", \"due_date\": None, \"url\": \"\", \"done\": False},
+    {\"source\": \"schoology\", \"child\": \"Avery\", \"title\": \"Math Ch5 Review\", \"detail\": \"Pre-Algebra\", \"due_date\": \"2026-04-11\", \"url\": \"\", \"done\": False},
+    {\"source\": \"schoology\", \"child\": \"Avery\", \"title\": \"ELA Essay Draft\", \"detail\": \"English\", \"due_date\": \"2026-04-11\", \"url\": \"\", \"done\": False},
+    {\"source\": \"schoology\", \"child\": \"Avery\", \"title\": \"Science Lab Report\", \"detail\": \"Science 7\", \"due_date\": \"2026-04-12\", \"url\": \"\", \"done\": False},
+    {\"source\": \"ixl\", \"child\": \"Casey\", \"title\": \"Math\", \"detail\": \"3 remaining\", \"due_date\": None, \"url\": \"\", \"done\": False},
+    {\"source\": \"ixl\", \"child\": \"Casey\", \"title\": \"ELA\", \"detail\": \"2 remaining\", \"due_date\": None, \"url\": \"\", \"done\": False},
 ]
-send_ntfy(os.environ[\"NTFY_TOPIC\"], \"Ford: 3 assignments due. Jack: 5 IXL skills remaining.\", title=\"Homework Check\", cards=cards, db_path=db)
+send_ntfy(os.environ[\"NTFY_TOPIC\"], \"Avery: 3 assignments due. Casey: 5 IXL skills remaining.\", title=\"Homework Check\", cards=cards, db_path=db)
 print(\"Sent 5-card test!\")
 "'
 ```

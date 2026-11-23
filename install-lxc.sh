@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # install-lxc.sh — Install school-dashboard on OpenClaw LXC
 #
-#   ssh root@192.168.1.14 'bash -s' < install-lxc.sh
+#   ssh root@school-host.example.org 'bash -s' < install-lxc.sh
 #
 #   — or —
 #
-#   scp install-lxc.sh root@192.168.1.14:/tmp/
-#   ssh root@192.168.1.14 bash /tmp/install-lxc.sh
+#   scp install-lxc.sh root@school-host.example.org:/tmp/
+#   ssh root@school-host.example.org bash /tmp/install-lxc.sh
 
 set -euo pipefail
 
@@ -69,7 +69,7 @@ else
     log "Creating env file at $ENVFILE"
     cat > "$ENVFILE" << 'ENV'
 SCHOOL_EMAIL_ACCOUNT=parent@example.com
-SCHOOL_DOMAINS=stmark.org,schoology.com,ccsend.com
+SCHOOL_DOMAINS=school.example.org,schoology.com,ccsend.com
 ENV
     chmod 600 "$ENVFILE"
 fi

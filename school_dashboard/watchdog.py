@@ -379,10 +379,13 @@ def _state_mtime() -> Optional[datetime]:
 def _default_send(topic: str, message: str, title: str) -> None:
     """POST to ntfy; raises on any HTTP error or timeout so state is never advanced."""
     from school_dashboard.digest import DASHBOARD_BASE
+    headers = {"Title": title, "Priority": "default", "Tags": "school"}
+    if DASHBOARD_BASE:
+        headers["Click"] = DASHBOARD_BASE
     resp = requests.post(
         f"https://ntfy.sh/{topic}",
         data=message.encode("utf-8"),
-        headers={"Title": title, "Priority": "default", "Tags": "school", "Click": DASHBOARD_BASE},
+        headers=headers,
         timeout=15,
     )
     resp.raise_for_status()
@@ -422,7 +425,7 @@ def _maintenance_run(info: dict, now: Optional[datetime], dry_run: bool, send: O
     problems = check_maintenance_stuck(info, now, _flag_mtime())
     if not problems:
         return _skip("maintenance")
-    topic = os.environ.get("NTFY_TOPIC", "")
+    topic = os.environ.get("NTFY_TOPIC", "").strip()
     state_file = paths.state_dir() / WATCHDOG_FILE
     stored = load_state(state_file)
     old = stored.get("alerts") if isinstance(stored.get("alerts"), dict) else {}
@@ -466,7 +469,7 @@ def run(now: Optional[datetime] = None, dry_run: bool = False,
     info = maintenance.status()
     if info is not None:
         return _maintenance_run(info, now, dry_run, send)
-    topic = os.environ.get("NTFY_TOPIC", "")
+    topic = os.environ.get("NTFY_TOPIC", "").strip()
     if not topic and not dry_run:
         msg = "NTFY_TOPIC is not set; watchdog cannot send alerts"
         logger.error(msg)

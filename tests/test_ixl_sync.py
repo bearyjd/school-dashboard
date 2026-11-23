@@ -10,16 +10,16 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 SCRIPT = REPO / "sync" / "school-sync.sh"
-PASSWORDS = {"jack": "pw-jack-SECRET", "penn": "pw-penn-SECRET", "ford": "pw-ford-SECRET"}
+PASSWORDS = {"casey": "pw-casey-SECRET", "blair": "pw-blair-SECRET", "avery": "pw-avery-SECRET"}
 OK_PAYLOAD = {"status": "ok", "warnings": [], "errors": [], "totals": {"math": {"remaining": 1}}, "remaining": []}
 ERR_PAYLOAD = {
     "status": "error", "warnings": [], "remaining": [],
     "errors": [{"code": "auth.login_failed", "stage": "login", "retryable": True,
-                "message": "Login failed for ford@school pw-ford-SECRET: Timeout 15000ms exceeded"}],
+                "message": "Login failed for avery@school pw-avery-SECRET: Timeout 15000ms exceeded"}],
 }
 
 
-def _setup(tmp_path: Path, failing=("ford",), accounts=("jack", "penn", "ford")):
+def _setup(tmp_path: Path, failing=("avery",), accounts=("casey", "blair", "avery")):
     bindir = tmp_path / "bin"
     bindir.mkdir()
     state = tmp_path / "state"
@@ -78,18 +78,18 @@ def _assert_no_secrets(r, state):
 
 def test_partial_failure_marks_error_and_skips_failed_child(tmp_path):
     env, state, ixl_dir = _setup(tmp_path)
-    (ixl_dir / "ford-assigned.json").write_text(json.dumps({"totals": {"old": 1}, "remaining": []}))
+    (ixl_dir / "avery-assigned.json").write_text(json.dumps({"totals": {"old": 1}, "remaining": []}))
     r = _run(env)
     assert r.returncode == 0, r.stderr
-    assert not (ixl_dir / "ford-assigned.json").exists()
-    for name in ("jack", "penn"):
+    assert not (ixl_dir / "avery-assigned.json").exists()
+    for name in ("casey", "blair"):
         assert json.loads((ixl_dir / f"{name}-assigned.json").read_text())["totals"]
     assert _ixl_meta(state) == "error"
-    assert "WARN: IXL scrape failed for ford (exit 1)" in r.stderr
+    assert "WARN: IXL scrape failed for avery (exit 1)" in r.stderr
     assert "code=auth.login_failed stage=login" in r.stderr
     assert "update" in (state / "school-state.calls").read_text()
     merged = (state / "merge-saw.txt").read_text()
-    assert "jack-assigned.json" in merged and "ford-assigned.json" not in merged
+    assert "casey-assigned.json" in merged and "avery-assigned.json" not in merged
     assert not list(ixl_dir.glob(".*-assigned.*")), "temp files must not leak"
     _assert_no_secrets(r, state)
 
@@ -98,12 +98,12 @@ def test_all_success_is_ok(tmp_path):
     env, state, ixl_dir = _setup(tmp_path, failing=())
     r = _run(env)
     assert r.returncode == 0, r.stderr
-    assert sorted(p.name for p in ixl_dir.iterdir()) == [f"{n}-assigned.json" for n in ("ford", "jack", "penn")]
+    assert sorted(p.name for p in ixl_dir.iterdir()) == [f"{n}-assigned.json" for n in ("avery", "blair", "casey")]
     assert _ixl_meta(state) == "ok"
 
 
 def test_all_fail_is_error_and_merge_still_runs(tmp_path):
-    env, state, ixl_dir = _setup(tmp_path, failing=("jack", "penn", "ford"))
+    env, state, ixl_dir = _setup(tmp_path, failing=("casey", "blair", "avery"))
     r = _run(env)
     assert r.returncode == 0, r.stderr
     assert list(ixl_dir.iterdir()) == []
@@ -121,7 +121,7 @@ def test_exit_zero_but_error_payload_is_treated_as_failure(tmp_path):
     assert _ixl_meta(state) == "error"
 
 
-def _slow_ixl(env, slow_for="ford"):
+def _slow_ixl(env, slow_for="avery"):
     ixl = Path(env["PATH"].split(":")[0]) / "ixl"
     ixl.write_text(f"""#!/bin/sh
 case "$IXL_EMAIL" in {slow_for}user@school) sleep 5;; esac
@@ -130,20 +130,20 @@ echo '{json.dumps(OK_PAYLOAD)}'
 
 
 def test_timeout_removes_old_file_and_continues(tmp_path):
-    env, state, ixl_dir = _setup(tmp_path, failing=(), accounts=("ford", "jack"))
+    env, state, ixl_dir = _setup(tmp_path, failing=(), accounts=("avery", "casey"))
     _slow_ixl(env)
     env["IXL_SCRAPE_TIMEOUT"] = "1"
-    (ixl_dir / "ford-assigned.json").write_text(json.dumps(OK_PAYLOAD))
+    (ixl_dir / "avery-assigned.json").write_text(json.dumps(OK_PAYLOAD))
     r = _run(env)
     assert r.returncode == 0, r.stderr
-    assert not (ixl_dir / "ford-assigned.json").exists()
-    assert (ixl_dir / "jack-assigned.json").exists()
+    assert not (ixl_dir / "avery-assigned.json").exists()
+    assert (ixl_dir / "casey-assigned.json").exists()
     assert "timed out" in r.stderr
     assert _ixl_meta(state) == "error"
 
 
 def test_stale_temp_files_are_swept(tmp_path):
     env, state, ixl_dir = _setup(tmp_path, failing=())
-    (ixl_dir / ".jack-assigned.ABC123").write_text("junk")
+    (ixl_dir / ".casey-assigned.ABC123").write_text("junk")
     _run(env)
-    assert not (ixl_dir / ".jack-assigned.ABC123").exists()
+    assert not (ixl_dir / ".casey-assigned.ABC123").exists()

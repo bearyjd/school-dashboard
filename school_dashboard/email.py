@@ -23,7 +23,7 @@ SKIP_SENDERS = {
     "no-reply@accounts.google.com",
 }
 
-SCHOOL_DOMAINS = set(os.environ.get("SCHOOL_DOMAINS", "stmark.org,schoology.com,ccsend.com").split(","))
+SCHOOL_DOMAINS = set(os.environ.get("SCHOOL_DOMAINS", "schoology.com,ccsend.com").split(","))
 
 ACTIVITY_KEYWORDS = {
     "practice", "game", "schedule", "roster", "team", "tournament", "tryout",

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Set up GitHub Actions to build the Docker image on push to `main` and push it to GitHub Container Registry (`ghcr.io`). The LXC host at `192.168.1.14` pulls the pre-built image instead of building locally. No external registry accounts or secrets needed — the repo is public so `ghcr.io` packages are publicly pullable.
+Set up GitHub Actions to build the Docker image on push to `main` and push it to GitHub Container Registry (`ghcr.io`). The LXC host at `192.0.2.14` pulls the pre-built image instead of building locally. No external registry accounts or secrets needed — the repo is public so `ghcr.io` packages are publicly pullable.
 
 ## What Changes
 
@@ -32,7 +32,7 @@ Skipped for: `web/**`, `docs/**`, `*.md`, `tests/**` — these don't change the 
 
 Add `image: ghcr.io/bearyjd/school-dashboard:latest` to the `dashboard` service. The existing `build: .` line stays so local builds still work. When both are present, `docker compose pull` fetches the registry image and `docker compose up -d` uses it; `docker compose up -d --build` still builds locally.
 
-## Deployment Workflow on `.14` After This
+## Deployment Workflow
 
 ```bash
 # Pull latest image and restart (replaces rsync + remote build)

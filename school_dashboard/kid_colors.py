@@ -1,26 +1,24 @@
 """Named, stable per-kid colours.
 
-A kid's colour is resolved by (1) a valid `color` in the roster config, (2) the built-in name default,
-(3) a positional fallback among the kids that matched neither. The same names are CSS tokens in the SPA.
+Each kid uses the colour configured on their roster entry or the next available colour in roster order.
+The same names are CSS tokens in the SPA.
 """
 from typing import Mapping, Optional, Sequence
 
 PALETTE: tuple[str, ...] = ("green", "lavender", "amber", "blue", "rose", "teal")
-DEFAULTS: Mapping[str, str] = {"jack": "green", "penn": "lavender", "ford": "amber"}
-FALLBACK: tuple[str, ...] = ("blue", "rose", "teal")
+FALLBACK: tuple[str, ...] = ("amber", "lavender", "green", "blue", "rose", "teal")
 
 
 def resolve_colors(names: Sequence[str], explicit: Optional[Mapping[str, str]] = None) -> dict[str, str]:
     """Map each name to a palette colour; deterministic for a given roster order.
 
-    Kids with no explicit or default colour take the next fallback colour not already used by another kid
+    Kids with no explicit colour take the next fallback colour not already used by another kid
     (colours repeat only once the whole palette is taken).
     """
-    explicit = explicit or {}
-    fixed = {n: explicit.get(n) or DEFAULTS.get(n.strip().lower()) for n in names}
-    used = {c for c in fixed.values() if c}
-    candidates = [c for c in (*FALLBACK, *PALETTE) if c not in used]
-    candidates = list(dict.fromkeys(candidates)) or list(FALLBACK)
+    explicit = {name.strip().lower(): color for name, color in (explicit or {}).items()}
+    fixed = {name: explicit.get(name.strip().lower()) for name in names}
+    used = set(fixed.values())
+    candidates = [color for color in FALLBACK if color not in used] or FALLBACK
     out: dict[str, str] = {}
     unresolved = 0
     for name in names:

@@ -15,7 +15,8 @@ from school_dashboard.atomic import write_atomic
 from school_dashboard.gcal import fetch_gcal_events
 from school_dashboard.llm import chat_completion
 from school_dashboard.scrape_meta import data_warnings_block as scrape_data_warnings, gc_warnings, powerschool_warnings, scrape_warnings
-from school_dashboard.state import canonical_name, canonical_roster, ixl_payload_ok
+from school_dashboard.schoology_links import portal_origin, schoology_url
+from school_dashboard.state import canonical_name, canonical_roster, get_name_aliases, ixl_payload_ok
 from school_dashboard import csp, db, hostcheck, maintenance, paths, powerschool
 from school_dashboard.csp import CSP_REPORT_ONLY  # noqa: F401  (re-exported for tests and docs)
 from school_dashboard.rate_limit import FailureLimiter, client_key, trusted_client_ip, trusted_proxy_count
@@ -57,7 +58,6 @@ LITELLM_URL = os.environ.get("LITELLM_URL", "http://localhost:8080")
 LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
 LITELLM_MODEL = os.environ.get("LITELLM_MODEL", "school-dash")
 GOG_ACCOUNT = os.environ.get("GOG_ACCOUNT", "")
-SGY_BASE_URL = os.environ.get("SGY_BASE_URL", "https://arlingtondiocese.schoology.com")
 
 
 def load_json(path: str) -> dict | list:
@@ -150,7 +150,9 @@ def build_system_prompt() -> str:
     state_view = (
         {k: v for k, v in state.items() if k not in hidden} if isinstance(state, dict) else state
     )
-    state_str = json.dumps(state_view, indent=2).replace('"John"', '"Jack"')[:8000]
+    state_str = json.dumps(state_view, indent=2)[:8000]
+    aliases = get_name_aliases()
+    alias_note = f"Use these configured names for child aliases: {json.dumps(aliases)}.\n" if aliases else ""
     # The state JSON is cut at 8000 chars, so scrape problems are stated outside it.
     warn_block = (scrape_data_warnings(state, gc_data=load_json(str(paths.gc_path())))
                   if isinstance(state, dict) else "")
@@ -178,7 +180,7 @@ def build_system_prompt() -> str:
     return (
         "You are a helpful family assistant for the school dashboard.\n\n"
         "Answer questions about the children's grades, assignments, upcoming school events, and what needs attention.\n"
-        f"Today: {today}\n\n"
+        f"{alias_note}Today: {today}\n\n"
         "Answer questions about grades, assignments, upcoming school events, and what needs attention. Be concise and practical.\n\n"
         f"## Data Freshness\n{freshness_str}\n\n"
         f"=== UPCOMING SCHOOL EVENTS (next 30 days) ===\n{events_str}\n\n"
@@ -478,6 +480,7 @@ def api_dashboard():
             return jsonify({"error": state["error"]}), 500
 
         # Schoology: per-child assignment lists
+        origin = portal_origin()
         schoology: dict = {}
         for child, data in _dict_items(state.get("schoology")):
             name = _normalize_child(child)
@@ -487,7 +490,7 @@ def api_dashboard():
                     "course": a.get("course", ""),
                     "due_date": a.get("due_date", ""),
                     "status": a.get("status", ""),
-                    "url": (SGY_BASE_URL.rstrip("/") + a["link"]) if a.get("link") else "",
+                    "url": schoology_url(a.get("link"), origin),
                 }
                 for a in (data.get("assignments") or [])
                 if isinstance(a, dict)
@@ -1014,7 +1017,7 @@ def api_sync_meta():
 @app.route("/.well-known/assetlinks.json")
 def assetlinks():
     """TWA domain verification — fingerprint populated when signing APK."""
-    package = os.environ.get("TWA_PACKAGE_NAME", "cc.grepon.school")
+    package = os.environ.get("TWA_PACKAGE_NAME", "org.example.school")
     fingerprint = os.environ.get("TWA_CERT_FINGERPRINT", "PLACEHOLDER_REPLACE_WITH_APK_SIGNING_CERT_SHA256")
     return jsonify([{
         "relation": ["delegate_permission/common.handle_all_urls"],

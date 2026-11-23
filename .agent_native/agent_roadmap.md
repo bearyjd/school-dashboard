@@ -174,7 +174,7 @@ not currently implemented" note — never a description implying the file is liv
 **Problem (verified):** Every test file that consumes scraper-shaped data
 (`test_readiness.py`, `test_digest.py`, `test_items.py`, `test_api_items.py`) builds
 its input by hand-writing Python dicts inline (e.g. `test_readiness.py`'s `tmp_state`
-fixture literally types out `{"schoology": {"Jack": {"assignments": [...]}}}`).
+fixture literally types out `{"schoology": {"Casey": {"assignments": [...]}}}`).
 There is **no** `tests/fixtures/` directory, no recorded JSON captured from a real
 `sgy summary --json` / `ixl assigned --json` / `gc summary --json` run anywhere in
 this repo, and no `jsonschema`/`pydantic` contract check (`grep -rn "jsonschema|

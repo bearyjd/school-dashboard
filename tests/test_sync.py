@@ -152,9 +152,9 @@ def test_run_sync_background_ixl_child_failure_marks_error(mock_sub, tmp_path, m
     meta_path = str(tmp_path / "meta.json")
     ixl_dir = tmp_path / "ixl"
     ixl_dir.mkdir()
-    (ixl_dir / "ford-assigned.json").write_text('{"totals": {"old": 1}, "remaining": []}')
+    (ixl_dir / "avery-assigned.json").write_text('{"totals": {"old": 1}, "remaining": []}')
     (tmp_path / ".ixl").mkdir()
-    (tmp_path / ".ixl" / "accounts.env").write_text("jack:j@s:pw1\nford:f@s:pw2\n")
+    (tmp_path / ".ixl" / "accounts.env").write_text("casey:j@s:pw1\navery:f@s:pw2\n")
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("SCHOOL_SYNC_META_PATH", meta_path)
     monkeypatch.setenv("SCHOOL_STATE_PATH", str(tmp_path / "state.json"))
@@ -175,8 +175,8 @@ def test_run_sync_background_ixl_child_failure_marks_error(mock_sub, tmp_path, m
         app_module._run_sync_background("ixl", "none")
 
     assert read_sync_meta(meta_path)["ixl"]["last_result"] == "error"
-    assert (ixl_dir / "jack-assigned.json").exists()
-    assert not (ixl_dir / "ford-assigned.json").exists()
+    assert (ixl_dir / "casey-assigned.json").exists()
+    assert not (ixl_dir / "avery-assigned.json").exists()
 
 
 @patch("web.app.subprocess.run")
@@ -388,9 +388,9 @@ def test_ixl_child_timeout_removes_file_and_continues(tmp_path, monkeypatch):
     stub.chmod(0o755)
     ixl_dir = tmp_path / "ixl"
     ixl_dir.mkdir()
-    (ixl_dir / "ford-assigned.json").write_text(ok)
+    (ixl_dir / "avery-assigned.json").write_text(ok)
     (tmp_path / ".ixl").mkdir()
-    (tmp_path / ".ixl" / "accounts.env").write_text("ford:f@s:pw\njack:j@s:pw\n")
+    (tmp_path / ".ixl" / "accounts.env").write_text("avery:f@s:pw\ncasey:j@s:pw\n")
     monkeypatch.setenv("PATH", f"{bindir}:{os.environ['PATH']}")
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("IXL_SCRAPE_TIMEOUT", "1")
@@ -405,5 +405,5 @@ def test_ixl_child_timeout_removes_file_and_continues(tmp_path, monkeypatch):
     app_module._run_sync_background("ixl", "none")
 
     assert read_sync_meta(meta_path)["ixl"]["last_result"] == "error"
-    assert not (ixl_dir / "ford-assigned.json").exists()
-    assert (ixl_dir / "jack-assigned.json").exists()
+    assert not (ixl_dir / "avery-assigned.json").exists()
+    assert (ixl_dir / "casey-assigned.json").exists()

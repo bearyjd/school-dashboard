@@ -36,7 +36,7 @@ def test_existing_delete_mode_db_migrates_on_first_connect(tmp_path):
                   "title TEXT NOT NULL, due_date TEXT, type TEXT NOT NULL DEFAULT 'assignment', "
                   "source TEXT NOT NULL DEFAULT 'manual', completed INTEGER NOT NULL DEFAULT 0, "
                   "completed_at TEXT, notes TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))")
-        c.execute("INSERT INTO items (child, title) VALUES ('Ford', 'keep me')")
+        c.execute("INSERT INTO items (child, title) VALUES ('Avery', 'keep me')")
         c.commit()
     assert _mode(p) == "delete"
     db.init_db(str(p))
@@ -63,7 +63,7 @@ def test_readonly_uri_reader_sees_uncheckpointed_wal_rows(tmp_path):
     try:
         with writer:
             writer.execute("INSERT INTO events (date, title, type, child, source) "
-                           "VALUES ('2026-09-01','Quiz','QUIZ','Ford','calendar:x')")
+                           "VALUES ('2026-09-01','Quiz','QUIZ','Avery','calendar:x')")
         assert Path(str(p) + "-wal").exists()
         assert school_calendar._preview_existing(p, "calendar:x", []) == 1
     finally:
@@ -87,7 +87,7 @@ def test_watchdog_latest_digests_reads_wal_db_with_and_without_open_writer(tmp_p
 def test_readonly_uri_reader_works_after_clean_close(tmp_path):
     p = tmp_path / "s.db"
     db.init_db(str(p))
-    db.create_item(str(p), child="Ford", title="x")
+    db.create_item(str(p), child="Avery", title="x")
     with closing(sqlite3.connect(f"{p.resolve().as_uri()}?mode=ro", uri=True)) as c:
         assert c.execute("SELECT COUNT(*) FROM items").fetchone()[0] == 1
 
@@ -95,7 +95,7 @@ def test_readonly_uri_reader_works_after_clean_close(tmp_path):
 def test_backup_of_wal_db_with_open_writer_is_consistent(state_env):
     dbp = paths.db_path()
     db.init_db(str(dbp))
-    db.create_item(str(dbp), child="Ford", title="in the wal")
+    db.create_item(str(dbp), child="Avery", title="in the wal")
     writer = db._connect(str(dbp))
     try:
         assert Path(str(dbp) + "-wal").exists()

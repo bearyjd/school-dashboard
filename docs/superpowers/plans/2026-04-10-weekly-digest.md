@@ -85,7 +85,7 @@ def test_weekly_digest_empty_state(tmp_path, tmp_facts, tmp_db):
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard
+cd ~/src/school-dashboard
 pytest tests/test_digest.py::test_weekly_digest_friday_builds_text tests/test_digest.py::test_weekly_digest_sunday_builds_text tests/test_digest.py::test_weekly_digest_empty_state -v
 ```
 

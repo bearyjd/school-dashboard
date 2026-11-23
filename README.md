@@ -4,7 +4,7 @@
 
 All-in-one Docker deployment for family school situational awareness. Scrapes IXL, Schoology, GameChanger and (optionally) PowerSchool, sends a morning digest via ntfy.sh, and serves a Flask web app with a streaming chat interface. (Calendar-PDF parsing and Gmail-based event/fact extraction — `calendar_import.py`/`intel.py` — existed at `v1.0.0` but have since been removed from the codebase; see `CLAUDE.md`'s Architecture section for details, including a known bug this causes in the readiness checklist's tests/quizzes line item.)
 
-**External dependency:** LiteLLM proxy at `LITELLM_URL`. Not included — point to your own instance.
+**AI features:** Chat and AI-generated digests use an OpenAI-compatible chat completions endpoint. Use OmniRoute, LiteLLM, or another compatible provider or proxy.
 
 ## Quick Start
 
@@ -22,7 +22,7 @@ docker compose up -d
 ```
 school_dashboard/       Core Python package
   db.py                 SQLite: `items`, `digests`, `events` tables (inline migrations in `init_db`; `events` rows come from `school-state calendar import`).
-  digest.py             Build morning digest via LiteLLM. Send to ntfy.sh.
+  digest.py             Build morning digest via an OpenAI-compatible endpoint. Send to ntfy.sh.
   email.py              Gmail digest fetch + classification via gog CLI.
   state.py              Aggregate IXL + Schoology + PowerSchool JSON into school-state.json.
   powerschool.py        PowerSchool missing/late/due-soon helpers (digest + quick-check text).
@@ -59,14 +59,14 @@ docker/
 |------|-------------|
 | **6:00am** (weekdays) | IXL scrape → SGY scrape → GC scrape → state merge → email intel → dashboard HTML |
 | **2:30pm** (weekdays) | IXL + SGY + GC + email re-scrape (catch late homework posts) |
-| **7:00am** (daily) | Morning digest — 7-day events + IXL state + facts + GC schedule → LiteLLM → cards → digests DB → ntfy.sh carousel |
+| **7:00am** (daily) | Morning digest — 7-day events + IXL state + facts + GC schedule → AI synthesis → cards → digests DB → ntfy.sh carousel |
 | **3:30pm** (weekdays) | Afternoon digest — homework check + cards → digests DB → ntfy.sh |
 | **8:30pm** (daily) | Night digest — next-day prep + cards → digests DB → ntfy.sh |
 | **Fri 3pm / Sun 7pm** | Weekly digest — week-in-review / week-ahead preview |
 | **3:15am** (daily) | Scheduled state backup into `state/backups/` (newest `BACKUP_KEEP`=14 kept) — `sync/run-backup.sh` |
 | **3:45am** (daily) | Log rotation of `state/*.log` (size-based, copytruncate, 4 gzip copies) |
 | **On demand** | `/api/sync` — trigger per-source sync from the PWA; `/api/sync/meta` for freshness |
-| **On demand** | `/api/chat` — query 30-day events + facts + full state via LiteLLM |
+| **On demand** | `/api/chat` — query 30-day events + facts + full state via an OpenAI-compatible endpoint |
 | **On demand** | `/api/digest/<id>` — retrieve carousel history + toggle card done state |
 
 ## Staleness Watchdog
@@ -79,28 +79,38 @@ Silence it: `SOURCE_<NAME>_ENABLED=0` for one source (also pauses its scrape), o
 
 ## Configuration
 
-Copy `.env.example` to `config/env` and fill in all values:
+Copy `.env.example` to `config/env` and configure the features you use. The `LITELLM_*` names are retained for compatibility with existing installations.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `LITELLM_URL` | Yes | LiteLLM proxy full URL including `/v1` (e.g. `https://llm.grepon.cc/v1`) |
-| `LITELLM_API_KEY` | Yes | API key for LiteLLM proxy |
-| `LITELLM_MODEL` | Yes | Model name (e.g. `school-dash`) |
+| `LITELLM_URL` | For AI features | Server root, such as `http://omniroute.example.invalid:20128`. The app appends `/v1/chat/completions`. |
+| `LITELLM_API_KEY` | For authenticated AI endpoints | Bearer key issued by your provider or proxy |
+| `LITELLM_MODEL` | For AI features | Model ID or alias offered by your endpoint |
 | `IXL_EMAIL` | Yes | IXL student login email |
 | `IXL_PASSWORD` | Yes | IXL student login password |
 | `SGY_EMAIL` | Yes | Schoology parent login email |
 | `SGY_PASSWORD` | Yes | Schoology parent login password |
-| `SGY_BASE_URL` | Yes | Schoology API base URL |
+| `SGY_BASE_URL` | For Schoology | Base URL used by the Schoology scraper |
+| `SGY_PORTAL_URL` | No | Browser-facing Schoology origin for assignment links, such as `https://portal.example.invalid` |
 | `SGY_SCHOOL_NID` | Yes | Schoology school network ID |
+| `SCHOOL_DOMAINS` | No | Comma-separated sender domains for school email. The default is `schoology.com,ccsend.com`. |
+| `DASHBOARD_BASE` | No | Public dashboard origin, such as `https://school.example.invalid`. Set it to include dashboard links in notifications and automatically allow the origin’s host. |
 | `GOG_ACCOUNT` | Yes | Gmail account for gog OAuth |
-| `NTFY_TOPIC` | Yes | ntfy.sh topic slug for push notifications |
+| `NTFY_TOPIC` | For notifications | Private ntfy.sh topic. Leave it blank until you have a topic for your deployment. |
 | `SCHOOL_EMAIL_ACCOUNT` | Yes | Gmail account for school email intel |
 | `PS_USERNAME` / `PS_PASSWORD` / `PS_BASE_URL` | No | PowerSchool login for the optional `powerschool` scraper (or `~/.powersched/.env`, `KEY=VALUE`, chmod 600; create `/root/.powersched` on the host first or Docker creates it root-owned and empty). `PS_BASE_URL` is required when PowerSchool is used (missing / late / due-soon work). Source is skipped cleanly when the CLI or credentials are absent. Pause with `SOURCE_POWERSCHOOL_ENABLED=0`. |
 | `SYNC_TOKEN` | No | Shared secret for `POST /api/sync`. Generate: `python3 -c "import secrets; print(secrets.token_hex(16))"` |
 | `GC_EMAIL` / `GC_PASSWORD` | No | GameChanger credentials. Required for headless self-healing — `gc token-refresh` uses Playwright + auto-OTP via gog Gmail to recover when the token expires. |
 | `GC_TOKEN` | No | Optional bearer token from browser DevTools. Only useful for first-run bootstrap; subsequent refreshes write a fresh token to `~/.gc/.env` automatically. |
-| `GC_TEAM_MAP` | No | Map team IDs to child names: `"teamid:Ford,teamid2:Jack"` |
+| `GC_TEAM_MAP` | No | Map team IDs to child names: `"teamid:Avery,teamid2:Casey"` |
+| `TWA_PACKAGE_NAME` | No | Android app package name. Set it to the package name of your signed APK for TWA domain verification. |
 | `TWA_CERT_FINGERPRINT` | No | Android APK signing fingerprint for TWA domain verification |
+
+Existing deployments can set `DASHBOARD_BASE`, add their school’s sender domains to `SCHOOL_DOMAINS`, and set `TWA_PACKAGE_NAME` to the installed APK’s package name. Set `color` for each child to preserve colors after reordering the roster. Add aliases with lowercase keys to `name_aliases` in your private `config/school-dashboard.json`.
+
+Relative Schoology links use `SGY_PORTAL_URL` or the configured scraper tenant
+origin. The dashboard also reads the origin from the mounted scraper settings
+when it is absent from the environment.
 
 Path overrides (default to `/app/state/` inside Docker):
 
@@ -135,7 +145,7 @@ All gitignored, stored in `state/`:
 | `/api/digest/<id>` | GET | Retrieve digest carousel (returns `{id, created_at, title, cards}`) |
 | `/api/digest/<id>/cards/<index>` | PATCH | Toggle card done state (JSON: `done: bool`) |
 | `/api/dashboard` | GET | Aggregate view (schoology, ixl, email_items) |
-| `/api/chat` | POST | Chat with LiteLLM (JSON: `message`, `history`) |
+| `/api/chat` | POST | Chat through the configured endpoint (JSON: `message`, `history`) |
 | `/api/readiness` | GET | Get readiness checklist |
 | `/api/calendar` | GET | Fetch Google Calendar events |
 | `/api/sync` | POST | Trigger on-demand sync (header: `X-Sync-Token`; JSON: `sources` e.g. `"ixl,sgy,powerschool"`, or `"all"`) |

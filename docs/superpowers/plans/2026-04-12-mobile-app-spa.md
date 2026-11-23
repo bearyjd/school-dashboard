@@ -49,7 +49,7 @@
 - [ ] **Step 1: Scaffold Vite + React + TypeScript**
 
 ```bash
-cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard
+cd ~/src/school-dashboard
 npm create vite@latest web/spa -- --template react-ts
 cd web/spa
 npm install
@@ -123,7 +123,7 @@ web/spa/dist/
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard
+cd ~/src/school-dashboard
 git add web/spa/.gitignore web/spa/package.json web/spa/package-lock.json web/spa/vite.config.ts web/spa/index.html web/spa/tsconfig*.json web/spa/src/ web/spa/public/
 git commit -m "feat: scaffold React + Vite SPA in web/spa/"
 ```
@@ -1488,7 +1488,7 @@ export function Chat() {
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
         {messages.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: 'var(--space-xl)' }}>
-            Ask about homework, grades, or upcoming events.<br />I can also take actions — try "Mark Ford's math done."
+            Ask about homework, grades, or upcoming events.<br />I can also take actions — try "Mark Avery's math done."
           </div>
         )}
         {messages.map((msg, i) => (
@@ -1690,7 +1690,7 @@ git commit -m "feat: add Node.js + npm SPA build step to Dockerfile"
 
 In the **Quick Start** section, add after `docker compose up -d`:
 ```
-# Access SPA at https://school.grepon.cc/app (install to homescreen for PWA)
+# Access SPA at https://school.example.invalid/app (install to homescreen for PWA)
 ```
 
 In the **Development** section, add:

@@ -41,10 +41,10 @@ def world(state_env, tmp_path, monkeypatch):
     cfg = tmp_path / "config.json"
     cfg.write_text(json.dumps({
         "children": {
-            "Ford": {"id": "ford", "grade": "7", "school": "MS"},
-            "Jack": {"id": "jack", "grade": "4", "school": "ES"},
+            "Avery": {"id": "avery", "grade": "7", "school": "MS"},
+            "Casey": {"id": "casey", "grade": "4", "school": "ES"},
         },
-        "name_aliases": {"jackie": "Jack"},
+        "name_aliases": {"caseyson": "Casey"},
     }))
     monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(cfg))
     monkeypatch.setattr(state, "_config_cache", None)
@@ -53,18 +53,18 @@ def world(state_env, tmp_path, monkeypatch):
     monkeypatch.delenv("GC_TEAM_MAP", raising=False)
     dbp = str(paths.db_path())
     db.init_db(dbp)
-    db.create_item(dbp, child="Ford", title="Read ch 3", due_date="2026-10-25", source="manual")
-    db.create_item(dbp, child="Ford", title="Old essay", due_date="2026-08-01", source="manual")
-    db.create_item(dbp, child="Jack", title="Math", source="manual")
-    done = db.create_item(dbp, child="Jack", title="Done thing", source="manual")
+    db.create_item(dbp, child="Avery", title="Read ch 3", due_date="2026-10-25", source="manual")
+    db.create_item(dbp, child="Avery", title="Old essay", due_date="2026-08-01", source="manual")
+    db.create_item(dbp, child="Casey", title="Math", source="manual")
+    done = db.create_item(dbp, child="Casey", title="Done thing", source="manual")
     db.complete_item(dbp, done if isinstance(done, int) else 4)
     db.create_item(dbp, child="Stranger", title="Mystery", due_date="2026-10-30", source="manual")
     db.create_digest(dbp, "Morning", [{"t": 1}])
     s = state.load(str(paths.state_path()))
-    state.add_action_item(s, "Ford", "schoology", "assignment", "Read Ch 3", "2026-10-25")
-    state.add_action_item(s, "Ford", "manual", "task", "Read  ch 3", "2026-10-25")
-    s["ixl"]["Ford"] = {"remaining": []}
-    s["schoology"]["Jackie"] = {"assignments": []}
+    state.add_action_item(s, "Avery", "schoology", "assignment", "Read Ch 3", "2026-10-25")
+    state.add_action_item(s, "Avery", "manual", "task", "Read  ch 3", "2026-10-25")
+    s["ixl"]["Avery"] = {"remaining": []}
+    s["schoology"]["Caseyson"] = {"assignments": []}
     state.save(s, str(paths.state_path()))
     paths.facts_path().write_text('[{"subject": "x"}, {"subject": "y"}]')
     paths.gc_path().write_text(json.dumps({"teams": [
@@ -114,11 +114,11 @@ def test_default_from_year_aug_start():
 @pytest.mark.usefixtures("world")
 def test_report_roster_and_children():
     r = report()
-    ford = next(c for c in r["roster"] if c["id"] == "ford")
-    assert ford["name"] == "Ford" and ford["grade"] == "7" and ford["school"] == "MS"
-    assert ford["ixl_data"] is True and ford["schoology_data"] is False
-    jack = next(c for c in r["roster"] if c["id"] == "jack")
-    assert jack["schoology_data"] is True  # via alias "Jackie"
+    avery = next(c for c in r["roster"] if c["id"] == "avery")
+    assert avery["name"] == "Avery" and avery["grade"] == "7" and avery["school"] == "MS"
+    assert avery["ixl_data"] is True and avery["schoology_data"] is False
+    casey = next(c for c in r["roster"] if c["id"] == "casey")
+    assert casey["schoology_data"] is True  # via alias "Caseyson"
     assert "Stranger" in r["unconfigured_children"]
 
 
@@ -157,17 +157,17 @@ def test_carryover_treatments_and_duplicates():
 def test_collision_same_title_different_source():
     r = report()
     cols = r["carryover"]["collisions"]
-    assert any(c["child_id"] == "ford" and c["title"] == "read ch 3"
+    assert any(c["child_id"] == "avery" and c["title"] == "read ch 3"
                and sorted(c["sources"]) == ["manual", "schoology"] for c in cols)
 
 
 @pytest.mark.usefixtures("world")
 def test_gc_memberships(monkeypatch):
-    monkeypatch.setenv("GC_TEAM_MAP", "t1:Ford")
+    monkeypatch.setenv("GC_TEAM_MAP", "t1:Avery")
     r = report()
     m = {t["team_id"]: t for t in r["memberships"]}
     assert m["t1"]["status"].startswith("continuing")
-    assert m["t1"]["child_id"] == "ford"
+    assert m["t1"]["child_id"] == "avery"
     assert m["t2"]["status"] == "unmapped"
     assert any(g["code"] == "gc-team-unmapped" for g in r["gaps"])
 
@@ -176,13 +176,13 @@ def test_gc_memberships(monkeypatch):
 def test_stale_inputs(tmp_path, monkeypatch):
     ixl = tmp_path / "ixl"
     ixl.mkdir()
-    (ixl / "ford-assigned.json").write_text(SECRET)
+    (ixl / "avery-assigned.json").write_text(SECRET)
     sgy = tmp_path / "sgy.json"
     sgy.write_text(SECRET)
     monkeypatch.setenv("IXL_DIR", str(ixl))
     monkeypatch.setenv("SGY_FILE", str(sgy))
     r = report()
-    assert r["stale_inputs"]["ixl_dir"]["files"][0]["name"] == "ford-assigned.json"
+    assert r["stale_inputs"]["ixl_dir"]["files"][0]["name"] == "avery-assigned.json"
     assert r["stale_inputs"]["sgy_file"]["present"] is True
     assert "refill" in r["stale_inputs"]["risk"]
     assert SECRET not in json.dumps(r)
@@ -340,7 +340,7 @@ def wal_db(state_env, tmp_path, monkeypatch):
     writer.execute("PRAGMA wal_autocheckpoint=0")
     writer.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, child TEXT, title TEXT,"
                    " due_date TEXT, source TEXT, completed INTEGER DEFAULT 0)")
-    writer.execute("INSERT INTO items (child, title, source) VALUES ('Ford', 'in wal', 'manual')")
+    writer.execute("INSERT INTO items (child, title, source) VALUES ('Avery', 'in wal', 'manual')")
     yield writer
     writer.close()
 

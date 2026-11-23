@@ -20,7 +20,7 @@
 - Local day rolls over at **04:00** America/New_York; "tonight" = today or next weekday (Fri/Sat/Sun roll to Monday); holidays ignored in v1.
 - Overdue = Schoology + manual items with `due < today`, not done. Missing/Late = PowerSchool flags only. IXL never overdue; one read-only "tonight" row per kid while `remaining > 0`. No cross-source matching.
 - Events window 14 days (this week = next 7); Overdue and Missing returned in full, capped at 500 each with a warning; teams with no upcoming events hidden unless `past=1`.
-- An event has `kids: [name]`; label `Penn+Jack` splits on `+`; a label that matches no roster kid gives `kids: []` (school-wide).
+- An event has `kids: [name]`; label `Blair+Casey` splits on `+`; a label that matches no roster kid gives `kids: []` (school-wide).
 - All text is sanitised with the existing helper in `school_dashboard/powerschool.py` (strip control chars, 160-char cap) before it leaves the server and rendered as plain text, never HTML.
 - App-page JS budget 300 kB gzipped, CSS 50 kB; no web fonts; animate `transform`/`opacity` only; honour `prefers-reduced-motion`; WCAG AA in both themes; meaning never colour-only.
 - Screenshot widths 320, 375, 768, 1024, 1440, in both themes. Service worker cache name bumps `school-v1` to `school-v2`.
@@ -96,7 +96,7 @@ PR 1 docs (spec + plan, this work) · PR 2 Tasks 1-4 (tooling + backend; safe to
 - `school_events(db_path: str, today: date, days: int) -> list[dict]`: reads the `events` table (`date,title,type,child,source`); each `{kids, title, date, time: "", type, location: "", source: "school", scheduleSource: None, team: None}`; `child` null gives `kids: []`.
 
 - [ ] **Step 1: Write failing tests:**
-  - `test_split_kids`: `"Penn+Jack"` gives `["Penn","Jack"]`; `"jack"` matches roster `Jack` case-insensitively; `"St. Mark Lions"` gives `[]`.
+  - `test_split_kids`: `"Blair+Casey"` gives `["Blair","Casey"]`; `"casey"` matches roster `Casey` case-insensitively; `"St. Mark Lions"` gives `[]`.
   - `test_gc_events_window_and_order`: events inside `[today, today+days)` only, sorted by date then time.
   - `test_past_season_teams_hidden`: a team with no upcoming events is dropped unless `include_past_seasons=True`.
   - `test_schedule_source_passthrough`: `schedule_source="ics"` becomes `scheduleSource="ics"`; missing key gives `"api"`.
@@ -227,5 +227,5 @@ Produces: `build_overview(state, manual_items, gc_data, school_events, meta, ros
 - [ ] **Step 2:** Run `npx playwright test`; expected FAIL until the server script and config exist.
 - [ ] **Step 3:** Implement the server script and config; add a non-blocking CI step that runs the specs on PRs touching `web/spa/**`; add a Lighthouse run (performance >= 90, LCP < 2.5 s, CLS < 0.1) as a documented manual gate.
 - [ ] **Step 4:** Run the full suite: `pytest tests/`, `npm --prefix web/spa run lint`, `run build`, `run test`, `run check-bundle`, `npx playwright test`; expected all green.
-- [ ] **Step 5:** Update `CLAUDE.md`/`README.md` (new routes, `/api/overview`, theme, `/app/classic` removal date = launch + 14 days). **Rollout checklist (ops, not code):** back up and tag a rollback image, `docker compose pull`, refresh the host `web/` from the image, `up -d`, run `scripts/smoke-live.sh --container school-dashboard-1`, load `/app/` on a phone and a desktop, confirm the installed app picks up `school-v2`; then ask the parents to relabel the GameChanger map entry `PennJack` to `Penn+Jack` in `config/env`.
+- [ ] **Step 5:** Update `CLAUDE.md`/`README.md` (new routes, `/api/overview`, theme, `/app/classic` removal date = launch + 14 days). **Rollout checklist (ops, not code):** back up and tag a rollback image, `docker compose pull`, refresh the host `web/` from the image, `up -d`, run `scripts/smoke-live.sh --container school-dashboard-1`, load `/app/` on a phone and a desktop, confirm the installed app picks up `school-v2`; then ask the parents to relabel the GameChanger map entry `PennJack` to `Blair+Casey` in `config/env`.
 - [ ] **Step 6: Commit** `test: SPA screenshots, accessibility and rollout notes`.

@@ -5,7 +5,6 @@ import pytest
 from flask import Flask
 
 from school_dashboard import hostcheck
-from school_dashboard.digest import DASHBOARD_BASE
 
 
 @pytest.fixture
@@ -26,16 +25,12 @@ def get(client, host, **extra):
     return client.get("/api/sync/status", headers={"Host": host, **extra})
 
 
-def _public():
-    from urllib.parse import urlsplit
-    return urlsplit(DASHBOARD_BASE).hostname
-
-
 # ---- 1. built-in-only allowlists enforce ----
 @pytest.mark.parametrize("allowed", ["PUBLIC", "localhost", "127.0.0.1, [::1]"])
-def test_builtin_only_list_enforces(client, monkeypatch, caplog, allowed):
+def test_builtin_only_list_enforces(client, monkeypatch, caplog, allowed, dashboard_url):
+    from urllib.parse import urlsplit
     monkeypatch.setenv("HOST_CHECK_MODE", "enforce")
-    monkeypatch.setenv("ALLOWED_HOSTS", allowed.replace("PUBLIC", _public()))
+    monkeypatch.setenv("ALLOWED_HOSTS", allowed.replace("PUBLIC", urlsplit(dashboard_url).hostname))
     with caplog.at_level(logging.WARNING):
         assert get(client, "stranger.test").status_code == 421
         assert get(client, "localhost").status_code == 200

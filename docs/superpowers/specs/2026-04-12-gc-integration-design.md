@@ -8,7 +8,7 @@
 
 ## Problem
 
-Extracurricular activities (sports games and practices) for Ford, Jack, and Penn live in GameChanger. The morning, afternoon, and night digests have no visibility into these events. Parents miss upcoming games and practices because they aren't surfaced alongside school assignments and calendar events.
+Extracurricular activities (sports games and practices) for Avery, Casey, and Blair live in GameChanger. The morning, afternoon, and night digests have no visibility into these events. Parents miss upcoming games and practices because they aren't surfaced alongside school assignments and calendar events.
 
 ---
 
@@ -68,9 +68,9 @@ Written by `gc-scrape.sh`, read by `digest.py`. No transformation at scrape time
   "scraped_at": "2026-04-12T06:00:00",
   "teams": [
     {
-      "team_id": "abc123",
-      "team_name": "SMCS 5th Grade Baseball",
-      "child": "Ford",
+      "team_id": "team_example_01",
+      "team_name": "Example City Juniors",
+      "child": "Avery",
       "schedule": [
         {
           "id": "evt_001",
@@ -78,7 +78,7 @@ Written by `gc-scrape.sh`, read by `digest.py`. No transformation at scrape time
           "time": "16:00",
           "type": "practice",
           "opponent": "",
-          "location": "Smith Field",
+          "location": "North Practice Field",
           "home_away": "home"
         },
         {
@@ -86,8 +86,8 @@ Written by `gc-scrape.sh`, read by `digest.py`. No transformation at scrape time
           "date": "2026-04-16",
           "time": "18:00",
           "type": "game",
-          "opponent": "St. Michael's",
-          "location": "Away Field",
+          "opponent": "Westside Juniors",
+          "location": "West Field",
           "home_away": "away"
         }
       ]
@@ -109,9 +109,9 @@ Three new env vars added to `config/env` (gitignored) and documented in `config/
 
 | Var | Required | Description | Example |
 |-----|----------|-------------|---------|
-| `GC_EMAIL` | yes | GameChanger login email | `jd@beary.us` |
+| `GC_EMAIL` | yes | GameChanger login email | `gamechanger@example.invalid` |
 | `GC_PASSWORD` | yes | GameChanger password | `...` |
-| `GC_TEAM_MAP` | yes | `teamid:child` pairs, comma-separated | `abc123:Ford,def456:Jack,ghi789:Penn` |
+| `GC_TEAM_MAP` | yes | `teamid:child` pairs, comma-separated | `team_example_01:Avery,team_example_02:Blair` |
 | `SCHOOL_GC_PATH` | no | Override default path | defaults to `/app/state/gc-schedule.json` |
 
 **One-time setup after deploy:** Run `gc teams --json` on the container to discover team IDs, then fill `GC_TEAM_MAP` in `config/env`. Re-run `gc-scrape.sh` to verify.
@@ -179,9 +179,9 @@ def _load_gc_events(gc_path: str | None, days: int) -> list[dict]:
 
 | Digest | Window | Shows |
 |--------|--------|-------|
-| Morning (7am) | today + next 2 days | "Ford: Practice today 4pm @ Smith Field" |
+| Morning (7am) | today + next 2 days | "Avery: Practice today 4pm @ North Practice Field" |
 | Afternoon (3:30pm) | today only | Same-day events remaining |
-| Night (8:30pm) | tomorrow only | "Jack: Game tomorrow vs. St. Michael's, Away" |
+| Night (8:30pm) | tomorrow only | "Casey: Game tomorrow vs. Westside Juniors, Away" |
 | Weekly Friday | next 7 days | Full week extracurricular preview |
 | Weekly Sunday | next 7 days | Full week extracurricular preview |
 
@@ -190,9 +190,9 @@ def _load_gc_events(gc_path: str | None, days: int) -> list[dict]:
 ```
 ⚽ Extracurricular
 
-• Ford (Baseball): Practice today 4:00 PM @ Smith Field
-• Jack (Soccer): Game Fri vs. St. Michael's, 6:00 PM, Away
-• Penn (Lacrosse): Practice Sat 10:00 AM @ SMCS
+• Avery (Example City Juniors): Practice today 4:00 PM @ North Practice Field
+• Casey (Example City Juniors): Game tomorrow vs. Westside Juniors, 6:00 PM, Away
+• Blair (Example City Juniors): Practice Sat 10:00 AM @ South Practice Field
 ```
 
 If no events in the window, the card is omitted entirely (not shown as "No events").
@@ -241,8 +241,8 @@ Playwright/Chromium already present in the image (installed for ixl-scrape), so 
 
 1. Add `vendor/gc` submodule, commit
 2. Update `Dockerfile`, `sync/school-sync.sh`, `digest.py`, env examples, `CLAUDE.md`
-3. Push → CI → deploy to .14
-4. On .14: run `gc teams --json` to discover team IDs
+3. Push → CI → deploy to the deployment host
+4. On the deployment host: run `gc teams --json` to discover team IDs
 5. Add `GC_EMAIL`, `GC_PASSWORD`, `GC_TEAM_MAP` to `/opt/school/config/env`
 6. Run `docker exec school-dashboard-1 bash /app/sync/gc-scrape.sh` to verify
 7. Inspect `/opt/school/state/gc-schedule.json`

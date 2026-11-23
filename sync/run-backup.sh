@@ -34,7 +34,7 @@ OP_ID=""    # operation_id of the maintenance window THIS run opened
 CHILD=""    # pid of the foreground step, so a signal can stop it
 
 notify() {  # notify TITLE MESSAGE
-    if [ -n "${NTFY_TOPIC:-}" ]; then
+    if [[ ${NTFY_TOPIC:-} =~ [^[:space:]] ]]; then
         curl -sf \
             -H "Title: $1" \
             -H "Priority: high" \

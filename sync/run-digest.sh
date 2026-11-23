@@ -37,11 +37,13 @@ if school-state digest --mode "$MODE" >> "$LOGFILE" 2>&1; then
 else
     EXIT=$?
     echo "[$TS] digest --mode $MODE FAILED (exit $EXIT)" >> "$LOGFILE"
-    curl -sf \
-        -H "Title: Digest FAILED ($MODE)" \
-        -H "Priority: high" \
-        -H "Tags: warning" \
-        -d "school-state digest --mode $MODE exited $EXIT. Check $LOGFILE on the container." \
-        "https://ntfy.sh/${NTFY_TOPIC}" 2>/dev/null || true
+    if [[ ${NTFY_TOPIC:-} =~ [^[:space:]] ]]; then
+        curl -sf \
+            -H "Title: Digest FAILED ($MODE)" \
+            -H "Priority: high" \
+            -H "Tags: warning" \
+            -d "school-state digest --mode $MODE exited $EXIT. Check $LOGFILE on the container." \
+            "https://ntfy.sh/${NTFY_TOPIC}" 2>/dev/null || true
+    fi
     exit $EXIT
 fi

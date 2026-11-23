@@ -60,7 +60,7 @@ def test_inline_agent_malformed_action_logs_and_is_ignored(tmp_path, monkeypatch
     conn.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, child TEXT NOT NULL, title TEXT NOT NULL,"
                  " type TEXT DEFAULT 'assignment', source TEXT DEFAULT 'manual', due_date TEXT, notes TEXT,"
                  " completed INTEGER DEFAULT 0, created_at TEXT)")
-    conn.execute("INSERT INTO items (id, child, title) VALUES (1, 'Ford', 'Math HW')")
+    conn.execute("INSERT INTO items (id, child, title) VALUES (1, 'Avery', 'Math HW')")
     conn.commit()
     conn.close()
     monkeypatch.setenv("SCHOOL_DB_PATH", str(db))
@@ -108,14 +108,14 @@ def test_app_missing_events_table_is_debug_not_warning(tmp_path, monkeypatch, ca
 def test_collapse_events_tolerates_bad_rows():
     rows = [
         {"title": "Quiz", "type": "QUIZ", "child": 123},
-        {"title": "Quiz", "type": "QUIZ", "child": "Ford"},
+        {"title": "Quiz", "type": "QUIZ", "child": "Avery"},
         {"title": "Test", "type": "TEST", "child": None},
         "garbage",
         {"type": "TEST"},
     ]
     out = digest._collapse_events(rows)
     by_title = {r.get("title"): r for r in out}
-    assert by_title["Quiz"]["child"] == "123, Ford"
+    assert by_title["Quiz"]["child"] == "123, Avery"
     assert by_title["Test"]["child"] == ""
     assert len(out) == 3  # garbage skipped; the title-less row is kept with a None title
 

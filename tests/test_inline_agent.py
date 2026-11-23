@@ -25,7 +25,7 @@ def client(tmp_path, monkeypatch):
     """)
     conn.execute(
         "INSERT INTO items (id, child, title, type, source, due_date, completed)"
-        " VALUES (1, 'Ford', 'Math HW', 'assignment', 'sgy', '2026-04-15', 0)"
+        " VALUES (1, 'Avery', 'Math HW', 'assignment', 'sgy', '2026-04-15', 0)"
     )
     conn.commit()
     conn.close()

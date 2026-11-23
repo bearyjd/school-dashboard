@@ -63,7 +63,7 @@ def client(tmp_path, monkeypatch):
     """)
     conn.execute(
         "INSERT INTO items (id, child, title, type, source, due_date, completed)"
-        " VALUES (1, 'Ford', 'Math HW', 'assignment', 'sgy', '2026-04-15', 0)"
+        " VALUES (1, 'Avery', 'Math HW', 'assignment', 'sgy', '2026-04-15', 0)"
     )
     conn.commit()
     conn.close()
@@ -137,7 +137,7 @@ def test_inline_agent_sync_source(client, tmp_path, monkeypatch):
 - [ ] **Step 2: Run to verify tests fail**
 
 ```bash
-cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard
+cd ~/src/school-dashboard
 python -m pytest tests/test_inline_agent.py -v
 ```
 
@@ -692,7 +692,7 @@ Expected: build completes with 0 errors.
 - [ ] **Step 3: Run full test suite**
 
 ```bash
-cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard
+cd ~/src/school-dashboard
 python -m pytest tests/ -q
 ```
 

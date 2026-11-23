@@ -23,6 +23,15 @@ def state_env(tmp_path, monkeypatch):
     return d
 
 
+@pytest.fixture
+def dashboard_url(monkeypatch):
+    """Configure a synthetic public URL for tests that assert dashboard links."""
+    url = "https://school.example.invalid"
+    monkeypatch.setattr("school_dashboard.digest.DASHBOARD_BASE", url)
+    monkeypatch.setattr("school_dashboard.hostcheck.DASHBOARD_BASE", url)
+    return url
+
+
 _REAL_SCRAPERS = frozenset({"sgy", "ixl", "powerschool", "gc"})
 _SCRAPER_SCRIPTS = {
     "gc-scrape.sh": ("gc",), "ixl-cron.sh": ("ixl",),

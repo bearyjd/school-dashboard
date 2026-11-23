@@ -12,7 +12,7 @@ from school_dashboard import db, school_calendar
 from school_dashboard.digest import _query_db_events
 
 REPO = Path(__file__).resolve().parent.parent
-REAL_FILE = REPO / "config" / "calendars" / "st-mark-2026-27.json"
+EXAMPLE_FILE = REPO / "config" / "calendars" / "example-school-2026-27.json"
 
 
 def _cal(events=None, **over):
@@ -21,14 +21,14 @@ def _cal(events=None, **over):
         "school": "S",
         "school_year": "2026-27",
         "source": "x",
-        "roster_grades": {"Ford": "3rd", "Penn": "6th", "Jack": "8th"},
+        "roster_grades": {"Avery": "4th", "Blair": "7th", "Casey": "9th"},
         "events": events if events is not None else [],
     }
     base.update(over)
     return base
 
 
-def _ev(date="2026-09-01", title="T", kind="event", rel=("Ford", "Penn", "Jack")):
+def _ev(date="2026-09-01", title="T", kind="event", rel=("Avery", "Blair", "Casey")):
     return {"date": date, "title": title, "kind": kind, "relevant_to": list(rel)}
 
 
@@ -56,13 +56,13 @@ def _sha(p):
 LONG = "x" * 201
 
 @pytest.mark.parametrize("bad", [
-    _cal(events=[_ev(rel=("Fordd",))]),
+    _cal(events=[_ev(rel=("Averyy",))]),
     _cal(events=[]),
     _cal(events=[_ev(title=LONG)]),
     _cal(events=[_ev(title="a\x00b")]),
     _cal(events=[_ev(title="a\nb")]),
     _cal(roster_grades={"x" * 51: "3rd"}, events=[_ev(rel=("x" * 51,))]),
-    _cal(roster_grades={"Fo\x07rd": "3rd"}, events=[_ev(rel=("Fo\x07rd",))]),
+    _cal(roster_grades={"Av\x07ery": "3rd"}, events=[_ev(rel=("Av\x07ery",))]),
     _cal(events=[_ev(title="Mass "), _ev(title="Mass")]),
 ])
 def test_hardened_validation(state_env, tmp_path, bad):
@@ -136,8 +136,8 @@ def test_cli_corrupt_db(state_env, tmp_path):
     _cal(events=[_ev(date="09/01/2026")]),
     _cal(events=[_ev(title="  ")]),
     _cal(events=[_ev(kind="party")]),
-    _cal(events=[{"date": "2026-09-01", "title": "T", "kind": "event", "relevant_to": "Ford"}]),
-    _cal(events=[_ev(rel=("Ford", ""))]),
+    _cal(events=[{"date": "2026-09-01", "title": "T", "kind": "event", "relevant_to": "Avery"}]),
+    _cal(events=[_ev(rel=("Avery", ""))]),
     _cal(events=[_ev(), _ev()]),
     {"calendar_id": "ok", "events": []},
 ])
@@ -164,15 +164,15 @@ def test_non_object_and_bad_json(tmp_path):
 
 def test_single_child_and_deduped_names():
     rows, _ = school_calendar.build_rows(_cal(events=[
-        _ev(title="One", rel=("Penn",)),
-        _ev(title="Dup", rel=("Jack", "Ford", "Jack")),
+        _ev(title="One", rel=("Blair",)),
+        _ev(title="Dup", rel=("Casey", "Avery", "Casey")),
     ]))
-    assert [r[3] for r in rows] == ["Penn", "Jack, Ford"]
+    assert [r[3] for r in rows] == ["Blair", "Casey, Avery"]
 
 
 def test_same_date_title_different_details_is_error():
     with pytest.raises(school_calendar.CalendarError, match="2026-09-01.*T"):
-        school_calendar.validate(_cal(events=[_ev(), _ev(kind="mass", rel=("Ford",))]))
+        school_calendar.validate(_cal(events=[_ev(), _ev(kind="mass", rel=("Avery",))]))
 
 
 def test_same_title_different_dates_ok():
@@ -184,7 +184,7 @@ def test_same_title_different_dates_ok():
 def test_mapping(state_env, tmp_path):
     data = _cal(events=[
         _ev(title="All", kind="no_school"),
-        _ev(title="Two", kind="half_day", rel=("Ford", "Jack")),
+        _ev(title="Two", kind="half_day", rel=("Avery", "Casey")),
         _ev(title="None", kind="mass", rel=()),
     ])
     db_file = state_env / "school.db"
@@ -192,7 +192,7 @@ def test_mapping(state_env, tmp_path):
     rows = _rows(db_file)
     assert rows == [
         ("2026-09-01", "All", "NO_SCHOOL", None, "calendar:test-cal"),
-        ("2026-09-01", "Two", "HALF_DAY", "Ford, Jack", "calendar:test-cal"),
+        ("2026-09-01", "Two", "HALF_DAY", "Avery, Casey", "calendar:test-cal"),
     ]
     assert rep["inserted"] == 2 and rep["skipped"] == 1 and rep["deleted"] == 0
     assert rep["by_type"] == {"NO_SCHOOL": 1, "HALF_DAY": 1}
@@ -209,7 +209,7 @@ def test_idempotent_and_other_sources_untouched(state_env, tmp_path):
                  "('2026-09-01','Other','EVENT',NULL,'calendar:other')")
     conn.commit()
     conn.close()
-    f = _write(tmp_path, _cal(events=[_ev(title="A"), _ev(title="B", rel=("Ford",))]))
+    f = _write(tmp_path, _cal(events=[_ev(title="A"), _ev(title="B", rel=("Avery",))]))
     school_calendar.import_calendar(f, db_file, dry_run=False)
     first = [r[:5] for r in _rows(db_file)]
     rep = school_calendar.import_calendar(f, db_file, dry_run=False)
@@ -263,16 +263,15 @@ def test_collision_with_other_source_names_row_and_writes_nothing(state_env, tmp
     assert r.returncode == 1 and "Clash" in r.stderr and "Traceback" not in r.stderr
 
 
-@pytest.mark.skipif(not REAL_FILE.exists(), reason="config/calendars/st-mark-2026-27.json not present")
-def test_real_file_against_production_like_table(state_env):
-    data = json.loads(REAL_FILE.read_text())
+def test_example_file_against_production_like_table(state_env):
+    data = json.loads(EXAMPLE_FILE.read_text())
     expected = sum(1 for e in data["events"] if e["relevant_to"])
     db_file = state_env / "school.db"
     _prod_db(db_file, [("2000-01-01", "Other", "email")])
-    rep = school_calendar.import_calendar(REAL_FILE, db_file, dry_run=False)
+    rep = school_calendar.import_calendar(EXAMPLE_FILE, db_file, dry_run=False)
     assert rep["inserted"] == expected
     assert len(_rows(db_file)) == expected + 1
-    school_calendar.import_calendar(REAL_FILE, db_file, dry_run=False)
+    school_calendar.import_calendar(EXAMPLE_FILE, db_file, dry_run=False)
     assert len(_rows(db_file)) == expected + 1
 
 
@@ -378,11 +377,10 @@ def test_cli_missing_subcommand_exit_2(state_env):
     assert _run(state_env, "calendar").returncode == 2
 
 
-# --- real data file ---
+# --- example data file ---
 
-@pytest.mark.skipif(not REAL_FILE.exists(), reason="config/calendars/st-mark-2026-27.json not present")
-def test_real_calendar_file(state_env):
-    data = json.loads(REAL_FILE.read_text())
+def test_example_calendar_file(state_env):
+    data = json.loads(EXAMPLE_FILE.read_text())
     assert len(data["events"]) > 0
     by_len = {}
     for e in data["events"]:
@@ -391,7 +389,7 @@ def test_real_calendar_file(state_env):
     exp_skip = by_len.get(0, 0)
     exp_rows = sum(c for k, c in by_len.items() if k)
     db_file = state_env / "school.db"
-    rep = school_calendar.import_calendar(REAL_FILE, db_file, dry_run=False)
+    rep = school_calendar.import_calendar(EXAMPLE_FILE, db_file, dry_run=False)
     assert rep["skipped"] == exp_skip and rep["inserted"] == exp_rows
     assert len(_rows(db_file)) == exp_rows
 
@@ -402,7 +400,7 @@ def test_digest_collapses_identical_title_type(tmp_path):
     p = tmp_path / "s.db"
     db.init_events_table(str(p))
     conn = sqlite3.connect(p)
-    for child in ("Ford", "Jack"):
+    for child in ("Avery", "Casey"):
         conn.execute("INSERT INTO events (date,title,type,child) VALUES "
                      "('2026-09-01','Field Trip','EVENT',?)", (child,))
     conn.execute("INSERT INTO events (date,title,type,child) VALUES "
@@ -422,36 +420,36 @@ def test_digest_keeps_joined_child_values(tmp_path):
     db.init_events_table(str(p))
     conn = sqlite3.connect(p)
     conn.execute("INSERT INTO events (date,title,type,child) VALUES "
-                 "('2026-09-01','Trip','EVENT','Ford, Penn')")
+                 "('2026-09-01','Trip','EVENT','Avery, Blair')")
     conn.execute("INSERT INTO events (date,title,type,child) VALUES "
-                 "('2026-09-01','Trip','EVENT','Jack')")
+                 "('2026-09-01','Trip','EVENT','Casey')")
     conn.commit()
     conn.close()
     out = _query_db_events(str(p), "2026-09-01")
-    assert len(out) == 1 and out[0]["child"] == "Ford, Penn, Jack"
+    assert len(out) == 1 and out[0]["child"] == "Avery, Blair, Casey"
 
 
 def test_digest_dedupes_names_inside_joined_values(tmp_path):
     p = tmp_path / "s.db"
     db.init_events_table(str(p))
     conn = sqlite3.connect(p)
-    for i, child in enumerate(("Ford", "Ford, Jack")):
+    for i, child in enumerate(("Avery", "Avery, Casey")):
         conn.execute("INSERT INTO events (date,title,type,child) VALUES "
                      "('2026-09-01',?,'EVENT',?)", ("Trip", child))
     conn.commit()
     conn.close()
     out = _query_db_events(str(p), "2026-09-01")
-    assert len(out) == 1 and out[0]["child"] == "Ford, Jack"
+    assert len(out) == 1 and out[0]["child"] == "Avery, Casey"
 
 
 def test_digest_joins_children_when_all_named(tmp_path):
     p = tmp_path / "s.db"
     db.init_events_table(str(p))
     conn = sqlite3.connect(p)
-    for child in ("Ford", "Jack", "Ford"):
+    for child in ("Avery", "Casey", "Avery"):
         conn.execute("INSERT INTO events (date,title,type,child) VALUES "
                      "('2026-09-01','Field Trip','EVENT',?)", (child,))
     conn.commit()
     conn.close()
     out = _query_db_events(str(p), "2026-09-01")
-    assert len(out) == 1 and out[0]["child"] == "Ford, Jack"
+    assert len(out) == 1 and out[0]["child"] == "Avery, Casey"

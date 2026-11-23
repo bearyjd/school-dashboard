@@ -66,9 +66,9 @@ def test_enforce_rejects_unknown_everywhere(client, monkeypatch, method, path):
 
 
 @pytest.mark.parametrize("host", ["ok.test", "OK.test:8080", "localhost", "localhost:5000", "127.0.0.1:5000",
-                                  "[::1]:5000", "school.grepon.cc", "a.sub.test"])
+                                  "[::1]:5000", "school.example.invalid", "a.sub.test"])
 def test_enforce_allows(client, monkeypatch, host):
-    enforce(monkeypatch, "ok.test, .sub.test")
+    enforce(monkeypatch, "ok.test, .sub.test, school.example.invalid")
     assert client.get("/api/sync/status", headers=hdr(host)).status_code == 200
 
 
