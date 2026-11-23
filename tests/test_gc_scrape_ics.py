@@ -76,7 +76,7 @@ else:
         "SCHOOL_DASHBOARD_ENV": "/nonexistent", "SCHOOL_STATE_DIR": str(state),
         "SCHOOL_GC_PATH": str(state / "gc-schedule.json"),
         "GC_ICS_FEEDS": str(cfg), "GC_ICS_ALLOWED_HOSTS": "127.0.0.1",
-        "GC_TEAM_MAP": "tA:Ford,tB:Jack",
+        "GC_TEAM_MAP": "tA:Avery,tB:Casey",
     }
     return env, state
 
@@ -101,7 +101,7 @@ def test_api_failure_uses_feed_other_team_stays_api(tmp_path, server):
     r = _run(env)
     assert r.returncode == 0, r.stderr
     teams = _by_team(state)
-    assert teams["tA"]["schedule_source"] == "ics" and teams["tA"]["child"] == "Ford"
+    assert teams["tA"]["schedule_source"] == "ics" and teams["tA"]["child"] == "Avery"
     assert teams["tA"]["schedule"][0]["date"] == "2026-11-12"
     assert teams["tB"]["schedule_source"] == "api" and teams["tB"]["schedule"] == [API_EVENT]
     log = _log(state, r)
@@ -139,7 +139,7 @@ def test_team_list_failure_falls_back_to_feed_teams(tmp_path, server):
     assert r.returncode == 0, r.stderr
     teams = _by_team(state)
     assert set(teams) == {"tA", "tZ"}
-    assert teams["tA"]["child"] == "Ford" and teams["tA"]["team_name"] == "Feed Team Name"
+    assert teams["tA"]["child"] == "Avery" and teams["tA"]["team_name"] == "Feed Team Name"
     assert teams["tZ"]["child"] == "Feed Team Name"
     _log(state, r)
 

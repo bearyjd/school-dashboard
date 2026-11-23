@@ -99,7 +99,7 @@ def test_last_run_is_iso_timestamp(tmp_path):
 - [ ] **Step 2: Run tests — verify they fail**
 
 ```bash
-cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard
+cd ~/src/school-dashboard
 python -m pytest tests/test_sync_meta.py -v
 ```
 
@@ -466,7 +466,7 @@ def build_system_prompt() -> str:
     events = load_upcoming_events(days=30)
     facts = load_facts()
 
-    state_str = json.dumps(state, indent=2).replace('"John"', '"Jack"')[:8000]
+    state_str = json.dumps(state, indent=2).replace('"John"', '"Casey"')[:8000]
 
     actionable = []
     if isinstance(emails, dict):
@@ -560,7 +560,7 @@ Add after the `api_sync_meta` route:
 @app.route("/.well-known/assetlinks.json")
 def assetlinks():
     """TWA domain verification — fingerprint populated when signing APK."""
-    package = os.environ.get("TWA_PACKAGE_NAME", "cc.grepon.school")
+    package = os.environ.get("TWA_PACKAGE_NAME", "org.example.school")
     fingerprint = os.environ.get("TWA_CERT_FINGERPRINT", "PLACEHOLDER_REPLACE_WITH_APK_SIGNING_CERT_SHA256")
     return jsonify([{
         "relation": ["delegate_permission/common.handle_all_urls"],
@@ -757,7 +757,7 @@ In the `# Paths (defaults work inside Docker…)` section, add two lines:
 # SCHOOL_SYNC_META_PATH=/app/state/sync_meta.json
 
 # TWA (Android APK via Bubblewrap — fill in after building the APK)
-# TWA_PACKAGE_NAME=cc.grepon.school
+# TWA_PACKAGE_NAME=org.example.school
 # TWA_CERT_FINGERPRINT=AA:BB:CC:...
 ```
 
@@ -776,7 +776,7 @@ In the **State Files** table, add a row:
 In the **Config** section, add after the GameChanger paragraph:
 
 ```
-`SCHOOL_SYNC_META_PATH` overrides the sync metadata path (default: `/app/state/sync_meta.json`). TWA domain verification: `TWA_PACKAGE_NAME` (default: `cc.grepon.school`), `TWA_CERT_FINGERPRINT` (populate after signing APK).
+`SCHOOL_SYNC_META_PATH` overrides the sync metadata path (default: `/app/state/sync_meta.json`). TWA domain verification: `TWA_PACKAGE_NAME` (default: `org.example.school`), `TWA_CERT_FINGERPRINT` (populate after signing APK).
 ```
 
 In the **API Endpoints** table, add:

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 from datetime import date, datetime, timedelta, tzinfo
 from typing import Optional
 from urllib.parse import urlparse
 
 from school_dashboard.powerschool import clean_text
+from school_dashboard.schoology_links import portal_origin, schoology_url
 from school_dashboard.state import canonical_name
 
 ROLLOVER_HOUR = 4
@@ -104,15 +104,6 @@ def _row(*, kid: str, title: object, course: object, due: object, status: str,
     return row
 
 
-def _schoology_url(link: object) -> str:
-    """Absolute http(s) links pass through; site-relative ones are joined to SGY_BASE_URL."""
-    text = clean_text(link) or ""
-    if text.startswith("/") and not text.startswith("//"):
-        base = os.environ.get("SGY_BASE_URL", "").rstrip("/")
-        return base + text if base else ""
-    return text
-
-
 def _dict_items(section: object) -> list[tuple[str, dict]]:
     if not isinstance(section, dict):
         return []
@@ -124,6 +115,7 @@ def _dict_list(value: object) -> list[dict]:
 
 
 def _schoology_rows(state: dict, today: date, nxt: date, kids: list[str]) -> list[dict]:
+    origin = portal_origin()
     rows = []
     for child, data in _dict_items(state.get("schoology")):
         kid = _kid(child, kids)
@@ -134,7 +126,7 @@ def _schoology_rows(state: dict, today: date, nxt: date, kids: list[str]) -> lis
                 continue
             rows.append(_row(kid=kid, title=a.get("title"),
                              course=a.get("course"), due=a.get("due_date"), status=status,
-                             source="schoology", url=_schoology_url(a.get("link"))))
+                             source="schoology", url=schoology_url(a.get("link"), origin)))
     return rows
 
 

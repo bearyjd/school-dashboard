@@ -201,7 +201,7 @@ def cmd_digest(args: argparse.Namespace) -> None:
     litellm_url = os.environ.get("LITELLM_URL", "")
     api_key = os.environ.get("LITELLM_API_KEY", "")
     model = os.environ.get("LITELLM_MODEL", "claude-sonnet")
-    ntfy_topic = os.environ.get("NTFY_TOPIC", "")
+    ntfy_topic = os.environ.get("NTFY_TOPIC", "").strip()
     db_path = str(paths.db_path())
     facts_path = str(paths.facts_path())
     gog_account = os.environ.get("GOG_ACCOUNT", "")

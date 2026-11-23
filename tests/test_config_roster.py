@@ -26,22 +26,22 @@ def _write_config(tmp_path, monkeypatch, data) -> None:
 
 def test_roster_valid(tmp_path, monkeypatch):
     _write_config(tmp_path, monkeypatch, {"children": {
-        "Ford": {"grade": "3rd", "school": "St Mark"},
-        "Penn": {"grade": "6th", "school": "St Mark"},
+        "Avery": {"grade": "4th", "school": "Example School"},
+        "Blair": {"grade": "7th", "school": "Example School"},
     }})
     assert state.get_roster() == [
-        {"id": "ford", "name": "Ford", "grade": "3rd", "school": "St Mark"},
-        {"id": "penn", "name": "Penn", "grade": "6th", "school": "St Mark"},
+        {"id": "avery", "name": "Avery", "grade": "4th", "school": "Example School"},
+        {"id": "blair", "name": "Blair", "grade": "7th", "school": "Example School"},
     ]
 
 
 def test_roster_explicit_id_and_slug_default(tmp_path, monkeypatch):
     _write_config(tmp_path, monkeypatch, {"children": {
         "Mary Jane": {"grade": "1st", "school": "S"},
-        "Jack": {"id": "kid-j", "grade": "8th", "school": "S"},
+        "Casey": {"id": "kid-c", "grade": "9th", "school": "S"},
     }})
     ids = {r["name"]: r["id"] for r in state.get_roster()}
-    assert ids == {"Mary Jane": "mary-jane", "Jack": "kid-j"}
+    assert ids == {"Mary Jane": "mary-jane", "Casey": "kid-c"}
 
 
 def test_roster_missing_file(tmp_path, monkeypatch, caplog):
@@ -66,8 +66,8 @@ def test_directory_at_config_path(tmp_path, monkeypatch, caplog):
 def test_failed_load_recovers_when_file_appears(tmp_path, monkeypatch):
     monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(tmp_path / "later.json"))
     assert state.get_roster() == []
-    _write_config_at(tmp_path / "later.json", {"children": {"Ford": {"grade": "3rd", "school": "S"}}})
-    assert [r["name"] for r in state.get_roster()] == ["Ford"]
+    _write_config_at(tmp_path / "later.json", {"children": {"Avery": {"grade": "4th", "school": "S"}}})
+    assert [r["name"] for r in state.get_roster()] == ["Avery"]
 
 
 def test_get_children_is_lenient(tmp_path, monkeypatch):
@@ -83,7 +83,7 @@ def test_get_children_is_lenient(tmp_path, monkeypatch):
 
 def test_non_dict_name_aliases_ignored(tmp_path, monkeypatch):
     _write_config(tmp_path, monkeypatch, {"children": {}, "name_aliases": ["x"]})
-    assert state.get_name_aliases() == {"john": "Jack"}  # config ignored; built-in default remains
+    assert state.get_name_aliases() == {}
 
 
 def test_roster_malformed_json_logged(tmp_path, monkeypatch, caplog):
@@ -95,14 +95,14 @@ def test_roster_malformed_json_logged(tmp_path, monkeypatch, caplog):
 
 def test_roster_invalid_entries_skipped_and_logged(tmp_path, monkeypatch, caplog):
     _write_config(tmp_path, monkeypatch, {"children": {
-        "Ford": {"grade": "3rd", "school": "S"},
+        "Avery": {"grade": "4th", "school": "S"},
         "BadGrade": {"grade": 3, "school": "S"},
         "NoSchool": {"grade": "4th"},
         "NotDict": "x",
     }})
     with caplog.at_level(logging.WARNING):
         roster = state.get_roster()
-    assert [r["name"] for r in roster] == ["Ford"]
+    assert [r["name"] for r in roster] == ["Avery"]
     assert "BadGrade" in caplog.text and "NoSchool" in caplog.text and "NotDict" in caplog.text
 
 
@@ -118,14 +118,14 @@ def test_roster_duplicate_ids_skipped(tmp_path, monkeypatch, caplog):
 
 
 def test_roster_does_not_mutate_cached_config(tmp_path, monkeypatch):
-    _write_config(tmp_path, monkeypatch, {"children": {"Ford": {"grade": "3rd", "school": "S"}}})
+    _write_config(tmp_path, monkeypatch, {"children": {"Avery": {"grade": "4th", "school": "S"}}})
     first = state.get_roster()
     first[0]["name"] = "Changed"
-    assert state.get_roster()[0]["name"] == "Ford"
+    assert state.get_roster()[0]["name"] == "Avery"
 
 
 def test_cache_reset_picks_up_new_config(tmp_path, monkeypatch):
-    _write_config(tmp_path, monkeypatch, {"children": {"Ford": {"grade": "3rd", "school": "S"}}})
+    _write_config(tmp_path, monkeypatch, {"children": {"Avery": {"grade": "4th", "school": "S"}}})
     assert len(state.get_roster()) == 1
     _write_config(tmp_path, monkeypatch, {"children": {}})
     assert len(state.get_roster()) == 1  # cached
@@ -146,41 +146,42 @@ def dash_client(tmp_path, monkeypatch):
 
 
 CONFIG = {"children": {
-    "Ford": {"grade": "3rd", "school": "St Mark"},
-    "Penn": {"grade": "6th", "school": "St Mark"},
-    "Jack": {"grade": "8th", "school": "St Mark"},
+    "Avery": {"grade": "4th", "school": "Example School"},
+    "Blair": {"grade": "7th", "school": "Example School"},
+    "Casey": {"grade": "9th", "school": "Example School"},
 }}
 
 
 def test_dashboard_includes_roster_and_has_data(dash_client):
     c = dash_client({
-        "ixl": {"Ford": {"totals": {"math": {"remaining": 0, "assigned": 2, "done": 2}}}},
-        "schoology": {"Penn": {"assignments": []}},
+        "ixl": {"Avery": {"totals": {"math": {"remaining": 0, "assigned": 2, "done": 2}}}},
+        "schoology": {"Blair": {"assignments": []}},
     }, CONFIG)
     body = c.get("/api/dashboard").get_json()
-    assert [r["name"] for r in body["children"]] == ["Ford", "Penn", "Jack"]
-    assert body["children"][0] == {"id": "ford", "name": "Ford", "grade": "3rd", "school": "St Mark"}
-    assert body["has_data"]["Ford"] == {"ixl": True, "sgy": False, "ps": False}
-    assert body["has_data"]["Penn"] == {"ixl": False, "sgy": True, "ps": False}
+    assert [r["name"] for r in body["children"]] == ["Avery", "Blair", "Casey"]
+    assert body["children"][0] == {"id": "avery", "name": "Avery", "grade": "4th", "school": "Example School"}
+    assert body["has_data"]["Avery"] == {"ixl": True, "sgy": False, "ps": False}
+    assert body["has_data"]["Blair"] == {"ixl": False, "sgy": True, "ps": False}
     assert body["ixl"] == {} and body["schoology"] == {}  # existing keys unchanged
 
 
 def test_dashboard_never_scraped_child(dash_client):
     c = dash_client({"ixl": {}, "schoology": {}}, CONFIG)
     body = c.get("/api/dashboard").get_json()
-    assert body["has_data"]["Jack"] == {"ixl": False, "sgy": False, "ps": False}
+    assert body["has_data"]["Casey"] == {"ixl": False, "sgy": False, "ps": False}
 
 
 def test_dashboard_has_data_uses_alias_normalization(dash_client):
-    c = dash_client({"ixl": {"John": {"totals": {}}}, "schoology": {}}, CONFIG)
+    c = dash_client({"ixl": {"Caseyson": {"totals": {}}}, "schoology": {}},
+                    {**CONFIG, "name_aliases": {"caseyson": "Casey"}})
     body = c.get("/api/dashboard").get_json()
-    assert body["has_data"]["Jack"]["ixl"] is True
+    assert body["has_data"]["Casey"]["ixl"] is True
 
 
 def test_dashboard_has_data_requires_non_empty_dict(dash_client):
-    c = dash_client({"ixl": {"Ford": {}, "Penn": {}}, "schoology": {"Jack": {}}}, CONFIG)
+    c = dash_client({"ixl": {"Avery": {}, "Blair": {}}, "schoology": {"Casey": {}}}, CONFIG)
     body = c.get("/api/dashboard").get_json()
-    for name in ("Ford", "Penn", "Jack"):
+    for name in ("Avery", "Blair", "Casey"):
         assert body["has_data"][name] == {"ixl": False, "sgy": False, "ps": False}
 
 
@@ -192,19 +193,19 @@ def test_dashboard_empty_roster(dash_client):
 
 def test_dashboard_tolerates_non_dict_child_entries(dash_client):
     c = dash_client({
-        "ixl": {"Ford": "error: login failed", "Penn": None,
-                "Jack": {"totals": {"math": {"remaining": 3, "assigned": 5, "done": 2}, "bad": "x"}}},
-        "schoology": {"Ford": ["oops"], "Penn": {"assignments": ["junk", {"title": "HW"}]}},
+        "ixl": {"Avery": "error: login failed", "Blair": None,
+                "Casey": {"totals": {"math": {"remaining": 3, "assigned": 5, "done": 2}, "bad": "x"}}},
+        "schoology": {"Avery": ["oops"], "Blair": {"assignments": ["junk", {"title": "HW"}]}},
     }, CONFIG)
     resp = c.get("/api/dashboard")
     assert resp.status_code == 200
     body = resp.get_json()
-    assert body["ixl"]["Jack"] == [{"subject": "math", "remaining": 3, "assigned": 5, "done": 2}]
-    assert [a["title"] for a in body["schoology"]["Penn"]] == ["HW"]
+    assert body["ixl"]["Casey"] == [{"subject": "math", "remaining": 3, "assigned": 5, "done": 2}]
+    assert [a["title"] for a in body["schoology"]["Blair"]] == ["HW"]
 
 
 def test_dashboard_children_use_canonical_names_matching_has_data(dash_client):
-    cfg = {"children": {"Samantha": {"grade": "5th", "school": "St Mark"}, "Sam": {"grade": "9th", "school": "St Mark"}},
+    cfg = {"children": {"Samantha": {"grade": "5th", "school": "Example School"}, "Sam": {"grade": "9th", "school": "Example School"}},
            "name_aliases": {"samantha": "Sam"}}
     c = dash_client({"ixl": {"Sam": {"totals": {}}}, "schoology": {}}, cfg)
     body = c.get("/api/dashboard").get_json()

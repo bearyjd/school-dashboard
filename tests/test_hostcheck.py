@@ -4,7 +4,6 @@ import logging
 import pytest
 
 from school_dashboard import hostcheck
-from school_dashboard.digest import DASHBOARD_BASE
 
 
 @pytest.fixture(autouse=True)
@@ -65,11 +64,11 @@ def test_parse_allowed_excludes_builtins_from_result_and_is_immutable():
     assert not (out & hostcheck.builtin_hosts())
 
 
-def test_builtins_include_dashboard_base_host():
+def test_builtins_include_dashboard_base_host(dashboard_url):
     from urllib.parse import urlsplit
     b = hostcheck.builtin_hosts()
     assert {"localhost", "127.0.0.1", "[::1]"} <= b
-    assert urlsplit(DASHBOARD_BASE).hostname in b
+    assert urlsplit(dashboard_url).hostname in b
 
 
 @pytest.mark.parametrize("host,allowed,ok", [

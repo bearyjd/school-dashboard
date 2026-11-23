@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a GitHub Actions workflow that builds and pushes the Docker image to `ghcr.io/bearyjd/school-dashboard` on relevant pushes to `main`, and update `docker-compose.yml` so `.14` can pull it.
+**Goal:** Add a GitHub Actions workflow that builds and pushes the Docker image to `ghcr.io/bearyjd/school-dashboard` on relevant pushes to `main`, and update `docker-compose.yml` so the deployment host can pull it.
 
 **Architecture:** One new workflow file (`.github/workflows/docker.yml`) with a path filter so builds only trigger when image-affecting files change. One line added to `docker-compose.yml` to point compose at the registry image. No secrets beyond the built-in `GITHUB_TOKEN`.
 
@@ -165,7 +165,7 @@ services:
 git add docker-compose.yml
 git commit -m "chore: add ghcr.io image reference to docker-compose.yml
 
-enables docker compose pull on .14 to fetch pre-built image
+enables docker compose pull on the deployment host to fetch pre-built image
 instead of building locally"
 ```
 
@@ -201,9 +201,9 @@ You should see the package with `latest` and a SHA tag listed.
 
 ---
 
-- [ ] **Step 4: Test pulling on .14**
+- [ ] **Step 4: Test pulling on the deployment host**
 
-SSH into `.14` and run:
+SSH into the deployment host and run:
 
 ```bash
 cd /opt/school/dashboard

@@ -36,7 +36,7 @@ All three digests push to the existing `NTFY_TOPIC`. The existing `send_ntfy()` 
 
 ## Decisions & Positions
 
-1. **LiteLLM for all three** — natural language synthesis ("Jack still has 4 IXL math skills and his reading log is due tomorrow") is more actionable than a raw structured list.
+1. **LiteLLM for all three** — natural language synthesis ("Casey still has 4 IXL math skills and his reading log is due tomorrow") is more actionable than a raw structured list.
 2. **Separate functions, not a unified engine** — `build_afternoon_digest()` and `build_night_digest()` added alongside existing `build_digest_text()`. The working morning digest is never touched.
 3. **Afternoon at 3:30pm, not 2:30pm** — fires 1 hour after the 2:30pm scraper run so data is always fresh. If the scraper is late or slow, there is still a buffer.
 4. **Morning/night run on weekends** — weekend sports and activities are real, afternoon homework check is weekdays only.

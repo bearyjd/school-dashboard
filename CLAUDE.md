@@ -12,7 +12,7 @@ extraction — `calendar_import.py`/`intel.py` — existed at `v1.0.0` but have 
 been removed from the codebase; see the Architecture section below before
 assuming either capability is present.)
 
-**External dependency:** LiteLLM proxy at `LITELLM_URL` (e.g. `https://llm.grepon.cc/v1`). Not included — point to your own instance.
+**AI features:** Use an OpenAI-compatible chat completions endpoint such as OmniRoute or LiteLLM.
 
 **Agent-native audit:** see `.agent_native/agent_roadmap.md` for a prioritized list
 of gaps (test-collection trap, missing CI test gate, stale docs, missing scraper-
@@ -27,7 +27,7 @@ cp .env.example config/env        # fill in secrets
 # (no PDF import; load calendar JSON with `school-state calendar import <file>`)
 gog auth add EMAIL                # one-time Google OAuth setup
 docker compose up -d
-# Access SPA at https://school.grepon.cc/app (install to homescreen for PWA)
+# Access SPA at https://school.example.invalid/app (install to homescreen for PWA)
 ```
 
 ## Development (no Docker)
@@ -148,7 +148,7 @@ Non-schoology items, completed items and all other state are left untouched.
 ```
 school_dashboard/       Core Python package
   db.py                 SQLite: `items` table (manual + scraped tasks), `digests` table (carousel history) and `events` table (`init_events_table`; rows come from `school-state calendar import`).
-  digest.py             Build morning/afternoon/night/weekly digest text via LiteLLM (build_morning_digest / build_afternoon_digest / build_night_digest / build_weekly_digest). Send to ntfy.sh push. `build_quick_check(state_path)` → no-LLM homework summary (IXL remaining + open SGY assignments per child).
+  digest.py             Build morning/afternoon/night/weekly digest text via AI synthesis (build_morning_digest / build_afternoon_digest / build_night_digest / build_weekly_digest). Send to ntfy.sh push. `build_quick_check(state_path)` → no-LLM homework summary (IXL remaining + open SGY assignments per child).
   llm.py                SSE-tolerant OpenAI-compatible chat client (`chat_completion`) shared by digest.py and web/app.py's /api/chat. Every call in this repo's test suite mocks `requests.post` at this boundary — this is the one true "requires an external LLM" seam.
   email.py              Gmail digest fetch + classification.
   gcal.py               Google Calendar event fetch (via `gog`), used by digest.py's `_gcal_events_on`.
@@ -199,9 +199,9 @@ docker/
 > note above). The two bullets below describe what actually runs today.
 
 - **GameChanger scrape (each sync, non-fatal):** `gc-scrape.sh` calls `gc teams --json`, iterates team IDs, calls `gc summary --json --team ID` per team, writes merged `gc-schedule.json`. Skipped if `GC_TOKEN` and `GC_EMAIL` are both unset.
-- **Morning/afternoon/night/weekly digest (6am/2:30pm/8:30pm/Fri+Sun):** `digest.py`'s `build_morning_digest`/`build_afternoon_digest`/`build_night_digest`/`build_weekly_digest` query IXL+Schoology state + facts.json + gc-schedule.json (plus `events` rows from the imported school calendar) → LiteLLM synthesizes → creates `digests` carousel row → ntfy.sh push with deep-link. This is the one genuine LLM-judgment surface in the pipeline: the *prompt wording* was tuned by a human and isn't something an agent should freely rewrite without re-validating tone; the *plumbing* around it (what data gets assembled, formatting, ntfy delivery) is ordinary deterministic code covered by `tests/test_digest.py`.
+- **Morning/afternoon/night/weekly digest (6am/2:30pm/8:30pm/Fri+Sun):** `digest.py`'s `build_morning_digest`/`build_afternoon_digest`/`build_night_digest`/`build_weekly_digest` query IXL+Schoology state + facts.json + gc-schedule.json (plus `events` rows from the imported school calendar) → The configured endpoint synthesizes → creates `digests` carousel row → ntfy.sh push with deep-link. This is the one genuine LLM-judgment surface in the pipeline: the *prompt wording* was tuned by a human and isn't something an agent should freely rewrite without re-validating tone; the *plumbing* around it (what data gets assembled, formatting, ntfy delivery) is ordinary deterministic code covered by `tests/test_digest.py`.
 - **Readiness checklist (on-demand, `/api/readiness`):** `readiness.py::get_checklist` — pure, deterministic, no LLM. Fully unit-tested. Its tests/quizzes line reads `events` rows of type TEST/QUIZ, which only exist if a school calendar was imported or rows were added manually (the table itself is created by `init_db`).
-- **Chat:** `/api/chat` builds system prompt with 30-day events + facts + full state JSON → streams reply from LiteLLM via `school_dashboard/llm.py::chat_completion`.
+- **Chat:** `/api/chat` builds system prompt with 30-day events + facts + full state JSON → streams reply from OpenAI-compatible chat via `school_dashboard/llm.py::chat_completion`.
 
 ## API Endpoints
 
@@ -217,7 +217,7 @@ docker/
 | `/api/digest/<id>/cards/<index>` | PATCH | Toggle card done state (JSON: `done: bool`) |
 | `/api/overview` | GET | Normalised items (status overdue/missing/late/tonight/upcoming), events (GameChanger + school calendar), `kids: [{name, color}]` and per-source freshness for the SPA (`?days=1..60`, `?past=1`) |
 | `/api/dashboard` | GET | Aggregate view (schoology, ixl, email_items) |
-| `/api/chat` | POST | Chat with LiteLLM (JSON: `message`, `history`) |
+| `/api/chat` | POST | Chat through the configured endpoint (JSON: `message`, `history`) |
 | `/api/readiness` | GET | Get readiness checklist |
 | `/api/calendar` | GET | Fetch Google Calendar events |
 | `/api/sync` | POST | Trigger on-demand sync (header: `X-Sync-Token`, compared in constant time; the token is **never served** in HTML/JS/JSON; the SPA keeps a user-entered copy in `localStorage['school-sync-token']`; 10 bad tokens/min per client (`remote_addr`, or the `TRUSTED_PROXY_COUNT`-th `X-Forwarded-For` entry from the right; IPv6 by /64) -> 429 + `Retry-After`, a correct token is never blocked; token must be >= 32 chars; JSON: `sources` e.g. `"ixl,sgy,powerschool"` or `"all"`, `digest` e.g. `"quick"/"full"/"none"`) |
@@ -242,11 +242,11 @@ docker/
 
 All secrets in `config/env` (gitignored). Template at `.env.example`. `.env` at repo root is not read by the app (app secrets stay in `config/env`); it is only read by compose interpolation (`DASHBOARD_BIND_ADDR`, `DASHBOARD_PORT`).
 
-`LITELLM_URL` must be the full URL including `/v1` (e.g. `https://llm.grepon.cc/v1`). Both `web/app.py` and `digest.py` append `/v1/chat/completions` to this URL.
+`LITELLM_URL` is the server root, such as `http://omniroute.example.invalid:20128`. `school_dashboard/llm.py` appends `/v1/chat/completions`. Use the bearer key and model identifier from the configured endpoint.
 
-Required vars: `LITELLM_URL`, `LITELLM_API_KEY`, `LITELLM_MODEL`, `IXL_EMAIL`, `IXL_PASSWORD`, `SGY_EMAIL`, `SGY_PASSWORD`, `GOG_ACCOUNT`, `NTFY_TOPIC`.
+AI settings use the existing `LITELLM_URL`, `LITELLM_API_KEY`, and `LITELLM_MODEL` names. Scraper and notification settings include `IXL_EMAIL`, `IXL_PASSWORD`, `SGY_EMAIL`, `SGY_PASSWORD`, `SGY_BASE_URL`, `GOG_ACCOUNT`, and `NTFY_TOPIC`. Use `SCHOOL_DOMAINS` for school email senders and `DASHBOARD_BASE` for dashboard links in notifications.
 
-Optional GameChanger vars: `GC_TOKEN` (bearer token from browser session — preferred), or `GC_EMAIL`/`GC_PASSWORD` (Playwright login fallback). `GC_TEAM_MAP` maps team IDs to child names: `"teamid:Ford,teamid2:Jack"`. `SCHOOL_GC_PATH` overrides the default gc-schedule.json path (default: `/app/state/gc-schedule.json`). Run `gc teams --json` to discover team IDs.
+Optional GameChanger vars: `GC_TOKEN` (bearer token from browser session — preferred), or `GC_EMAIL`/`GC_PASSWORD` (Playwright login fallback). `GC_TEAM_MAP` maps team IDs to child names: `"teamid:Avery,teamid2:Casey"`. `SCHOOL_GC_PATH` overrides the default gc-schedule.json path (default: `/app/state/gc-schedule.json`). Run `gc teams --json` to discover team IDs.
 
 Optional on-demand sync: `SYNC_TOKEN` — shared secret for `POST /api/sync`. Generate with: `python3 -c "import secrets; print(secrets.token_hex(32))"`. Unset or shorter than 32 characters (a WARNING is logged, never the value), `/api/sync` returns 501. It is never rendered into any page; each device enters it once in the SPA Settings (see `docs/ops/spa-redesign-rollout.md`).
 
@@ -254,7 +254,7 @@ Optional PowerSchool (4th source): `PS_USERNAME`, `PS_PASSWORD`, `PS_BASE_URL` (
 
 Optional `TRUSTED_PROXY_COUNT` (default 0): number of trusted reverse proxies in front of Flask; with N > 0 the sync limiter keys on the Nth `X-Forwarded-For` entry from the right. WARNING: this repo's `docker-compose.yml` publishes `127.0.0.1:5000` by default (`DASHBOARD_BIND_ADDR`), so it is safe with a same-host proxy; keep it 0 if you set `DASHBOARD_BIND_ADDR=0.0.0.0` or any interface the proxy does not alone control, otherwise clients can spoof `X-Forwarded-For`. A non-empty invalid value logs one WARNING and counts as 0. Only set it when the port is reachable solely through the proxy (`docs/ops/spa-redesign-rollout.md`).
 
-Host check (`school_dashboard/hostcheck.py`, wired first in `web/app.py`, covers every route): only the raw `Host` header is judged (never `X-Forwarded-Host`). `HOST_CHECK_MODE` = `off` | `log` (default; one WARNING per distinct unknown host, 64 max) | `enforce` (421 `{"error":"host_not_allowed"}`). `ALLOWED_HOSTS` = comma/space list, port ignored, `.example.net` = subdomain suffix rule; `localhost`, `127.0.0.1`, `[::1]` and the `digest.DASHBOARD_BASE` host are always allowed (container healthcheck and `smoke-live.sh` default use them). `enforce` with no valid `ALLOWED_HOSTS` entry runs as `log` and warns (lock-out guard). Rollout/rollback: `docs/ops/host-allowlist-and-port-binding.md`.
+Host check (`school_dashboard/hostcheck.py`, wired first in `web/app.py`, covers every route): only the raw `Host` header is judged (never `X-Forwarded-Host`). `HOST_CHECK_MODE` = `off` | `log` (default; one WARNING per distinct unknown host, 64 max) | `enforce` (421 `{"error":"host_not_allowed"}`). `ALLOWED_HOSTS` = comma/space list, port ignored, `.example.net` = subdomain suffix rule; `localhost`, `127.0.0.1`, `[::1]` are always allowed, along with the host of `DASHBOARD_BASE` when configured. `enforce` with no valid `ALLOWED_HOSTS` entry runs as `log` and warns (lock-out guard). Rollout/rollback: `docs/ops/host-allowlist-and-port-binding.md`.
 
 Port publishing: compose maps `${DASHBOARD_BIND_ADDR:-127.0.0.1}:${DASHBOARD_PORT:-5000}:5000`; set the two variables in the `.env` next to `docker-compose.yml` (compose interpolation), NOT in `config/env`. Default is loopback; a server whose reverse proxy runs on another host needs `DASHBOARD_BIND_ADDR` set to the interface the proxy reaches.
 
@@ -266,11 +266,11 @@ Scraper timeouts (seconds, read at call time; `school_dashboard/scrape_timeout.p
 
 Optional per-source toggles: `SOURCE_IXL_ENABLED`, `SOURCE_SGY_ENABLED`, `SOURCE_GC_ENABLED`, `SOURCE_POWERSCHOOL_ENABLED` (default enabled; `0/false/no/off`, case-insensitive, disables). A disabled source is skipped by `school-sync.sh` and `/api/sync` with no failure alert and recorded in `sync_meta` as `last_result: "paused"` Cached data from a paused source stays in state and digests. (helpers: `school_dashboard/sources.py::source_enabled`, shell `source_enabled`).
 
-Roster config optional `"color"` (one of green, lavender, amber, blue, rose, teal; invalid is ignored with a warning). Defaults by name: Jack green, Penn lavender, Ford amber; other kids fall back positionally (`school_dashboard/kid_colors.py`). `/api/overview` returns `kids: [{name, color}]` (roster order, resolved colour name) which drives the SPA, an unknown kid renders neutral; colours are matched case-insensitively and fallback kids never share a colour with an explicit/default one until the palette is exhausted; digest cards carry `color`.
+Roster config optional `"color"` (one of green, lavender, amber, blue, rose, teal; invalid is ignored with a warning). Without an explicit color, the app assigns colors in roster order (amber, lavender, green, blue, rose, teal) using `school_dashboard/kid_colors.py`. `/api/overview` returns `kids: [{name, color}]` (roster order, resolved colour name) which drives the SPA, an unknown kid renders neutral; colours are matched case-insensitively and fallback kids never share a colour with an explicit/default one until the palette is exhausted; digest cards carry `color`.
 
 Roster config (`school-dashboard.json`, `children.<Name>`): optional `"ixl": false` marks a child who left IXL; it is never flagged as `IXL unavailable` (quick check, digests, overview, watchdog `scrape_degraded`). Bool only (anything else is ignored with a warning); default true. A roster child with earlier IXL data but no IXL file now is flagged otherwise, with no auto-expiry. See `docs/ops/spa-redesign-rollout.md`.
 
-`SCHOOL_SYNC_META_PATH` overrides the sync metadata path (default: `/app/state/sync_meta.json`). TWA domain verification: `TWA_PACKAGE_NAME` (default: `cc.grepon.school`), `TWA_CERT_FINGERPRINT` (populate after signing APK).
+`SCHOOL_SYNC_META_PATH` overrides the sync metadata path (default: `/app/state/sync_meta.json`). TWA domain verification: `TWA_PACKAGE_NAME` (default: `org.example.school`), `TWA_CERT_FINGERPRINT` (populate after signing APK).
 
 ## Tests
 
@@ -354,7 +354,7 @@ of correctness** (details and fixes in `.agent_native/agent_roadmap.md`):
   digest-carousel card structure) is ordinary deterministic code, covered by
   `tests/test_digest.py`, and safe for an agent to modify/verify without any
   special judgment call. The one genuine human-judgment surface is the **prompt
-  text itself** sent to LiteLLM via `school_dashboard/llm.py::chat_completion` —
+  text itself** sent to OpenAI-compatible chat via `school_dashboard/llm.py::chat_completion` —
   changing tone/wording there was a product decision, not something to infer from
   tests (every test mocks `requests.post` and never asserts on exact prompt
   wording). If a bug report is about digest *tone* rather than *content/formatting*,

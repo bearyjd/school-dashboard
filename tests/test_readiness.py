@@ -16,7 +16,7 @@ def tmp_state(tmp_path):
     far = (today + timedelta(days=10)).isoformat()
     state = {
         "schoology": {
-            "Jack": {
+            "Casey": {
                 "assignments": [
                     {"title": "Math HW", "due_date": tomorrow, "course": "Math", "status": "not submitted"},
                     {"title": "Old Essay", "due_date": overdue, "course": "English", "status": "not submitted"},
@@ -26,7 +26,7 @@ def tmp_state(tmp_path):
             }
         },
         "ixl": {
-            "Jack": {
+            "Casey": {
                 "totals": {
                     "math": {"remaining": 3, "assigned": 5, "done": 2},
                     "ela": {"remaining": 0, "assigned": 2, "done": 2},
@@ -48,7 +48,7 @@ def tmp_db(tmp_path):
     )
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
     conn.execute("INSERT INTO events VALUES (1, ?, 'Science Test', 'TEST', '')", (tomorrow,))
-    conn.execute("INSERT INTO events VALUES (2, ?, 'Reading Quiz', 'QUIZ', 'Jack')", (tomorrow,))
+    conn.execute("INSERT INTO events VALUES (2, ?, 'Reading Quiz', 'QUIZ', 'Casey')", (tomorrow,))
     conn.commit()
     conn.close()
     return str(db)
@@ -56,8 +56,8 @@ def tmp_db(tmp_path):
 
 def test_overdue_assignment_urgency(tmp_state, tmp_db):
     result = get_checklist(tmp_state, tmp_db)
-    jack = result["Jack"]
-    overdue_items = [i for i in jack if i["label"] == "Old Essay"]
+    casey = result["Casey"]
+    overdue_items = [i for i in casey if i["label"] == "Old Essay"]
     assert len(overdue_items) == 1
     assert overdue_items[0]["urgency"] == "overdue"
     assert overdue_items[0]["type"] == "assignment"
@@ -65,28 +65,28 @@ def test_overdue_assignment_urgency(tmp_state, tmp_db):
 
 def test_tomorrow_assignment_urgency(tmp_state, tmp_db):
     result = get_checklist(tmp_state, tmp_db)
-    jack = result["Jack"]
-    tomorrow_items = [i for i in jack if i["label"] == "Math HW"]
+    casey = result["Casey"]
+    tomorrow_items = [i for i in casey if i["label"] == "Math HW"]
     assert len(tomorrow_items) == 1
     assert tomorrow_items[0]["urgency"] == "tomorrow"
 
 
 def test_submitted_assignment_excluded(tmp_state, tmp_db):
     result = get_checklist(tmp_state, tmp_db)
-    labels = [i["label"] for i in result.get("Jack", [])]
+    labels = [i["label"] for i in result.get("Casey", [])]
     assert "Done HW" not in labels
 
 
 def test_beyond_cutoff_excluded(tmp_state, tmp_db):
     result = get_checklist(tmp_state, tmp_db, days_ahead=3)
-    labels = [i["label"] for i in result.get("Jack", [])]
+    labels = [i["label"] for i in result.get("Casey", [])]
     assert "Far HW" not in labels
 
 
 def test_ixl_remaining_included(tmp_state, tmp_db):
     result = get_checklist(tmp_state, tmp_db)
-    jack = result["Jack"]
-    ixl_items = [i for i in jack if i["type"] == "ixl"]
+    casey = result["Casey"]
+    ixl_items = [i for i in casey if i["type"] == "ixl"]
     assert len(ixl_items) == 1  # ela has 0 remaining — excluded
     assert "3" in ixl_items[0]["label"]
     assert ixl_items[0]["urgency"] == "pending"
@@ -94,8 +94,8 @@ def test_ixl_remaining_included(tmp_state, tmp_db):
 
 def test_test_event_included(tmp_state, tmp_db):
     result = get_checklist(tmp_state, tmp_db)
-    jack = result["Jack"]
-    test_items = [i for i in jack if i["type"] == "test"]
+    casey = result["Casey"]
+    test_items = [i for i in casey if i["type"] == "test"]
     titles = [i["label"] for i in test_items]
     assert "Science Test" in titles
     assert "Reading Quiz" in titles
@@ -104,7 +104,7 @@ def test_test_event_included(tmp_state, tmp_db):
 def test_format_checklist_text(tmp_state, tmp_db):
     checklist = get_checklist(tmp_state, tmp_db)
     text = format_checklist_text(checklist)
-    assert "Jack" in text
+    assert "Casey" in text
     assert "Old Essay" in text
     assert "[overdue]" in text.lower()
 
@@ -139,31 +139,31 @@ def test_init_db_creates_events_table_and_checklist_surfaces_test_event(tmp_stat
     conn = sqlite3.connect(db_path)
     conn.execute(
         "INSERT INTO events (date, title, type, child) VALUES (?, ?, ?, ?)",
-        (tomorrow, "Science Test", "TEST", "Jack"),
+        (tomorrow, "Science Test", "TEST", "Casey"),
     )
     conn.commit()
     conn.close()
 
     result = get_checklist(tmp_state, db_path)
-    jack = result["Jack"]
-    test_items = [i for i in jack if i["type"] == "test"]
+    casey = result["Casey"]
+    test_items = [i for i in casey if i["type"] == "test"]
     assert "Science Test" in [i["label"] for i in test_items]
 
 
 def test_comma_joined_child_matches_membership(tmp_path):
-    state = {"schoology": {n: {"assignments": []} for n in ("Ford", "Jack", "Penn")}}
+    state = {"schoology": {n: {"assignments": []} for n in ("Avery", "Casey", "Blair")}}
     sp = tmp_path / "state.json"
     sp.write_text(json.dumps(state))
     dbp = tmp_path / "school.db"
     conn = sqlite3.connect(str(dbp))
     conn.execute("CREATE TABLE events (id INTEGER PRIMARY KEY, date TEXT, title TEXT, type TEXT, child TEXT)")
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
-    conn.execute("INSERT INTO events VALUES (1, ?, 'Shared Test', 'TEST', 'Ford, Jack')", (tomorrow,))
+    conn.execute("INSERT INTO events VALUES (1, ?, 'Shared Test', 'TEST', 'Avery, Casey')", (tomorrow,))
     conn.commit()
     conn.close()
     result = get_checklist(str(sp), str(dbp))
-    has = {c: any(i["label"] == "Shared Test" for i in result.get(c, [])) for c in ("Ford", "Jack", "Penn")}
-    assert has == {"Ford": True, "Jack": True, "Penn": False}
+    has = {c: any(i["label"] == "Shared Test" for i in result.get(c, [])) for c in ("Avery", "Casey", "Blair")}
+    assert has == {"Avery": True, "Casey": True, "Blair": False}
 
 
 def _one_assignment_state(tmp_path, due_date, status="not submitted"):

@@ -1,8 +1,8 @@
 {
   "children": {
-    "Ford": {"grade": "3rd", "school": "St Mark"},
-    "Penn": {"grade": "6th", "school": "St Mark"},
-    "Jack": {"grade": "8th", "school": "St Mark"}
+    "Avery": {"grade": "4th", "school": "Example School", "color": "amber"},
+    "Blair": {"grade": "7th", "school": "Example School", "color": "lavender"},
+    "Casey": {"grade": "9th", "school": "Example School", "color": "green"}
   },
-  "name_aliases": {}
+  "name_aliases": {"caseyson": "Casey"}
 }

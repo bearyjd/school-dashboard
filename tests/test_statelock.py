@@ -10,7 +10,7 @@ from school_dashboard import cli, schoology_reset, state, statelock
 
 
 def _add_args(sf, n):
-    return argparse.Namespace(state_file=str(sf), child="Ford", summary=f"task {n}", due=None,
+    return argparse.Namespace(state_file=str(sf), child="Avery", summary=f"task {n}", due=None,
                               source="manual", type="task")
 
 

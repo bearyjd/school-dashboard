@@ -119,10 +119,10 @@ Replace with:
 
 - [ ] **Step 4: Verify the Flask server is running and reload**
 
-The live server is at `http://192.168.1.14:5000` (LXC deployment) or start locally with:
+The live server is at `http://192.0.2.14:5000` (LXC deployment) or start locally with:
 
 ```bash
-cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard
+cd ~/src/school-dashboard
 set -a && source config/env && set +a
 python -m flask --app web/app.py run --port 5000
 ```
@@ -133,7 +133,7 @@ python -m flask --app web/app.py run --port 5000
 
 - [ ] **Step 5: Manual verification checklist**
 
-Open `http://localhost:5000` (or `http://192.168.1.14:5000`) and click the **Schoology** tab.
+Open `http://localhost:5000` (or `http://192.0.2.14:5000`) and click the **Schoology** tab.
 
 Check each of the following:
 

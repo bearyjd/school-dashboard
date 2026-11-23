@@ -44,5 +44,5 @@ Rules:
 - Skip empty sections entirely.
 
 After composing your final message, ALSO send it to a second recipient by running:
-  openclaw message send --channel signal --target "+12029303079" -m "<your full message>"
+  openclaw message send --channel signal --target "${SCHOOL_SIGNAL_TARGET:?Set the Signal recipient in the private environment}" -m "<your full message>"
 ```

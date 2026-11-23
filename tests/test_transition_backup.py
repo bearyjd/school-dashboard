@@ -30,11 +30,11 @@ def run(*argv):
 def populated(state_env):
     dbp = str(paths.db_path())
     db.init_db(dbp)
-    db.create_item(dbp, child="Ford", title="Read ch 3")
-    db.create_item(dbp, child="Jack", title="Math")
+    db.create_item(dbp, child="Avery", title="Read ch 3")
+    db.create_item(dbp, child="Casey", title="Math")
     db.create_digest(dbp, "Morning", [{"t": 1}])
     s = state.load(str(paths.state_path()))
-    state.add_action_item(s, child="Ford", source="manual", item_type="task",
+    state.add_action_item(s, child="Avery", source="manual", item_type="task",
                           summary="bring form", due=None)
     state.save(s, str(paths.state_path()))
     paths.facts_path().write_text('[{"subject": "x"}]')
@@ -125,7 +125,7 @@ def test_backup_refuses_nonempty_dest(populated, tmp_path):
 
 def test_backup_includes_roster_config(populated, tmp_path, monkeypatch):
     cfg = tmp_path / "config.json"
-    cfg.write_text('{"children": {"Ford": {"grade": 5}}}')
+    cfg.write_text('{"children": {"Avery": {"grade": 5}}}')
     monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(cfg))
     maintenance.enable("t")
     dest = tmp_path / "b"

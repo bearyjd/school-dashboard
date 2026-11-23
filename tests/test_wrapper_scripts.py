@@ -153,12 +153,12 @@ warn_if_unmapped t1 "Tigers"
         return _bash(self.SNIPPET % {"setup": setup})
 
     def test_mapped_team_no_warning(self):
-        result = self._run('GC_TEAM_MAP="t1:Ford"; TEAM_MAP[t1]=Ford')
+        result = self._run('GC_TEAM_MAP="t1:Avery"; TEAM_MAP[t1]=Avery')
         assert result.returncode == 0, result.stderr
         assert "WARN" not in result.stdout
 
     def test_unmapped_team_warns_with_id_and_name(self):
-        result = self._run('GC_TEAM_MAP="t2:Jack"; TEAM_MAP[t2]=Jack')
+        result = self._run('GC_TEAM_MAP="t2:Casey"; TEAM_MAP[t2]=Casey')
         assert result.returncode == 0, result.stderr
         assert "WARN" in result.stdout
         assert "t1" in result.stdout and "Tigers" in result.stdout

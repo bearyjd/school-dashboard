@@ -666,7 +666,7 @@ _DEEP_LINKS: dict[str, str] = {
     "Week Ahead": "?mode=all&time=week",
 }
 
-DASHBOARD_BASE = "https://school.grepon.cc"
+DASHBOARD_BASE = os.environ.get("DASHBOARD_BASE", "").rstrip("/")
 
 
 def _unavailable_names(state: dict) -> list[str]:
@@ -747,9 +747,9 @@ def send_ntfy(
     if maintenance.is_active():
         _log.info("Maintenance mode active; skipping digest store and ntfy send")
         return
+    deep = _DEEP_LINKS.get(title, "")
+    url = f"{DASHBOARD_BASE}/{deep}" if DASHBOARD_BASE and deep else DASHBOARD_BASE
     if cards is not None and db_path:  # [] still records the row: the watchdog treats it as delivery
-        deep = _DEEP_LINKS.get(title, "")
-        static_url = f"{DASHBOARD_BASE}/{deep}" if deep else DASHBOARD_BASE
         try:
             from school_dashboard.db import init_digests_table, create_digest, purge_old_digests
             init_digests_table(db_path)
@@ -763,31 +763,29 @@ def send_ntfy(
                 stored = cards
             digest_id = create_digest(db_path, title, stored)
             # an empty digest has no carousel to open: keep the mode link
-            url = f"{DASHBOARD_BASE}/?digest={digest_id}" if cards else static_url
+            if DASHBOARD_BASE and cards:
+                url = f"{DASHBOARD_BASE}/?digest={digest_id}"
         except Exception as exc:
             _log.warning("Digest DB error, falling back to static link: %s", exc)
-            url = static_url
-    else:
-        deep = _DEEP_LINKS.get(title, "")
-        url = f"{DASHBOARD_BASE}/{deep}" if deep else DASHBOARD_BASE
 
-    base_action = f"view, Open Dashboard, {url}"
-    if actions:
-        extra = "; ".join(_format_ntfy_action(a) for a in actions)
-        actions_header = f"{base_action}; {extra}"
-    else:
-        actions_header = base_action
+    topic = topic.strip()
+    if not topic:
+        return
+
+    headers = {"Title": title.encode("ascii", errors="replace").decode("ascii"),
+               "Priority": "default", "Tags": "school"}
+    action_items = []
+    if url:
+        headers["Click"] = url
+        action_items.append(f"view, Open Dashboard, {url}")
+    action_items.extend(_format_ntfy_action(action) for action in actions or [])
+    if action_items:
+        headers["Actions"] = "; ".join(action_items)
 
     resp = requests.post(
         f"https://ntfy.sh/{topic}",
         data=message.encode("utf-8"),
-        headers={
-            "Title": title.encode("ascii", errors="replace").decode("ascii"),
-            "Priority": "default",
-            "Tags": "school",
-            "Click": url,
-            "Actions": actions_header,
-        },
+        headers=headers,
         timeout=15,
     )
     if not resp.ok:

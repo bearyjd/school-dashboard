@@ -35,7 +35,7 @@ def env(tmp_path):
          "SCHOOL_STATE_DIR": str(state), "SCHOOL_DASHBOARD_ENV": str(tmp_path / "noenv"),
          "NTFY_TOPIC": "t", "HOME": os.environ["HOME"]}
     db.init_db(str(state / "school.db"))
-    db.create_item(str(state / "school.db"), child="Ford", title="x")
+    db.create_item(str(state / "school.db"), child="Avery", title="x")
     (state / "school-state.json").write_text('{"children": {}, "action_items": []}')
     return e, state, tmp_path
 

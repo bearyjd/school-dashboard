@@ -30,7 +30,7 @@ case "$rc" in
     1) echo "[$TS] watchdog: problems found (alert handled by watchdog)" >> "$LOGFILE" ;;
     *)
         echo "[$TS] watchdog FAILED (exit $rc)" >> "$LOGFILE"
-        if [ -n "${NTFY_TOPIC:-}" ]; then
+        if [[ ${NTFY_TOPIC:-} =~ [^[:space:]] ]]; then
             curl -sf \
                 -H "Title: Watchdog FAILED" \
                 -H "Priority: high" \

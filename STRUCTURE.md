@@ -1,6 +1,6 @@
 # School Dashboard — Server Layout
 
-## Host: root@192.168.1.14 (Ubuntu 24.04)
+## Host: root@192.0.2.14 (Ubuntu 24.04)
 
 ### Application files
 
@@ -34,7 +34,7 @@
 │   └── ixl-accounts.env             # IXL per-child credentials (chmod 600)
 │
 └── gog/                              # gog (gogcli) OAuth keyring
-    └── keyring                       # encrypted token store for parent@example.com
+    └── keyring                       # encrypted token store for parent@example.invalid
 ```
 
 ### Binaries
@@ -60,7 +60,7 @@
 secrets/
 ├── client_secret.json    # Google OAuth client credentials (used by gog auth)
 ├── gog/
-│   └── keyring           # gog encrypted token store for parent@example.com
+│   └── keyring           # gog encrypted token store for parent@example.invalid
 ├── ixl-accounts.env      # IXL logins: per-child credentials
 └── env                   # consolidated env: GOG_KEYRING_PASSWORD, SCHOOL_* paths, etc.
 ```
@@ -68,7 +68,6 @@ secrets/
 ### Still TODO
 
 - [ ] signal-cli: register a bot number and configure recipients
-  - `+12026569253` was attempted but not registered
   - Need a VoIP number (JMP.chat recommended) or link an existing device
 - [ ] Add `GOG_KEYRING_PASSWORD` to `/opt/school/config/env`
 - [ ] Add Signal send step to `school-sync.sh` (morning digest)

@@ -11,11 +11,11 @@
 [GC]      ──gc───┘
 [GCal]    ──gog──► gcal.py (cached) ──► /api/calendar
 
-                          digest.py (LiteLLM) ──► ntfy.sh push
+                          digest.py (OpenAI-compatible endpoint) ──► ntfy.sh push
                                               ──► digests table (carousel)
                           html.py ─────────────► dashboard.html
                           web/app.py ── /api/* ── React SPA at /app
-                                     └─ /api/chat ─ LiteLLM (SSE)
+                                     └─ /api/chat ─ OpenAI-compatible endpoint (SSE)
 ```
 
 ## Components
@@ -27,7 +27,7 @@
 | DB schema + items + digests | `school_dashboard/db.py` | SQLite tables (items, digests) |
 | Digest | `school_dashboard/digest.py` | morning / afternoon / night / weekly + cards → ntfy.sh carousel |
 | Email fetch | `school_dashboard/email.py` | gog → Gmail → email-digest.json |
-| LLM client | `school_dashboard/llm.py` | LiteLLM wrapper (handles SSE-for-non-streaming) |
+| LLM client | `school_dashboard/llm.py` | Chat completions client (handles SSE-for-non-streaming) |
 | Google Calendar | `school_dashboard/gcal.py` | gog Calendar fetch with in-process cache |
 | Readiness | `school_dashboard/readiness.py` | morning checklist generation |
 | Static HTML | `school_dashboard/html.py` | Jinja2 → dashboard.html from school-state.json |
@@ -61,7 +61,7 @@ school-sync.sh
 | 2 | `sync/gc-scrape.sh` | Sum events; if all teams empty → loud abort + ntfy alert (refuses to overwrite gc-schedule.json). |
 | 3 | `sync/school-sync.sh` | Run `gc token-refresh` upfront so cron starts with hot JWT. |
 
-Auto-OTP via gog: `_fetch_gc_otp` polls Gmail for `from:gamechanger-noreply@info.gc.com` codes newer than function-start; fills `input#code`; submits.
+Auto-OTP via gog: `_fetch_gc_otp` polls Gmail for codes from the GameChanger OTP sender newer than function-start; fills `input#code`; submits.
 
 ## Docker Deployment
 

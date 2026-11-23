@@ -11,38 +11,38 @@ OLD = {"updated": "2026-10-31T06:00:00", "totals": {"math": {"assigned": 3, "don
 
 
 def _state():
-    return {"ixl": {"Ford": dict(OLD)}, "schoology": {}}
+    return {"ixl": {"Avery": dict(OLD)}, "schoology": {}}
 
 
 def test_error_shaped_file_is_skipped(tmp_path, caplog):
-    (tmp_path / "ford-assigned.json").write_text(json.dumps(
+    (tmp_path / "avery-assigned.json").write_text(json.dumps(
         {"status": "error", "errors": [{"code": "auth.login_failed", "stage": "login"}], "remaining": []}))
     state = _state()
     assert update_from_ixl_files(state, str(tmp_path)) == 0
-    assert state["ixl"]["Ford"] == OLD
-    assert "ford-assigned.json" in caplog.text
+    assert state["ixl"]["Avery"] == OLD
+    assert "avery-assigned.json" in caplog.text
 
 
 MATH = {"math": {"assigned": 3, "done": 1, "remaining": 2}}
 
 
 def test_empty_and_non_dict_files_are_skipped(tmp_path):
-    (tmp_path / "ford-assigned.json").write_text("")
-    (tmp_path / "jack-assigned.json").write_text("[]")
-    (tmp_path / "penn-assigned.json").write_text("{}")
+    (tmp_path / "avery-assigned.json").write_text("")
+    (tmp_path / "casey-assigned.json").write_text("[]")
+    (tmp_path / "blair-assigned.json").write_text("{}")
     state = _state()
     assert update_from_ixl_files(state, str(tmp_path)) == 0
-    assert state["ixl"]["Ford"] == OLD
-    assert "Jack" not in state["ixl"] and "Penn" not in state["ixl"]
+    assert state["ixl"]["Avery"] == OLD
+    assert "Casey" not in state["ixl"] and "Blair" not in state["ixl"]
 
 
 def test_valid_file_is_merged(tmp_path):
-    (tmp_path / "ford-assigned.json").write_text(json.dumps(
+    (tmp_path / "avery-assigned.json").write_text(json.dumps(
         {"status": "ok", "errors": [], "totals": MATH, "remaining": []}))
     state = _state()
     assert update_from_ixl_files(state, str(tmp_path)) == 1
-    assert state["ixl"]["Ford"]["totals"] == MATH
-    assert state["ixl"]["Ford"]["updated"] != OLD["updated"]
+    assert state["ixl"]["Avery"]["totals"] == MATH
+    assert state["ixl"]["Avery"]["updated"] != OLD["updated"]
 
 
 # ---- roster child whose IXL file vanished (school-sync.sh deletes a failed child's file) ----
@@ -54,7 +54,7 @@ GOOD = {"status": "ok", "errors": [], "totals": MATH, "remaining": []}
 def roster(tmp_path, monkeypatch):
     cfg = tmp_path / "roster.json"
     cfg.write_text(json.dumps({"children": {
-        n: {"grade": "5th", "school": "S"} for n in ("Ford", "Jack")}}))
+        n: {"grade": "5th", "school": "S"} for n in ("Avery", "Casey")}}))
     monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(cfg))
     monkeypatch.delenv("SOURCE_IXL_ENABLED", raising=False)
     monkeypatch.setattr(state_mod, "_config_cache", None)
@@ -64,48 +64,48 @@ def roster(tmp_path, monkeypatch):
 
 
 def test_child_with_earlier_data_but_no_file_is_unavailable(roster):
-    (roster / "jack-assigned.json").write_text(json.dumps(GOOD))
-    state = _state()  # Ford has earlier data, no ford file now
+    (roster / "casey-assigned.json").write_text(json.dumps(GOOD))
+    state = _state()  # Avery has earlier data, no avery file now
     assert update_from_ixl_files(state, str(roster)) == 1
-    assert state["scrape_meta"]["ixl"]["unavailable"]["Ford"]["reason"] == "missing"
-    assert state["ixl"]["Ford"] == OLD
-    assert unavailable_for(state, "ixl", "Ford") and not unavailable_for(state, "ixl", "Jack")
+    assert state["scrape_meta"]["ixl"]["unavailable"]["Avery"]["reason"] == "missing"
+    assert state["ixl"]["Avery"] == OLD
+    assert unavailable_for(state, "ixl", "Avery") and not unavailable_for(state, "ixl", "Casey")
     assert "no scrape result was found" in scrape_warnings(state)[0]
 
 
 def test_child_that_never_had_ixl_data_is_not_flagged(roster):
-    (roster / "ford-assigned.json").write_text(json.dumps(GOOD))
-    state = _state()  # Jack: on the roster, never had IXL data
+    (roster / "avery-assigned.json").write_text(json.dumps(GOOD))
+    state = _state()  # Casey: on the roster, never had IXL data
     update_from_ixl_files(state, str(roster))
     assert state["scrape_meta"]["ixl"]["unavailable"] == {}
 
 
 def test_disabled_source_records_nothing(roster, monkeypatch):
     monkeypatch.setenv("SOURCE_IXL_ENABLED", "0")
-    (roster / "jack-assigned.json").write_text(json.dumps(GOOD))
+    (roster / "casey-assigned.json").write_text(json.dumps(GOOD))
     state = _state()
     update_from_ixl_files(state, str(roster))
     assert state["scrape_meta"]["ixl"]["unavailable"] == {}
 
 
 def test_recovery_clears_it_and_since_is_kept_while_down(roster):
-    (roster / "jack-assigned.json").write_text(json.dumps(GOOD))
+    (roster / "casey-assigned.json").write_text(json.dumps(GOOD))
     state = _state()
     update_from_ixl_files(state, str(roster))
-    since = state["scrape_meta"]["ixl"]["unavailable"]["Ford"]["since"]
+    since = state["scrape_meta"]["ixl"]["unavailable"]["Avery"]["since"]
     update_from_ixl_files(state, str(roster))
-    assert state["scrape_meta"]["ixl"]["unavailable"]["Ford"]["since"] == since
-    (roster / "ford-assigned.json").write_text(json.dumps(GOOD))
+    assert state["scrape_meta"]["ixl"]["unavailable"]["Avery"]["since"] == since
+    (roster / "avery-assigned.json").write_text(json.dumps(GOOD))
     update_from_ixl_files(state, str(roster))
     assert state["scrape_meta"]["ixl"]["unavailable"] == {}
 
 
 def test_quick_check_says_ixl_unavailable_for_that_child(roster, tmp_path):
-    (roster / "jack-assigned.json").write_text(json.dumps(GOOD))
+    (roster / "casey-assigned.json").write_text(json.dumps(GOOD))
     state = _state()
     update_from_ixl_files(state, str(roster))
     p = tmp_path / "state.json"
     p.write_text(json.dumps(state))
     text, _ = digest.build_quick_check(str(p), today="2026-11-01")
-    ford = next(ln for ln in text.splitlines() if ln.startswith("Ford:"))
-    assert "IXL unavailable" in ford
+    avery = next(ln for ln in text.splitlines() if ln.startswith("Avery:"))
+    assert "IXL unavailable" in avery

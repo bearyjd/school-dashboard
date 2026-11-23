@@ -15,7 +15,9 @@ NOW = datetime(2026, 11, 5, 8, 0, 0)
 
 @pytest.fixture(autouse=True)
 def reset_cache(tmp_path, monkeypatch):
-    monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(tmp_path / "none.json"))
+    cfg = tmp_path / "cfg.json"
+    cfg.write_text(json.dumps({"children": {}, "name_aliases": {"caseyson": "Casey"}}))
+    monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(cfg))
     state._config_cache = None
     yield
     state._config_cache = None
@@ -46,12 +48,12 @@ def test_empty_state_has_powerschool_section():
 def test_merge_trusted_scrape_keyed_by_canonical_name(tmp_path):
     s = _fresh_state()
     assert _merge(s, _write(tmp_path, _fixture())) == 3
-    assert set(s["powerschool"]) == {"Alex", "Jack", "Jo"}  # John -> Jack via alias
+    assert set(s["powerschool"]) == {"Alex", "Casey", "Jo"}  # Caseyson -> Casey via alias
     alex = s["powerschool"]["Alex"]
     assert alex["missing"][0]["title"] == "Quiz 4 Corrections"
     assert alex["late"][0]["course"] == "English"
     assert alex["upcoming"][0]["due"] == "2026-11-07"
-    assert s["powerschool"]["Jack"]["upcoming"][0]["title"] == "Map Test"
+    assert s["powerschool"]["Casey"]["upcoming"][0]["title"] == "Map Test"
 
 
 def test_config_alias_is_reused(tmp_path, monkeypatch):
@@ -137,7 +139,7 @@ def test_child_level_warning_keeps_only_that_child(tmp_path):
     data["children"][1]["upcoming"] = []
     assert _merge(s, _write(tmp_path, data, "p.json")) == 2
     assert s["powerschool"]["Alex"]["missing"]  # kept
-    assert s["powerschool"]["Jack"]["upcoming"] == []  # replaced
+    assert s["powerschool"]["Casey"]["upcoming"] == []  # replaced
     assert any("Alex" in w for w in s["powerschool_meta"]["warnings"])
 
 
@@ -377,19 +379,20 @@ def test_skip_reason_uses_powersched_env_file(tmp_path, monkeypatch):
 
 def _roster_config(tmp_path, monkeypatch, children):
     cfg = tmp_path / "roster.json"
-    cfg.write_text(json.dumps({"children": {n: {"grade": "4th", "school": "S"} for n in children}}))
+    cfg.write_text(json.dumps({"children": {n: {"grade": "4th", "school": "S"} for n in children},
+                               "name_aliases": {"caseyson": "Casey"}}))
     monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(cfg))
     state._config_cache = None
 
 
 def test_unmatched_portal_name_warns_and_creates_no_orphan(tmp_path, monkeypatch):
-    _roster_config(tmp_path, monkeypatch, ["Jack"])
+    _roster_config(tmp_path, monkeypatch, ["Casey"])
     s = _fresh_state()
     _merge(s, _write(tmp_path, _fixture()))
-    assert set(s["powerschool"]) == {"Jack"}  # John->Jack alias still matches
+    assert set(s["powerschool"]) == {"Casey"}  # Caseyson->Casey alias still matches
     warnings = s["powerschool_meta"]["warnings"]
     assert any("'Alex' not in roster; add name_aliases" in w for w in warnings)
-    assert not any("'Jack'" in w for w in warnings)
+    assert not any("'Casey'" in w for w in warnings)
 
 
 def test_empty_roster_keeps_unmatched_names(tmp_path):

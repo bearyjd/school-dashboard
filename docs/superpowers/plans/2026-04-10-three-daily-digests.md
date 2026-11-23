@@ -141,7 +141,7 @@ def api_calendar():
 - [ ] **Step 3: Verify the app still starts**
 
 ```bash
-cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard
+cd ~/src/school-dashboard
 python3 -c "from web.app import app; print('OK')"
 ```
 
@@ -187,7 +187,7 @@ from school_dashboard.digest import (
 def tmp_state(tmp_path):
     state = {
         "schoology": {
-            "Jack": {
+            "Casey": {
                 "assignments": [
                     {"title": "Math HW", "due_date": "2026-04-10", "course": "Math", "status": ""},
                     {"title": "Future HW", "due_date": "2026-04-11", "course": "ELA", "status": ""},
@@ -195,10 +195,10 @@ def tmp_state(tmp_path):
             }
         },
         "ixl": {
-            "Jack": {"totals": {"Math": {"remaining": 3, "assigned": 5, "done": 2}}}
+            "Casey": {"totals": {"Math": {"remaining": 3, "assigned": 5, "done": 2}}}
         },
         "action_items": [
-            {"child": "Jack", "source": "email", "summary": "Return field trip form", "due": "2026-04-10"},
+            {"child": "Casey", "source": "email", "summary": "Return field trip form", "due": "2026-04-10"},
         ],
     }
     p = tmp_path / "state.json"
@@ -208,7 +208,7 @@ def tmp_state(tmp_path):
 
 @pytest.fixture
 def tmp_facts(tmp_path):
-    facts = [{"subject": "Jack", "fact": "Soccer practice on Tuesdays"}]
+    facts = [{"subject": "Casey", "fact": "Soccer practice on Tuesdays"}]
     p = tmp_path / "facts.json"
     p.write_text(json.dumps(facts))
     return str(p)
@@ -238,7 +238,7 @@ def tmp_db(tmp_path):
 def test_load_state(tmp_state):
     state = _load_state(tmp_state)
     assert "schoology" in state
-    assert "Jack" in state["schoology"]
+    assert "Casey" in state["schoology"]
 
 
 def test_load_facts(tmp_facts):
@@ -874,7 +874,7 @@ html,body { font-size: 18px; }
 - [ ] **Step 2: Deploy to server**
 
 ```bash
-scp web/templates/index.html root@192.168.1.14:/opt/school/web/templates/index.html
+scp web/templates/index.html root@192.0.2.14:/opt/school/web/templates/index.html
 ```
 
 - [ ] **Step 3: Hard-refresh browser** (`Ctrl+Shift+R` or Cmd+Shift+R on Mac, or hold Shift and tap reload on phone)
@@ -895,13 +895,13 @@ git commit -m "fix: set explicit phone-readable font sizes in CSS"
 - [ ] **Step 1: Build and deploy Docker image**
 
 ```bash
-ssh root@192.168.1.14 "cd /opt/school && docker compose build && docker compose up -d"
+ssh root@192.0.2.14 "cd /opt/school && docker compose build && docker compose up -d"
 ```
 
 - [ ] **Step 2: Verify cron entries are loaded**
 
 ```bash
-ssh root@192.168.1.14 "docker compose exec school crontab -l 2>/dev/null || cat /etc/cron.d/school-dashboard"
+ssh root@192.0.2.14 "docker compose exec school crontab -l 2>/dev/null || cat /etc/cron.d/school-dashboard"
 ```
 
 Expected: all 5 cron entries visible (2 sync + 3 digest).
@@ -909,7 +909,7 @@ Expected: all 5 cron entries visible (2 sync + 3 digest).
 - [ ] **Step 3: Test morning digest manually**
 
 ```bash
-ssh root@192.168.1.14 "docker compose exec school bash -c 'set -a && source /app/config/env && set +a && school-state digest --mode morning'"
+ssh root@192.0.2.14 "docker compose exec school bash -c 'set -a && source /app/config/env && set +a && school-state digest --mode morning'"
 ```
 
 Expected: output ending with `Digest sent [morning]: ...` and a push notification arrives on phone.
@@ -917,8 +917,8 @@ Expected: output ending with `Digest sent [morning]: ...` and a push notificatio
 - [ ] **Step 4: Test afternoon and night digests**
 
 ```bash
-ssh root@192.168.1.14 "docker compose exec school bash -c 'set -a && source /app/config/env && set +a && school-state digest --mode afternoon'"
-ssh root@192.168.1.14 "docker compose exec school bash -c 'set -a && source /app/config/env && set +a && school-state digest --mode night'"
+ssh root@192.0.2.14 "docker compose exec school bash -c 'set -a && source /app/config/env && set +a && school-state digest --mode afternoon'"
+ssh root@192.0.2.14 "docker compose exec school bash -c 'set -a && source /app/config/env && set +a && school-state digest --mode night'"
 ```
 
 Expected: two more push notifications arrive on phone.

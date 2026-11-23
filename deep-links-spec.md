@@ -13,7 +13,7 @@ Every item on the dashboard should link to its source:
 | Source | Link Target | Data Available |
 |--------|-------------|----------------|
 | Email action items | Gmail thread | `id` field = Gmail message ID → `https://mail.google.com/mail/u/0/#all/{id}` |
-| Schoology assignments | Assignment page | `link` field = relative path → `https://arlingtondiocese.schoology.com{link}` |
+| Schoology assignments | Assignment page | `link` field = relative path → `https://portal.example.invalid{link}` |
 | IXL remaining work | IXL login | No per-skill deep links → `https://www.ixl.com/` |
 | Calendar events (DB) | Google Calendar event | Need to store `htmlLink` from GCal API when ingesting events |
 | Calendar events (GCal API) | Google Calendar event | `htmlLink` field from API response |
@@ -30,7 +30,7 @@ Every item on the dashboard should link to its source:
 
 The sgy scraper already captures a `link` field per assignment (e.g., `/course/123/assignment/456`). Full URL constructed as:
 ```
-https://arlingtondiocese.schoology.com{assignment.link}
+https://portal.example.invalid{assignment.link}
 ```
 
 Base URL stored as env var `SGY_BASE_URL` (already in `~/.sgy/.env`).
@@ -58,4 +58,4 @@ No per-skill deep links available. Link to generic `https://www.ixl.com/` so kid
 - This is NOT about creating events or writing back to GCal from the dashboard
 - This is NOT about modifying the sgy/ixl scrapers (they already have what we need)
 - GCal API calls happen server-side only — no client-side OAuth
-- The dashboard is LAN-only (192.168.1.14) — no public-facing auth concerns
+- The dashboard is LAN-only (192.0.2.14) — no public-facing auth concerns

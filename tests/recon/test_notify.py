@@ -149,8 +149,7 @@ def test_missing_topic_keeps_rows_pending_logs_one_error_and_does_not_raise(env,
     assert len([r for r in caplog.records if r.levelno >= logging.ERROR]) == 1
 
 
-def test_default_sender_posts_high_priority_with_timeout_and_raise_for_status(env):
-    from school_dashboard.digest import DASHBOARD_BASE
+def test_default_sender_posts_high_priority_with_timeout_and_raise_for_status(env, dashboard_url):
     conn, _ = _setup(env)
     resp = MagicMock()
     with patch("requests.post", return_value=resp) as post:
@@ -159,7 +158,7 @@ def test_default_sender_posts_high_priority_with_timeout_and_raise_for_status(en
     url = post.call_args.args[0]
     assert TOPIC in url and url.startswith("https://ntfy.sh/")
     headers = post.call_args.kwargs["headers"]
-    assert headers["Priority"] == "high" and headers["Click"] == DASHBOARD_BASE
+    assert headers["Priority"] == "high" and headers["Click"] == dashboard_url
     assert headers["Title"] == "School: needs action"
     assert post.call_args.kwargs["timeout"] == (5, 10)
     assert resp.raise_for_status.call_count == 2

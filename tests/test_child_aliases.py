@@ -19,37 +19,37 @@ def _config(tmp_path, monkeypatch, data) -> None:
     monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(p))
 
 
-def test_builtin_default_without_config_aliases(tmp_path, monkeypatch):
+def test_no_alias_without_config_aliases(tmp_path, monkeypatch):
     _config(tmp_path, monkeypatch, {"children": {}})
-    assert _normalize_child("John") == "Jack"
-    assert _normalize_child("Ford") == "Ford"
+    assert _normalize_child("Caseyson") == "Caseyson"
+    assert _normalize_child("Avery") == "Avery"
 
 
-def test_builtin_default_without_config_file(tmp_path, monkeypatch):
+def test_no_alias_without_config_file(tmp_path, monkeypatch):
     monkeypatch.setenv("SCHOOL_DASHBOARD_CONFIG", str(tmp_path / "missing.json"))
-    assert _normalize_child("John") == "Jack"
+    assert _normalize_child("Caseyson") == "Caseyson"
 
 
 def test_config_alias_is_honored(tmp_path, monkeypatch):
-    _config(tmp_path, monkeypatch, {"children": {}, "name_aliases": {"jonny": "Penn"}})
-    assert _normalize_child("Jonny") == "Penn"
-    assert _normalize_child("jonny") == "Penn"
+    _config(tmp_path, monkeypatch, {"children": {}, "name_aliases": {"blairton": "Blair"}})
+    assert _normalize_child("Blairton") == "Blair"
+    assert _normalize_child("blairton") == "Blair"
 
 
-def test_config_alias_overrides_builtin(tmp_path, monkeypatch):
-    _config(tmp_path, monkeypatch, {"children": {}, "name_aliases": {"john": "Johnny"}})
-    assert _normalize_child("John") == "Johnny"
+def test_config_alias_is_case_insensitive(tmp_path, monkeypatch):
+    _config(tmp_path, monkeypatch, {"children": {}, "name_aliases": {"CaSeYsOn": "Casey"}})
+    assert _normalize_child("Caseyson") == "Casey"
 
 
-def test_state_and_app_agree_on_builtin_default(tmp_path, monkeypatch):
-    _config(tmp_path, monkeypatch, {"children": {}})
-    assert state._canonicalize("John") == "Jack" == _normalize_child("John")
-    assert state._canonicalize("john ") == "Jack" == _normalize_child("john ")
+def test_state_and_app_agree_on_configured_alias(tmp_path, monkeypatch):
+    _config(tmp_path, monkeypatch, {"children": {}, "name_aliases": {"caseyson": "Casey"}})
+    assert state._canonicalize("Caseyson") == "Casey" == _normalize_child("Caseyson")
+    assert state._canonicalize("caseyson ") == "Casey" == _normalize_child("caseyson ")
 
 
 def test_normalize_child_matches_canonicalize_for_unmapped(tmp_path, monkeypatch):
     _config(tmp_path, monkeypatch, {"children": {}})
-    assert _normalize_child("ford") == state._canonicalize("ford") == "Ford"
+    assert _normalize_child("avery") == state._canonicalize("avery") == "Avery"
 
 
 def test_normalize_child_tolerates_none_and_empty(tmp_path, monkeypatch):

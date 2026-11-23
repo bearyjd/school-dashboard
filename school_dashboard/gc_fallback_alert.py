@@ -54,7 +54,7 @@ def _default_send(topic: str, message: str, title: str) -> None:
 def _send_limited(title: str, body: str, path: Path, now: Optional[datetime],
                   send: Optional[Sender], extra: dict) -> bool:
     try:
-        topic = os.environ.get("NTFY_TOPIC", "")
+        topic = os.environ.get("NTFY_TOPIC", "").strip()
         if not topic:
             return False
         now = now or datetime.now(timezone.utc)

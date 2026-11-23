@@ -6,7 +6,7 @@
 
 **Architecture:** SQLite `school.db` holds structured calendar/email events; `facts.json` holds amorphous learned facts. A one-time `calendar_import.py` seeds the DB from the PDF. `intel.py` runs at each sync to extract events/facts from classified emails via LiteLLM. The morning digest queries the DB and posts to ntfy (with Email header for Parent2). The chat `/api/chat` gains 30-day lookahead context.
 
-**Tech Stack:** Python 3.12, sqlite3 (stdlib), pypdf (already installed), requests, Flask; gog CLI for Gmail; ntfy.sh for push + email delivery; LiteLLM at http://192.168.1.20:4000/.
+**Tech Stack:** Python 3.12, sqlite3 (stdlib), pypdf (already installed), requests, Flask; gog CLI for Gmail; ntfy.sh for push + email delivery; LiteLLM at http://198.51.100.20:4000/.
 
 ---
 
@@ -101,16 +101,16 @@ def test_query_upcoming_excludes_past(tmp_db):
 
 
 def test_save_and_load_facts(tmp_facts):
-    save_fact(tmp_facts, subject="jack", fact="soccer practice Tuesdays")
-    save_fact(tmp_facts, subject="general", fact="principal emails from principal@smcs.org")
+    save_fact(tmp_facts, subject="casey", fact="soccer practice Tuesdays")
+    save_fact(tmp_facts, subject="general", fact="principal emails from principal@example.invalid")
     facts = load_facts(tmp_facts)
     assert len(facts) == 2
-    assert facts[0]["subject"] == "jack"
+    assert facts[0]["subject"] == "casey"
 
 
 def test_save_fact_dedup(tmp_facts):
-    save_fact(tmp_facts, subject="jack", fact="Soccer Practice Tuesdays")
-    save_fact(tmp_facts, subject="jack", fact="soccer practice tuesdays")  # same, different case
+    save_fact(tmp_facts, subject="casey", fact="Soccer Practice Tuesdays")
+    save_fact(tmp_facts, subject="casey", fact="soccer practice tuesdays")  # same, different case
     facts = load_facts(tmp_facts)
     assert len(facts) == 1
 
@@ -253,8 +253,8 @@ cd /opt/school/dashboard && git add school_dashboard/db.py tests/test_db.py && g
 - [ ] **Step 2.1: Copy the PDF to the server**
 
 ```bash
-scp "/var/home/user/Downloads/Pixel9Fold/switch/Download/2025-2026-Parent-Planning-Calendar-updated.pdf" \
-    root@192.168.1.14:/opt/school/state/calendar.pdf
+scp "~/Downloads/example-school-calendar.pdf" \
+    root@192.0.2.14:/opt/school/state/calendar.pdf
 ```
 
 - [ ] **Step 2.2: Write failing tests**
@@ -285,34 +285,34 @@ def test_parse_month_header_january():
 
 def test_classify_no_school():
     assert classify_event("NO SCHOOL - Labor Day") == "NO_SCHOOL"
-    assert classify_event("No School for 8th Grade Students") == "NO_SCHOOL"
+    assert classify_event("No School for 6th Grade Students") == "NO_SCHOOL"
 
 
 def test_classify_early_release():
     assert classify_event("Early Release") == "EARLY_RELEASE"
-    assert classify_event("12:25 Dismissal") == "EARLY_RELEASE"
+    assert classify_event("12:30 Dismissal") == "EARLY_RELEASE"
 
 
 def test_classify_mass():
     assert classify_event("MASS") == "MASS"
-    assert classify_event("Opening Mass") == "MASS"
+    assert classify_event("Community Mass") == "MASS"
 
 
 def test_classify_assembly():
-    assert classify_event("8:30 am Virtue Assembly") == "ASSEMBLY"
+    assert classify_event("9:00 Morning Assembly") == "ASSEMBLY"
 
 
 def test_classify_parent_mtg():
-    assert classify_event("Back to School Night, Grades 5-8 7:00 pm") == "PARENT_MTG"
+    assert classify_event("Back to School Night, Grades 4–7 at 6:30 PM") == "PARENT_MTG"
     assert classify_event("Parent/Teacher Conferences") == "PARENT_MTG"
 
 
 def test_classify_retreat():
-    assert classify_event("Girls' Confirmation Retreat") == "RETREAT"
+    assert classify_event("Student Leadership Retreat") == "RETREAT"
 
 
 def test_classify_testing():
-    assert classify_event("MAP Growth Testing Week") == "TESTING"
+    assert classify_event("Reading and Math Testing Week") == "TESTING"
 
 
 def test_classify_concert():
@@ -376,18 +376,18 @@ SKIP_LINES = {
 
 NO_SCHOOL_KEYWORDS = ["no school", "no school -", "no school–", "christmas eve",
                        "christmas day", "new year", "easter break", "thanksgiving"]
-EARLY_RELEASE_KEYWORDS = ["early release", "12:25 dismissal", "dismissal"]
-MASS_KEYWORDS = ["mass", "opening mass", "no mass"]
+EARLY_RELEASE_KEYWORDS = ["early release", "12:30 dismissal", "dismissal"]
+MASS_KEYWORDS = ["mass", "community mass", "no mass"]
 ASSEMBLY_KEYWORDS = ["assembly", "virtue assembly"]
 PARENT_MTG_KEYWORDS = ["parent", "back to school night", "parent/teacher", "parent mtg",
                         "8th grade parent", "parent coffee"]
 RETREAT_KEYWORDS = ["retreat", "confirmation"]
-TESTING_KEYWORDS = ["map growth", "testing", "acre testing", "algebra/geometry exam",
-                     "science fair", "placement test"]
+TESTING_KEYWORDS = ["map growth", "testing", "acre testing", "reading/math assessments",
+                     "project fair", "placement test"]
 CONCERT_KEYWORDS = ["concert", "program", "performance", "spring concert", "christmas program"]
 SPORTS_KEYWORDS = ["game", "basketball", "field day", "clap out", "graduation"]
 FIELD_TRIP_KEYWORDS = ["field trip"]
-DANCE_KEYWORDS = ["dance", "mardi gras", "fall festival", "trunk or treat",
+DANCE_KEYWORDS = ["dance", "mardi gras", "fall festival", "community celebration night",
                    "open house", "job fair", "may crowning"]
 
 
@@ -533,7 +533,7 @@ Expected: all tests PASS
 - [ ] **Step 2.6: Run the import on the real PDF**
 
 ```bash
-ssh root@192.168.1.14 "cd /opt/school/dashboard && \
+ssh root@192.0.2.14 "cd /opt/school/dashboard && \
   SCHOOL_DB_PATH=/opt/school/state/school.db \
   python -m school_dashboard.calendar_import \
     /opt/school/state/calendar.pdf /opt/school/state/school.db"
@@ -544,11 +544,11 @@ Expected: `Imported N events into /opt/school/state/school.db` (expect ~55–70)
 - [ ] **Step 2.7: Spot-check the DB**
 
 ```bash
-ssh root@192.168.1.14 "sqlite3 /opt/school/state/school.db \
+ssh root@192.0.2.14 "sqlite3 /opt/school/state/school.db \
   'SELECT date, title, type FROM events ORDER BY date LIMIT 20;'"
 ```
 
-Expected: rows like `2025-08-21|Opening Mass|MASS`, `2025-09-01|NO SCHOOL - Labor Day|NO_SCHOOL`
+Expected: rows like `2026-09-10|Community Mass|MASS`, `2026-09-07|NO SCHOOL - Labor Day|NO_SCHOOL`
 
 - [ ] **Step 2.8: Commit**
 
@@ -580,7 +580,7 @@ from school_dashboard.intel import extract_from_email, process_digest
 SAMPLE_EMAIL = {
     "id": "abc123",
     "subject": "Fall Festival – October 24",
-    "from": "school@stmark.org",
+    "from": "teacher@example.invalid",
     "snippet": "Join us Friday October 24 for the Fall Festival from 5-8pm. Volunteers needed.",
     "bucket": "SCHOOL",
     "attachments": [],
@@ -698,8 +698,8 @@ From the email, extract ONLY:
 
 Return JSON only — no explanation, no markdown:
 {
-  "events": [{"date": "YYYY-MM-DD", "title": "short title", "type": "NO_SCHOOL|EARLY_RELEASE|MASS|ASSEMBLY|PARENT_MTG|RETREAT|TESTING|SPORTS|FIELD_TRIP|CONCERT|OTHER", "child": "ford|jack|penn|null", "notes": "optional detail"}],
-  "facts": [{"subject": "ford|jack|penn|general", "fact": "one-line fact"}]
+  "events": [{"date": "YYYY-MM-DD", "title": "short title", "type": "NO_SCHOOL|EARLY_RELEASE|MASS|ASSEMBLY|PARENT_MTG|RETREAT|TESTING|SPORTS|FIELD_TRIP|CONCERT|OTHER", "child": "avery|casey|blair|null", "notes": "optional detail"}],
+  "facts": [{"subject": "avery|casey|blair|general", "fact": "one-line fact"}]
 }
 If nothing extractable, return: {"events": [], "facts": []}"""
 
@@ -886,13 +886,13 @@ def test_send_ntfy_posts_with_headers():
         send_ntfy(
             topic="test-topic",
             message="Hello",
-            email="parent@example.com",
+            email="parent@example.invalid",
         )
         call_kwargs = mock_post.call_args
         headers = call_kwargs.kwargs.get("headers") or call_kwargs.args[1] if len(call_kwargs.args) > 1 else {}
         # Headers may be in kwargs
         _, kwargs = call_kwargs
-        assert "parent@example.com" in str(kwargs)
+        assert "parent@example.invalid" in str(kwargs)
 EOF
 ```
 
@@ -1048,21 +1048,21 @@ cd /opt/school/dashboard && git add school_dashboard/digest.py tests/test_digest
 - [ ] **Step 5.1: Add missing env vars**
 
 ```bash
-ssh root@192.168.1.14 "cat >> /opt/school/config/env << 'EOF'
+ssh root@192.0.2.14 "cat >> /opt/school/config/env << 'EOF'
 
 # Email + memory intelligence layer (added 2026-04-09)
-SCHOOL_EMAIL_ACCOUNT=parent@example.com
+SCHOOL_EMAIL_ACCOUNT=parent@example.invalid
 SCHOOL_DB_PATH=/opt/school/state/school.db
 SCHOOL_FACTS_PATH=/opt/school/state/facts.json
 SCHOOL_CALENDAR_PDF=/opt/school/state/calendar.pdf
-DIGEST_EMAIL=parent@example.com
+DIGEST_EMAIL=parent@example.invalid
 EOF"
 ```
 
 - [ ] **Step 5.2: Verify env vars are set**
 
 ```bash
-ssh root@192.168.1.14 "grep -E 'SCHOOL_EMAIL_ACCOUNT|SCHOOL_DB_PATH|DIGEST_EMAIL' /opt/school/config/env"
+ssh root@192.0.2.14 "grep -E 'SCHOOL_EMAIL_ACCOUNT|SCHOOL_DB_PATH|DIGEST_EMAIL' /opt/school/config/env"
 ```
 
 Expected: 3 lines printed
@@ -1072,7 +1072,7 @@ Expected: 3 lines printed
 Replace the full file on the server:
 
 ```bash
-ssh root@192.168.1.14 "cat > /opt/school/dashboard/school-sync.sh << 'SCRIPT'
+ssh root@192.0.2.14 "cat > /opt/school/dashboard/school-sync.sh << 'SCRIPT'
 #!/usr/bin/env bash
 # school-sync.sh — Data refresh: scrape all sources, update state, regenerate dashboard.
 # Runs via system cron at 6:00am and 2:30pm weekdays.
@@ -1169,7 +1169,7 @@ db = os.environ.get('SCHOOL_DB_PATH', '/opt/school/state/school.db')
 facts_path = os.environ.get('SCHOOL_FACTS_PATH', '/opt/school/state/facts.json')
 state_path = os.environ.get('SCHOOL_STATE_PATH', '/opt/school/state/school-state.json')
 topic = os.environ.get('NTFY_TOPIC', '')
-bryn_email = os.environ.get('DIGEST_EMAIL', '')
+digest_email = os.environ.get('DIGEST_EMAIL', '')
 prompt_path = '/opt/school/dashboard/cron-prompts/morning-briefing.md'
 
 events = query_upcoming_events(db, from_date=date.today().isoformat(), days=7)
@@ -1191,7 +1191,7 @@ text = build_digest_text(
     system_prompt=system_prompt,
 )
 if topic:
-    ok = send_ntfy(topic, text, email=bryn_email or None)
+    ok = send_ntfy(topic, text, email=digest_email or None)
     print(f'ntfy sent: {ok}', file=sys.stderr)
 else:
     print('WARN: NTFY_TOPIC not set', file=sys.stderr)
@@ -1205,7 +1205,7 @@ chmod +x /opt/school/dashboard/school-sync.sh"
 - [ ] **Step 5.4: Update morning-briefing.md** (replace openclaw placeholders)
 
 ```bash
-ssh root@192.168.1.14 "cat > /opt/school/dashboard/cron-prompts/morning-briefing.md << 'EOF'
+ssh root@192.0.2.14 "cat > /opt/school/dashboard/cron-prompts/morning-briefing.md << 'EOF'
 # Morning Briefing — System Prompt
 
 You are a concise school digest assistant for the our family.
@@ -1215,14 +1215,14 @@ Parents: Parent1 and Parent2. Today's date is provided in the user message.
 Write a short morning briefing under 1200 characters. Be specific, not generic. Skip empty sections entirely.
 
 Format:
-📅 THIS WEEK — upcoming school events, no-school days, early releases (12:25 dismissal)
+📅 THIS WEEK — upcoming school events, no-school days, early releases (12:30 dismissal)
 ⚡ ACTION NEEDED — anything requiring a parent response, signature, or deadline (note child)
 📚 IXL — flag any child with 0 minutes yesterday; celebrate if all kids hit goal
 🏫 FROM EMAIL — notable school updates or activity news
 
 Rules:
 - One line per item, terse
-- Early releases: always note 12:25 dismissal
+- Early releases: always note 12:30 dismissal
 - No School days: note which days so parents can plan coverage
 - If nothing for a section, omit the section header entirely
 - End with a one-line summary: "X events this week."
@@ -1232,7 +1232,7 @@ EOF"
 - [ ] **Step 5.5: Test the sync script dry-run**
 
 ```bash
-ssh root@192.168.1.14 "bash -n /opt/school/dashboard/school-sync.sh && echo 'syntax OK'"
+ssh root@192.0.2.14 "bash -n /opt/school/dashboard/school-sync.sh && echo 'syntax OK'"
 ```
 
 Expected: `syntax OK`
@@ -1240,7 +1240,7 @@ Expected: `syntax OK`
 - [ ] **Step 5.6: Run a manual sync and watch logs**
 
 ```bash
-ssh root@192.168.1.14 "bash /opt/school/dashboard/school-sync.sh 2>&1"
+ssh root@192.0.2.14 "bash /opt/school/dashboard/school-sync.sh 2>&1"
 ```
 
 Verify: no unhandled errors; email sync runs; intel step runs; HTML regenerated.
@@ -1248,7 +1248,7 @@ Verify: no unhandled errors; email sync runs; intel step runs; HTML regenerated.
 - [ ] **Step 5.7: Force a morning digest test** (regardless of hour)
 
 ```bash
-ssh root@192.168.1.14 "source /opt/school/config/env && python3 -c \"
+ssh root@192.0.2.14 "source /opt/school/config/env && python3 -c \"
 import json, sys
 from datetime import date
 sys.path.insert(0, '/opt/school/dashboard')
@@ -1279,7 +1279,7 @@ Expected: digest text printed, `Sent: True`
 
 ```bash
 # On local dev machine (the sync.sh is on the server, commit local config/plan changes)
-cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard \
+cd ~/src/school-dashboard \
   && git add docs/superpowers/plans/ \
   && git commit -m "docs: add email/calendar/memory implementation plan"
 ```
@@ -1294,7 +1294,7 @@ cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard 
 - [ ] **Step 6.1: Update build_system_prompt() on the server**
 
 ```bash
-ssh root@192.168.1.14 "cat > /opt/school/web/app.py << 'PYEOF'
+ssh root@192.0.2.14 "cat > /opt/school/web/app.py << 'PYEOF'
 import json
 import os
 import sqlite3
@@ -1306,7 +1306,7 @@ from flask import Flask, jsonify, render_template, request, Response
 
 app = Flask(__name__)
 
-LITELLM_URL = os.environ.get(\"LITELLM_URL\", \"http://192.168.1.20:4000/\")
+LITELLM_URL = os.environ.get(\"LITELLM_URL\", \"http://198.51.100.20:4000/\")
 LITELLM_API_KEY = os.environ.get(\"LITELLM_API_KEY\", \"\")
 LITELLM_MODEL = os.environ.get(\"LITELLM_MODEL\", \"claude-sonnet-4-6\")
 STATE_PATH = os.environ.get(\"SCHOOL_STATE_PATH\", \"/opt/school/state/school-state.json\")
@@ -1456,7 +1456,7 @@ PYEOF"
 - [ ] **Step 6.2: Restart the web service**
 
 ```bash
-ssh root@192.168.1.14 "systemctl restart school-web && sleep 2 && systemctl is-active school-web"
+ssh root@192.0.2.14 "systemctl restart school-web && sleep 2 && systemctl is-active school-web"
 ```
 
 Expected: `active`
@@ -1464,7 +1464,7 @@ Expected: `active`
 - [ ] **Step 6.3: Smoke test the chat endpoint**
 
 ```bash
-ssh root@192.168.1.14 "curl -s -X POST http://localhost:5000/api/chat \
+ssh root@192.0.2.14 "curl -s -X POST http://localhost:5000/api/chat \
   -H 'Content-Type: application/json' \
   -d '{\"message\": \"When is the next no-school day?\"}' | python3 -m json.tool"
 ```
@@ -1475,10 +1475,10 @@ Expected: JSON with `reply` field mentioning a specific date from school.db
 
 ```bash
 # Sync the updated app.py back to local repo for tracking
-scp root@192.168.1.14:/opt/school/web/app.py \
-    /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard/web-app.py.bak
+scp root@192.0.2.14:/opt/school/web/app.py \
+    ~/src/school-dashboard/web/app.py
 # (server is the source of truth for /opt/school/web/app.py)
-cd /var/home/user/Documents/vibe-code/openclaw-programs/school/school-dashboard \
+cd ~/src/school-dashboard \
   && git add -A && git commit -m "feat: expand chat context with 30-day events and facts"
 ```
 
